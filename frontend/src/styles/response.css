@@ -1,0 +1,531 @@
+/* ------------------------------------------------------------------ *
+ * Response header
+ *
+ * Attribution as one compact block, never a grid of cards: the model
+ * that wrote the text is named, and AI Compass is credited only with
+ * the routing.
+ * ------------------------------------------------------------------ */
+
+.response-header {
+  margin-bottom: var(--space-4);
+  padding-bottom: var(--space-3);
+  border-bottom: var(--border-strength) solid var(--color-border-subtle);
+}
+
+.response-header-top {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: var(--space-3);
+}
+
+.response-header-identity {
+  min-width: 0;
+}
+
+.response-header-label {
+  margin: 0;
+  color: var(--color-text-muted);
+  font-size: var(--font-size-2xs);
+  font-weight: var(--weight-semibold);
+  text-transform: uppercase;
+  letter-spacing: var(--letter-wide);
+}
+
+.response-header-model {
+  margin: 1px 0 0;
+  color: var(--color-text-primary);
+  font-size: var(--font-size-md);
+  font-weight: var(--weight-semibold);
+  line-height: 1.3;
+}
+
+.response-header-provider {
+  margin: 0;
+  color: var(--color-text-secondary);
+  font-size: var(--font-size-xs);
+}
+
+.response-header-actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-2);
+}
+
+/* "Routed by AI Compass" — the routing credit, kept visually secondary
+   to the model named above it. */
+.response-header-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.3em;
+  padding: 2px var(--space-2);
+  border: var(--border-strength) solid var(--color-primary-border);
+  border-radius: var(--radius-sm);
+  background: var(--color-primary-subtle);
+  color: var(--color-primary-text);
+  font-size: var(--font-size-2xs);
+  font-weight: var(--weight-semibold);
+  white-space: nowrap;
+}
+
+.response-header-badge svg {
+  width: 0.75rem;
+  height: 0.75rem;
+}
+
+.response-header-copy {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.3em;
+  padding: 3px var(--space-2);
+  border: var(--border-strength) solid var(--color-border);
+  border-radius: var(--radius-sm);
+  background: var(--color-surface);
+  color: var(--color-text-secondary);
+  font-size: var(--font-size-2xs);
+  font-weight: var(--weight-medium);
+  white-space: nowrap;
+  cursor: pointer;
+  transition: background-color var(--duration-fast) var(--ease-standard);
+}
+
+.response-header-copy:hover {
+  background: var(--color-surface-muted);
+  color: var(--color-text-primary);
+}
+
+.response-header-copy svg {
+  width: 0.75rem;
+  height: 0.75rem;
+}
+
+/* Latency · tokens · cost on one line. */
+.response-header-facts {
+  margin: var(--space-2) 0 0;
+  color: var(--color-text-muted);
+  font-size: var(--font-size-2xs);
+  font-variant-numeric: tabular-nums;
+}
+
+/* ------------------------------------------------------------------ *
+ * Provider response rendering
+ *
+ * A dedicated type scale for model output. Prose is held to a readable
+ * measure; code and tables are allowed the full column width, because
+ * both are intrinsically wider than prose and a narrow measure would
+ * force them to wrap into unreadability.
+ * ------------------------------------------------------------------ */
+
+.model-response {
+  /* Prose stops here. Code and tables below override this. */
+  --response-measure: 54rem;
+  --response-prose: 0.9375rem; /* 15px */
+  --response-gap: var(--space-4);
+
+  max-width: 100%;
+  color: var(--color-text-primary);
+  font-size: var(--response-prose);
+  line-height: var(--line-height-relaxed);
+  overflow-wrap: break-word;
+}
+
+/* Prose elements share one measure so the response reads as a column
+   rather than stretching the full dashboard. */
+.model-response > p,
+.model-response > ul,
+.model-response > ol,
+.model-response > blockquote,
+.model-response > h1,
+.model-response > h2,
+.model-response > h3,
+.model-response > h4 {
+  max-width: var(--response-measure);
+}
+
+.model-response > *:first-child {
+  margin-top: 0;
+}
+
+.model-response > *:last-child {
+  margin-bottom: 0;
+}
+
+.model-response p {
+  margin: 0 0 var(--response-gap);
+}
+
+/* Headings. Sizes follow the response scale in the spec: 26 / 20 / 17. */
+.model-response h1,
+.model-response h2,
+.model-response h3,
+.model-response h4,
+.model-response h5,
+.model-response h6 {
+  margin: calc(var(--response-gap) * 1.5) 0 var(--space-2);
+  color: var(--color-text-primary);
+  font-weight: var(--weight-semibold);
+  line-height: var(--line-height-snug);
+  letter-spacing: var(--letter-tight);
+}
+
+.model-response h1 {
+  font-size: 1.625rem; /* 26px */
+}
+
+.model-response h2 {
+  font-size: 1.25rem; /* 20px */
+}
+
+.model-response h3 {
+  font-size: 1.0625rem; /* 17px */
+}
+
+.model-response h4,
+.model-response h5,
+.model-response h6 {
+  font-size: var(--font-size-sm);
+  color: var(--color-text-secondary);
+  text-transform: uppercase;
+  letter-spacing: var(--letter-wide);
+}
+
+/* Lists, including nesting. */
+.model-response ul,
+.model-response ol {
+  margin: 0 0 var(--response-gap);
+  padding-left: 1.35rem;
+}
+
+.model-response li {
+  margin-bottom: var(--space-1);
+}
+
+.model-response li > ul,
+.model-response li > ol {
+  margin-top: var(--space-1);
+  margin-bottom: 0;
+}
+
+.model-response li::marker {
+  color: var(--color-text-muted);
+}
+
+/* Inline code. Deliberately small — it is an aside to the prose, not a
+   panel, so it stays on the text baseline. */
+.md-inline-code,
+.model-response :not(pre) > code {
+  padding: 0.1em 0.35em;
+  border: var(--border-strength) solid var(--color-border-subtle);
+  border-radius: var(--radius-sm);
+  background: var(--color-surface-muted);
+  color: var(--color-text-primary);
+  font-family: var(--font-mono);
+  font-size: 0.875em;
+  overflow-wrap: break-word;
+}
+
+/* Blockquote: a quiet aside, not a callout. */
+.model-response blockquote {
+  margin: 0 0 var(--response-gap);
+  padding: var(--space-2) var(--space-3);
+  border-left: 2px solid var(--color-border-strong);
+  border-radius: 0 var(--radius-sm) var(--radius-sm) 0;
+  background: var(--color-surface-muted);
+  color: var(--color-text-secondary);
+}
+
+.model-response blockquote > *:last-child {
+  margin-bottom: 0;
+}
+
+.model-response hr {
+  margin: var(--response-gap) 0;
+  border: 0;
+  border-top: var(--border-strength) solid var(--color-border-subtle);
+}
+
+.model-response a {
+  color: var(--color-primary-text);
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}
+
+.model-response strong {
+  font-weight: var(--weight-semibold);
+  color: var(--color-text-primary);
+}
+
+/* ------------------------------------------------------------------ *
+ * Tables
+ *
+ * Full column width, and scrolled inside a wrapper rather than allowed
+ * to push the page sideways.
+ * ------------------------------------------------------------------ */
+
+.md-table-wrap {
+  max-width: 100%;
+  margin: 0 0 var(--response-gap);
+  overflow-x: auto;
+  border: var(--border-strength) solid var(--color-border-subtle);
+  border-radius: var(--radius-md);
+  scrollbar-gutter: stable;
+}
+
+.md-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: var(--font-size-sm);
+  line-height: var(--line-height-snug);
+}
+
+.md-table th,
+.md-table td {
+  padding: var(--space-2) var(--space-3);
+  text-align: left;
+  vertical-align: top;
+  border-bottom: var(--border-strength) solid var(--color-border-subtle);
+}
+
+.md-table thead th {
+  position: sticky;
+  top: 0;
+  background: var(--color-surface-muted);
+  color: var(--color-text-primary);
+  font-size: var(--font-size-xs);
+  font-weight: var(--weight-semibold);
+  text-transform: uppercase;
+  letter-spacing: var(--letter-wide);
+  white-space: nowrap;
+}
+
+.md-table tbody tr:last-child td {
+  border-bottom: 0;
+}
+
+.md-table tbody tr:hover {
+  background: var(--color-surface-muted);
+}
+
+/* A table cell may itself contain inline code or links; keep the cell
+   from being stretched by a long unbreakable token. */
+.md-table td code {
+  white-space: nowrap;
+}
+
+/* ------------------------------------------------------------------ *
+ * Code blocks
+ * ------------------------------------------------------------------ */
+
+.code-block {
+  max-width: 100%;
+  margin: 0 0 var(--response-gap);
+  overflow: hidden;
+  border: var(--border-strength) solid var(--color-border-subtle);
+  border-radius: var(--radius-md);
+  background: var(--color-surface-muted);
+}
+
+.code-block-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-2);
+  padding: var(--space-1) var(--space-2) var(--space-1) var(--space-3);
+  border-bottom: var(--border-strength) solid var(--color-border-subtle);
+  background: var(--color-surface);
+}
+
+.code-block-language {
+  color: var(--color-text-muted);
+  font-size: var(--font-size-2xs);
+  font-weight: var(--weight-semibold);
+  text-transform: uppercase;
+  letter-spacing: var(--letter-wide);
+}
+
+.code-block-copy {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.25em;
+  padding: 2px var(--space-2);
+  border: var(--border-strength) solid transparent;
+  border-radius: var(--radius-sm);
+  background: transparent;
+  color: var(--color-text-secondary);
+  font-size: var(--font-size-2xs);
+  font-weight: var(--weight-medium);
+  cursor: pointer;
+  transition: background-color var(--duration-fast) var(--ease-standard);
+}
+
+.code-block-copy:hover {
+  border-color: var(--color-border);
+  background: var(--color-surface-muted);
+  color: var(--color-text-primary);
+}
+
+.code-block-copy svg {
+  width: 0.75rem;
+  height: 0.75rem;
+}
+
+.code-block-body {
+  max-width: 100%;
+  margin: 0;
+  padding: var(--space-3);
+  overflow-x: auto;
+  background: var(--color-surface-muted);
+  color: var(--color-text-primary);
+  font-family: var(--font-mono);
+  font-size: var(--font-size-xs);
+  line-height: var(--line-height-relaxed);
+  tab-size: 2;
+  scrollbar-gutter: stable;
+}
+
+.code-block-body code {
+  display: block;
+  min-width: 0;
+  background: none;
+  font: inherit;
+}
+
+/* No visible focus ring on the scroll container itself, but it must
+   still show one for keyboard users. */
+.code-block-body:focus-visible,
+.md-table-wrap:focus-visible,
+.model-response:focus-visible {
+  outline: 2px solid var(--color-primary);
+  outline-offset: -2px;
+}
+
+/* ------------------------------------------------------------------ *
+ * Syntax highlighting
+ *
+ * `rehype-highlight` emits the standard `hljs-*` class names. Rather
+ * than importing a highlight.js theme — which is a fixed palette and
+ * would be unreadable in one mode or the other — the tokens are mapped
+ * onto this project's own palette and re-tuned for the dark theme, so
+ * code keeps its contrast in both.
+ * ------------------------------------------------------------------ */
+
+.model-response {
+  --hljs-keyword: var(--color-primary-text);
+  --hljs-string: var(--color-text-secondary);
+  --hljs-number: var(--color-primary-text);
+  --hljs-comment: var(--color-text-muted);
+  --hljs-function: var(--color-text-primary);
+  --hljs-literal: var(--color-primary);
+  --hljs-type: var(--color-primary);
+  --hljs-title: var(--color-info-text);
+  --hljs-attr: var(--color-text-secondary);
+  --hljs-built_in: var(--color-text-secondary);
+  --hljs-symbol: var(--color-primary);
+  --hljs-meta: var(--color-text-muted);
+  --hljs-deletion: var(--color-danger);
+  --hljs-addition: var(--color-success);
+}
+
+[data-theme='dark'] .model-response {
+  /* Lighter steps are needed against an elevated dark surface. */
+  --hljs-keyword: var(--color-primary-text);
+  --hljs-string: var(--color-text-secondary);
+  --hljs-number: var(--color-primary-text);
+  --hljs-comment: var(--color-text-muted);
+  --hljs-function: var(--color-text-primary);
+  --hljs-literal: var(--color-primary);
+  --hljs-type: var(--color-primary);
+  --hljs-title: var(--color-info-text);
+  --hljs-attr: var(--color-text-secondary);
+  --hljs-built_in: var(--color-text-secondary);
+  --hljs-symbol: var(--color-primary);
+  --hljs-meta: var(--color-text-muted);
+  --hljs-deletion: var(--color-danger);
+  --hljs-addition: var(--color-success);
+}
+
+.hljs-comment,
+.hljs-quote {
+  font-style: italic;
+}
+
+.hljs-keyword,
+.hljs-selector-tag,
+.hljs-literal,
+.hljs-doctag,
+.hljs-name,
+.hljs-operator {
+  color: var(--hljs-keyword);
+}
+
+.hljs-string,
+.hljs-regexp,
+.hljs-addition,
+.hljs-attribute,
+.hljs-meta .hljs-string {
+  color: var(--hljs-string);
+}
+
+.hljs-number,
+.hljs-variable,
+.hljs-template-variable,
+.hljs-selector-attr,
+.hljs-selector-pseudo {
+  color: var(--hljs-number);
+}
+
+.hljs-title,
+.hljs-section,
+.hljs-selector-id,
+.hljs-title.class_,
+.hljs-title.function_ {
+  color: var(--hljs-title);
+}
+
+.hljs-type,
+.hljs-class .hljs-title,
+.hljs-symbol,
+.hljs-bullet,
+.hljs-link,
+.hljs-deletion {
+  color: var(--hljs-type);
+}
+
+.hljs-built_in,
+.hljs-title.class_.inherited__ {
+  color: var(--hljs-built_in);
+}
+
+.hljs-attr,
+.hljs-property,
+.hljs-params {
+  color: var(--hljs-attr);
+}
+
+.hljs-comment,
+.hljs-meta,
+.hljs-subst {
+  color: var(--hljs-comment);
+}
+
+.hljs-deletion {
+  color: var(--hljs-deletion);
+}
+
+.hljs-addition {
+  color: var(--hljs-addition);
+}
+
+/* Placeholder while the renderer chunk loads. Sized to avoid a layout
+   jump once the rendered document replaces it. */
+.model-response-loading {
+  min-height: 8rem;
+  padding: var(--space-4);
+  border: var(--border-strength) solid var(--color-border-subtle);
+  border-radius: var(--radius-md);
+  background: var(--color-surface-muted);
+  color: var(--color-text-muted);
+  font-size: var(--font-size-sm);
+}

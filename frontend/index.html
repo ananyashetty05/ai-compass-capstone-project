@@ -1,0 +1,43 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta
+      name="description"
+      content="AI Compass analyzes your task, filters capable AI models, and recommends the best fit across quality, cost, speed, reliability, and your priorities."
+    />
+    <meta name="application-name" content="AI Compass" />
+    <meta name="theme-color" content="#f6f5f0" />
+    <meta name="color-scheme" content="light dark" />
+    <meta property="og:type" content="website" />
+    <meta property="og:site_name" content="AI Compass" />
+    <meta property="og:title" content="AI Compass — Find the right AI model for your task" />
+    <meta
+      property="og:description"
+      content="Explainable, multi-objective recommendations for AI models and applications."
+    />
+    <title>AI Compass — AI model recommendations</title>
+    <script>
+      (() => {
+        try {
+          const preference = localStorage.getItem('aicompass.theme.preference');
+          const theme = preference === 'light' || preference === 'dark'
+            ? preference
+            : window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light';
+          document.documentElement.dataset.theme = theme;
+          document.documentElement.style.colorScheme = theme;
+        } catch {
+          document.documentElement.dataset.theme =
+            window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light';
+        }
+      })();
+    </script>
+  </head>
+  <body>
+    <div id="root"></div>
+    <noscript>AI Compass requires JavaScript to route queries and display results.</noscript>
+    <script type="module" src="/src/main.tsx"></script>
+  </body>
+</html>

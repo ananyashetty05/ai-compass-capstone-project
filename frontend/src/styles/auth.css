@@ -1,0 +1,552 @@
+/*
+ * AI Compass — Split-screen sign-in
+ * ------------------------------------------------------------------
+ * A full-viewport two-panel authentication surface: a calm, light form
+ * column on the left and a dark routing hero on the right. The hero is a
+ * real DOM/SVG construction (orbits, nodes, a layered sphere), not an
+ * image, and it carries no focusable elements, so it can never interfere
+ * with the form.
+ *
+ * Split ratio is 46 / 54 from 64rem up. Below that the panels stack with
+ * the form first and the hero collapses to a compact band.
+ *
+ * Every colour resolves through a token defined in tokens.css. There are
+ * no raw hex values and no !important in this file.
+ */
+
+.login-page {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  min-height: 100dvh;
+  background: var(--color-background);
+}
+
+/* ------------------------------------------------------------------ *
+ * Left panel — authentication
+ * ------------------------------------------------------------------ */
+
+.login-panel {
+  display: grid;
+  align-content: center;
+  min-width: 0;
+  padding: var(--space-8) var(--space-6) var(--space-12);
+}
+
+.login-panel-inner {
+  width: min(28.75rem, 100%);
+  margin: 0 auto;
+}
+
+/* The shared Brand lockup carries a bottom rule suited to a card; on the
+   split screen the brand is a quiet corner mark, so the rule is dropped. */
+.login-brand {
+  margin-bottom: var(--space-10);
+  padding-bottom: 0;
+  border-bottom: 0;
+  color: var(--color-text-primary);
+}
+
+.login-heading {
+  margin: var(--space-3) 0 0;
+  font-size: clamp(1.85rem, 1.4rem + 1.6vw, 2.5rem);
+  font-weight: var(--weight-bold);
+  line-height: 1.1;
+  letter-spacing: -0.03em;
+}
+
+.login-subtitle {
+  margin: var(--space-3) 0 0;
+  color: var(--color-text-secondary);
+  font-size: var(--font-size-lg);
+  line-height: var(--line-height-relaxed);
+}
+
+.login-form {
+  display: grid;
+  gap: var(--space-4);
+  margin-top: var(--space-6);
+}
+
+.login-form-alerts {
+  display: grid;
+  gap: var(--space-3);
+}
+
+/* Primary action spans the column; the arrow rides the leading edge of
+   the label so the button reads as a forward motion. */
+.login-submit {
+  justify-content: center;
+}
+
+/* Divider between the credential form and the account-creation path. */
+.login-divider {
+  display: flex;
+  align-items: center;
+  gap: var(--space-4);
+  margin: var(--space-8) 0 0;
+  color: var(--color-text-muted);
+  font-size: var(--font-size-2xs);
+  font-weight: var(--weight-semibold);
+  letter-spacing: var(--letter-wide);
+  text-transform: uppercase;
+}
+
+.login-divider::before,
+.login-divider::after {
+  content: '';
+  flex: 1 1 auto;
+  height: var(--border-strength);
+  background: var(--color-border);
+}
+
+.login-alt {
+  margin: var(--space-5) 0 0;
+  color: var(--color-text-secondary);
+  font-size: var(--font-size-base);
+  text-align: center;
+}
+
+/* ------------------------------------------------------------------ *
+ * Right panel — routing hero
+ * ------------------------------------------------------------------ */
+
+.login-hero {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  overflow: hidden;
+  padding: var(--space-8) var(--space-6) var(--space-10);
+  background:
+    radial-gradient(120% 80% at 78% 8%, var(--color-hero-bg-lift) 0%, transparent 62%),
+    radial-gradient(90% 70% at 12% 100%, rgb(10 132 255 / 10%) 0%, transparent 58%),
+    var(--color-hero-bg);
+  color: var(--color-hero-text);
+  isolation: isolate;
+}
+
+.login-hero-content {
+  position: relative;
+  z-index: 2;
+  width: 100%;
+  max-width: 34rem;
+}
+
+/* Capped so "routed on its own terms." holds one line: at 3rem it needs
+   roughly 31rem, and a third line would break the reference's two-line
+   editorial shape. */
+.login-hero-title {
+  margin: var(--space-4) 0 0;
+  font-size: clamp(2rem, 1.2rem + 2.2vw, 3rem);
+  font-weight: var(--weight-bold);
+  line-height: 1.06;
+  letter-spacing: -0.035em;
+  text-wrap: balance;
+}
+
+.login-hero-lede {
+  max-width: 40ch;
+  margin: var(--space-5) 0 0;
+  color: var(--color-hero-text-secondary);
+  font-size: var(--font-size-lg);
+  line-height: var(--line-height-relaxed);
+}
+
+/* ------------------------------------------------------------------ *
+ * Routing visual — sphere, orbits, nodes
+ * ------------------------------------------------------------------ */
+
+.routing-visual {
+  position: relative;
+  z-index: 1;
+  flex: 1 1 auto;
+  display: grid;
+  place-items: center;
+  min-height: 15rem;
+  margin-top: var(--space-6);
+  pointer-events: none;
+}
+
+/* Square stage. Capped by width, by a share of the panel, and by viewport
+   height so the orbits stay circular in the short stacked layout. */
+.routing-stage {
+  position: relative;
+  width: min(23rem, 66%, 34vh);
+  aspect-ratio: 1;
+}
+
+/* The core is the routing layer itself: a layered radial-gradient sphere
+   with a rim light, sitting behind the orbital paths. */
+.routing-core {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  width: 42%;
+  aspect-ratio: 1;
+  transform: translate(-50%, -50%);
+  border-radius: 50%;
+  background:
+    radial-gradient(circle at 33% 28%, var(--color-hero-accent-soft) 0%, transparent 38%),
+    radial-gradient(circle at 68% 74%, var(--color-hero-accent) 0%, transparent 52%),
+    linear-gradient(158deg, var(--color-hero-surface-raised) 0%, var(--color-hero-bg) 78%);
+  box-shadow:
+    0 0 3.5rem var(--color-hero-glow-wide),
+    0 0 1.25rem var(--color-hero-glow),
+    inset 0 0 2.5rem rgb(0 0 0 / 42%);
+  animation: routing-core-breathe 18s var(--ease-standard) infinite;
+}
+
+/* Rim light: a blurred ring that reads as a lit edge rather than a border. */
+.routing-core::after {
+  content: '';
+  position: absolute;
+  inset: 6%;
+  border-radius: 50%;
+  border: 1px solid var(--color-hero-line-strong);
+  filter: blur(1px);
+}
+
+.routing-orbit {
+  position: absolute;
+  border: 1px solid var(--color-hero-line);
+  border-radius: 50%;
+}
+
+/* Each ring spins slowly; because a node is pinned to the ring's edge it
+   rides the circle without any path maths. */
+.routing-orbit[data-ring='1'] {
+  inset: 4%;
+  animation: routing-spin 78s linear infinite;
+}
+
+.routing-orbit[data-ring='2'] {
+  inset: 17%;
+  animation: routing-spin 58s linear infinite reverse;
+}
+
+.routing-orbit[data-ring='3'] {
+  inset: 30%;
+  animation: routing-spin 42s linear infinite;
+}
+
+/* Bearings place a node at a fixed angle on its ring. For a circle
+   inscribed in the square ring, the point at angle θ from the top is
+   (50 + 50·sin θ, 50 − 50·cos θ) as a percentage of the ring box:
+     a → θ =   0°  →  (50.0%,  0.0%)
+     b → θ = 140°  →  (82.1%, 88.3%)
+     c → θ = 250°  →  ( 3.0%, 67.1%)
+   The ring's rotation then carries each node around the circle. */
+.routing-node[data-bearing='a'] {
+  top: 0;
+  left: 50%;
+}
+
+.routing-node[data-bearing='b'] {
+  top: 88.3%;
+  left: 82.1%;
+}
+
+.routing-node[data-bearing='c'] {
+  top: 67.1%;
+  left: 3%;
+}
+
+.routing-node {
+  position: absolute;
+  width: 0.5rem;
+  height: 0.5rem;
+  transform: translate(-50%, -50%);
+  border-radius: 50%;
+  background: var(--color-hero-accent);
+  box-shadow: 0 0 0.6rem var(--color-hero-glow);
+}
+
+.routing-node--muted {
+  background: var(--color-hero-accent);
+  box-shadow: 0 0 0.5rem rgb(10 132 255 / 34%);
+}
+
+/* ------------------------------------------------------------------ *
+ * Floating stage annotations
+ *
+ * Explanatory, not interactive: no button, no link, no tab stop, and the
+ * whole group is a list so assistive technology reads it as one ordered
+ * set rather than six scattered fragments. The icons are decorative —
+   the label text carries the meaning.
+ * ------------------------------------------------------------------ */
+
+.routing-labels {
+  position: absolute;
+  inset: 0;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.routing-label {
+  position: absolute;
+  display: flex;
+  align-items: flex-start;
+  gap: var(--space-2);
+  /* The stage is the containing block, so a plain abspos label is
+     shrink-to-fit against the distance from its `left` to the stage's
+     right edge — a few pixels for the outermost slots, which crushed
+     the longer notes into a narrow column. Sizing to content keeps each
+     note on its own line, with max-width still capping the block. */
+  width: max-content;
+  max-width: 12.5rem;
+  padding: var(--space-2) var(--space-3);
+  border: 1px solid var(--color-hero-line);
+  border-radius: var(--radius-lg);
+  background: var(--color-hero-glass);
+  box-shadow: 0 0.5rem 1.5rem rgb(0 0 0 / 28%);
+  transform: translate(-50%, -50%);
+}
+
+.routing-label-icon {
+  flex-shrink: 0;
+  margin-top: 1px;
+  color: var(--color-hero-accent);
+}
+
+.routing-label-icon svg {
+  width: 0.875rem;
+  height: 0.875rem;
+}
+
+.routing-label-text {
+  display: grid;
+  gap: 1px;
+  min-width: 0;
+  line-height: 1.32;
+}
+
+.routing-label-name {
+  color: var(--color-hero-text);
+  font-size: var(--font-size-xs);
+  font-weight: var(--weight-semibold);
+  letter-spacing: var(--letter-tight);
+}
+
+.routing-label-note {
+  color: var(--color-hero-text-secondary);
+  font-size: var(--font-size-2xs);
+  font-weight: var(--weight-regular);
+}
+
+/* Fan the six annotations around the core. Percentages are centres
+   relative to the stage, which keeps the arrangement stable at any size
+   because the stage is a square. The horizontal stops are held at 14%
+   / 86% rather than near the edges: a label is centred on its point, so
+   an extreme value would push half its width past the stage and clip it
+   against the hero once the panel narrows. */
+.routing-label[data-slot='1'] {
+  top: 12%;
+  left: 14%;
+}
+
+.routing-label[data-slot='2'] {
+  top: 8%;
+  left: 86%;
+}
+
+.routing-label[data-slot='3'] {
+  top: 50%;
+  left: 14%;
+}
+
+.routing-label[data-slot='4'] {
+  top: 46%;
+  left: 86%;
+}
+
+.routing-label[data-slot='5'] {
+  top: 88%;
+  left: 18%;
+}
+
+.routing-label[data-slot='6'] {
+  top: 92%;
+  left: 82%;
+}
+
+/* ------------------------------------------------------------------ *
+ * Motion
+ *
+ * Decorative only, and slow. Nothing here affects meaning, so the whole
+ * set is switched off under reduced motion.
+ * ------------------------------------------------------------------ */
+
+@keyframes routing-spin {
+  from {
+    transform: rotate(0deg);
+  }
+
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+@keyframes routing-core-breathe {
+  0%,
+  100% {
+    transform: translate(-50%, -50%) scale(1);
+  }
+
+  50% {
+    transform: translate(-50%, -50%) scale(1.025);
+  }
+}
+
+/* The in-app "reduce motion" switch and the OS setting both set
+   [data-reduced-motion], which is mirrored here. The extra `:root`
+   raises specificity above the animation rules above, so no !important
+   is needed. */
+:root[data-reduced-motion='true'] .routing-orbit,
+:root[data-reduced-motion='true'] .routing-core {
+  animation: none;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .routing-orbit,
+  .routing-core {
+    animation: none;
+  }
+}
+
+/* ------------------------------------------------------------------ *
+ * Tablet — 48rem to 64rem
+ *
+ * Both panels stay side by side, the hero visual is reduced, and the two
+   lower annotations are dropped so the remaining four never collide.
+ * ------------------------------------------------------------------ */
+
+@media (min-width: 48rem) and (max-width: 63.999rem) {
+  .login-page {
+    grid-template-columns: minmax(0, 1fr) minmax(0, 0.92fr);
+  }
+
+  .login-hero {
+    padding: var(--space-8) var(--space-6);
+  }
+
+  .login-hero-title {
+    font-size: clamp(1.75rem, 3vw, 2.25rem);
+  }
+
+  .routing-stage {
+    width: min(19rem, 70%, 30vh);
+  }
+
+  .routing-label[data-slot='5'],
+  .routing-label[data-slot='6'] {
+    display: none;
+  }
+
+  .routing-label {
+    width: max-content;
+    max-width: 8rem;
+  }
+}
+
+/* ------------------------------------------------------------------ *
+ * Desktop — 64rem and up
+ *
+ * 46 / 54 split, hero fills the full viewport height.
+ * ------------------------------------------------------------------ */
+
+@media (min-width: 64rem) {
+  .login-page {
+    grid-template-columns: minmax(0, 46fr) minmax(0, 54fr);
+  }
+
+  .login-panel {
+    padding: var(--space-10) var(--space-10) var(--space-12);
+  }
+
+  .login-hero {
+    padding: clamp(2.5rem, 4vh, 4rem) clamp(2rem, 3.4vw, 3.5rem) clamp(2rem, 4vh, 3rem);
+  }
+
+  .routing-stage {
+    width: min(26rem, 62%, 40vh);
+  }
+}
+
+/* Wider desktop: the core can breathe more without the labels crowding. */
+@media (min-width: 90rem) {
+  .routing-stage {
+    width: min(30rem, 58%, 44vh);
+  }
+}
+
+/* ------------------------------------------------------------------ *
+ * Mobile — below 48rem
+ *
+ * Form first, hero second as a compact band. The annotations are the
+ * non-essential part of the visual, so they are removed; the sphere and
+ * the orbits stay, because the routing concept is the point.
+ * ------------------------------------------------------------------ */
+
+@media (max-width: 47.999rem) {
+  .login-panel {
+    padding: var(--space-6) var(--space-5) var(--space-10);
+  }
+
+  .login-brand {
+    margin-bottom: var(--space-8);
+  }
+
+  .login-hero {
+    padding: var(--space-6) var(--space-5) var(--space-8);
+  }
+
+  .login-hero-title {
+    font-size: clamp(1.7rem, 6.4vw, 2.1rem);
+  }
+
+.login-hero-eyebrow {
+  color: var(--color-hero-accent-soft);
+  opacity: 0.72;
+}
+
+.login-hero-lede {
+    font-size: var(--font-size-base);
+  }
+
+  .routing-visual {
+    min-height: 13rem;
+    margin-top: var(--space-4);
+  }
+
+  .routing-stage {
+    width: min(15rem, 62%, 26vh);
+  }
+
+  .routing-labels {
+    display: none;
+  }
+}
+
+/* Narrow phones: the form fields and the submit button keep a 44px
+   target, and the long sign-in copy is allowed to wrap cleanly. */
+@media (max-width: 23.5rem) {
+  .login-panel {
+    padding: var(--space-5) var(--space-4) var(--space-8);
+  }
+
+  .login-form {
+    gap: var(--space-4);
+  }
+}
+
+/* Short landscape viewports: the hero must not push the form off screen. */
+@media (max-height: 34rem) and (min-width: 48rem) {
+  .routing-visual {
+    min-height: 10rem;
+  }
+
+  .routing-stage {
+    width: min(13rem, 30vh);
+  }
+}

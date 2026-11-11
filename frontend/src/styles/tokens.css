@@ -1,0 +1,470 @@
+/*
+ * AI Compass — Design Tokens
+ * ------------------------------------------------------------------
+ * Single source of truth for the visual language. No component or page
+ * may introduce raw hex values; everything resolves through these
+ * semantic tokens.
+ *
+ * Layers:
+ *   1. Primitive scales  (raw palettes, never used directly by components)
+ *   2. Semantic tokens   (--color-surface, --color-text-primary, ...)
+ *   3. Theme overrides   ([data-theme], [data-contrast], [data-text-scale])
+ */
+
+/* ------------------------------------------------------------------ *
+ * 1. Primitive scales
+ * ------------------------------------------------------------------ */
+
+:root {
+  /* Shared grayscale ramp */
+  --palette-slate-0: #ffffff;
+  --palette-slate-25: #ffffff;
+  --palette-slate-50: #f5f7fa;
+  --palette-slate-100: #f0f4f8;
+  --palette-slate-150: #e9edf3;
+  --palette-slate-200: #dce2ea;
+  --palette-slate-300: #bbc4d0;
+  --palette-slate-400: #9aa4b2;
+  --palette-slate-500: #727d8c;
+  --palette-slate-600: #505968;
+  --palette-slate-700: #343b46;
+  --palette-slate-800: #222730;
+  --palette-slate-850: #1b1f26;
+  --palette-slate-900: #14171c;
+  --palette-slate-950: #08090b;
+
+  /* Blue brand and status ramp */
+  --palette-blue-50: #eaf3ff;
+  --palette-blue-100: #d9eaff;
+  --palette-blue-300: #80baff;
+  --palette-blue-400: #409cff;
+  --palette-blue-500: #0a84ff;
+  --palette-blue-600: #007aff;
+  --palette-blue-700: #0066d6;
+  --palette-blue-800: #0057b8;
+  --palette-blue-900: #004a9c;
+
+  /* Authentication illustration uses the same monochromatic palette. */
+  --palette-hero-900: #08090b;
+  --palette-hero-850: #0d0f12;
+  --palette-hero-800: #14171c;
+  --palette-hero-700: #1b1f26;
+  --palette-hero-600: #222730;
+  --palette-glow-blue: #0a84ff;
+  --palette-glow-ice: #d9eaff;
+
+  /* Typography scale (1.250 minor third at 16px) */
+  --font-sans: 'Inter var', 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI',
+    Roboto, 'Helvetica Neue', Arial, sans-serif;
+  --font-mono: ui-monospace, SFMono-Regular, 'SF Mono', 'JetBrains Mono', Menlo,
+    Consolas, 'Liberation Mono', monospace;
+
+  --font-size-2xs: 0.6875rem; /* 11px */
+  --font-size-xs: 0.75rem; /* 12px */
+  --font-size-sm: 0.8125rem; /* 13px */
+  --font-size-base: 0.9375rem; /* 15px */
+  --font-size-md: 0.9375rem; /* 15px */
+  --font-size-lg: 1.0625rem; /* 17px */
+  --font-size-xl: 1.25rem; /* 20px */
+  --font-size-2xl: 1.5rem; /* 24px */
+  --font-size-3xl: 1.875rem; /* 30px */
+  --font-size-4xl: 2.25rem; /* 36px */
+
+  --line-height-tight: 1.2;
+  --line-height-snug: 1.4;
+  --line-height-normal: 1.55;
+  --line-height-relaxed: 1.7;
+
+  --letter-tight: -0.02em;
+  --letter-snug: -0.011em;
+  --letter-normal: 0;
+  --letter-wide: 0.02em;
+  --letter-widest: 0.09em;
+
+  --weight-regular: 400;
+  --weight-medium: 500;
+  --weight-semibold: 600;
+  --weight-bold: 700;
+
+  /* Spacing — 4px base grid */
+  --space-0: 0;
+  --space-1: 0.25rem;
+  --space-2: 0.5rem;
+  --space-3: 0.75rem;
+  --space-4: 1rem;
+  --space-5: 1.25rem;
+  --space-6: 1.5rem;
+  --space-7: 1.75rem;
+  --space-8: 2rem;
+  --space-10: 2.5rem;
+  --space-12: 3rem;
+  --space-16: 4rem;
+  --space-20: 5rem;
+
+  /* Radius — restrained. Only pills are fully round. */
+  --radius-xs: 3px;
+  --radius-sm: 5px;
+  --radius-md: 7px;
+  --radius-lg: 10px;
+  --radius-xl: 12px;
+  --radius-pill: 999px;
+
+  /* Motion */
+  --duration-instant: 80ms;
+  --duration-fast: 130ms;
+  --duration-base: 200ms;
+  --duration-slow: 320ms;
+  --ease-standard: cubic-bezier(0.2, 0, 0.2, 1);
+  --ease-out: cubic-bezier(0, 0, 0.2, 1);
+  --ease-spring: cubic-bezier(0.34, 1.2, 0.64, 1);
+
+  /* Z-index scale */
+  --z-base: 0;
+  --z-sticky: 10;
+  --z-header: 30;
+  --z-drawer: 40;
+  --z-scrim: 45;
+  --z-dropdown: 50;
+  --z-modal: 60;
+  --z-toast: 70;
+  --z-skip-link: 80;
+
+  /* Layout */
+  --layout-sidebar-width: 14rem; /* 224px — dense without clipping labels */
+  --layout-sidebar-collapsed: 4rem;
+  --layout-header-height: 3.5rem; /* 56px */
+  --layout-content-max: 100rem; /* 1600px at 16px root */
+  --layout-content-narrow: 46rem;
+  --layout-auth-max: 68rem;
+  --layout-gutter: clamp(0.875rem, 1.6vw, 1.5rem);
+
+  /* Control sizing — WCAG 2.2 target-size comfortable, tuned for density */
+  --control-height-sm: 1.875rem; /* 30px */
+  --control-height-md: 2.25rem; /* 36px */
+  --control-height-lg: 2.5rem; /* 40px */
+  --touch-target: 2.75rem; /* slider thumbs only */
+
+  /* ---------------------------------------------------------------- *
+   * Density scale
+   *
+   * Every surface in the application resolves its rhythm from these
+   * rather than from ad-hoc pixel values, so a single edit re-densifies
+   * the whole product consistently.
+   * ---------------------------------------------------------------- */
+  --density-section-gap: var(--space-5); /* 20px between page sections */
+  --density-stack-gap: var(--space-4); /*  16px between stacked cards */
+  --density-card-padding: var(--space-4); /*  16px inside a card */
+  --density-card-padding-lg: var(--space-5); /*  20px for hero panels */
+  --density-inner-gap: var(--space-3); /*  12px between inner elements */
+  --density-tight-gap: var(--space-2); /*   8px between chips/rows */
+  --density-cell-y: var(--space-2); /*   8px table row padding block */
+  --density-cell-x: var(--space-3); /*  12px table row padding inline */
+  --density-header-gap: var(--space-4); /*  16px below a page title */
+  --density-measure: 66ch; /* prose reading width */
+  /* The response is the one block of long-form prose in the app, so it
+     gets a slightly wider measure than UI copy. */
+  --measure-comfortable: 76ch;
+}
+
+/* ------------------------------------------------------------------ *
+ * 1b. Token aliases
+ *
+ * Short aliases for the semantic layer. These resolve to the same
+ * values as the `--color-*` tokens above and exist so component code
+ * can read as design intent rather than colour plumbing.
+ * ------------------------------------------------------------------ */
+
+:root {
+  --text-primary: var(--color-text-primary);
+  --text-secondary: var(--color-text-secondary);
+  --text-muted: var(--color-text-muted);
+
+  --surface: var(--color-surface);
+  --surface-elevated: var(--color-surface-raised);
+  --surface-muted: var(--color-surface-muted);
+  --border: var(--color-border);
+
+  --accent: var(--color-primary);
+  --success: var(--color-success);
+  --warning: var(--color-warning);
+  --danger: var(--color-danger);
+  --error: var(--color-error);
+  --info: var(--color-info);
+  --color-neutral: var(--color-text-muted);
+  --background: var(--color-background);
+  --foreground: var(--color-text-primary);
+  --surface-hover: var(--color-surface-hover);
+  --primary: var(--color-primary);
+  --primary-hover: var(--color-primary-hover);
+  --primary-subtle: var(--color-primary-subtle);
+  --primary-border: var(--color-primary-border);
+}
+
+/* ------------------------------------------------------------------ *
+ * 2. Semantic tokens — light theme (default)
+ * ------------------------------------------------------------------ */
+
+:root,
+[data-theme='light'] {
+  color-scheme: light;
+
+  --color-background: #f5f7fa;
+  --color-background-subtle: #ffffff;
+  --color-surface: #ffffff;
+  --color-surface-raised: #ffffff;
+  --color-surface-muted: #f0f4f8;
+  --color-surface-sunken: #f0f4f8;
+  --color-surface-inverse: #1b1f26;
+  --color-surface-hover: #f0f4f8;
+  --color-overlay: rgb(12 16 23 / 55%);
+
+  --color-border: #dce3eb;
+  --color-border-subtle: #e9edf3;
+  --color-border-strong: #bbc4d0;
+  --color-border-inverse: #343b46;
+
+  --color-text-primary: #111318;
+  --color-text-secondary: #5e6878;
+  --color-text-muted: #727d8c;
+  --color-text-disabled: #9aa4b2;
+  --color-text-inverse: #ffffff;
+  --color-text-on-primary: #ffffff;
+
+  --color-primary: #007aff;
+  --color-primary-hover: #0066d6;
+  --color-primary-active: #0057b8;
+  --color-primary-subtle: rgb(0 122 255 / 8%);
+  --color-primary-subtle-hover: rgb(0 122 255 / 12%);
+  --color-primary-border: rgb(0 122 255 / 25%);
+  --color-primary-text: #0066d6;
+
+  --color-success: #007aff;
+  --color-success-text: #0066d6;
+  --color-success-subtle: rgb(0 122 255 / 8%);
+  --color-success-border: rgb(0 122 255 / 25%);
+
+  --color-warning: #5e6878;
+  --color-warning-text: #343b46;
+  --color-warning-subtle: #f0f4f8;
+  --color-warning-border: #dce3eb;
+
+  --color-danger: #505968;
+  --color-danger-text: #343b46;
+  --color-danger-subtle: #f0f4f8;
+  --color-danger-border: #dce3eb;
+  --color-error: #505968;
+  --color-error-text: #343b46;
+  --color-error-subtle: #f0f4f8;
+  --color-error-border: #dce3eb;
+
+  --color-info: #007aff;
+  --color-info-text: #0066d6;
+  --color-info-subtle: rgb(0 122 255 / 8%);
+  --color-info-border: rgb(0 122 255 / 25%);
+  --color-neutral: #727d8c;
+
+  --color-focus: #007aff;
+  --color-focus-ring: #007aff;
+
+  /* Elevation — low-key, single-step shadows */
+  --shadow-none: none;
+  --shadow-xs: 0 1px 2px rgb(12 16 23 / 5%);
+  --shadow-sm: 0 1px 3px rgb(12 16 23 / 7%), 0 1px 2px rgb(12 16 23 / 4%);
+  --shadow-md: 0 4px 12px -2px rgb(12 16 23 / 9%), 0 2px 5px -3px rgb(12 16 23 / 6%);
+  --shadow-lg: 0 12px 28px -6px rgb(12 16 23 / 14%), 0 4px 10px -6px rgb(12 16 23 / 8%);
+  --shadow-focus: 0 0 0 3px color-mix(in srgb, var(--color-focus-ring) 32%, transparent);
+  --shadow-inset: inset 0 1px 2px rgb(12 16 23 / 5%);
+
+  /* Data visualization series — accessible in both themes */
+  --chart-series-1: #007aff;
+  --chart-series-2: #409cff;
+  --chart-series-3: #0057b8;
+  --chart-series-4: #727d8c;
+  --chart-series-5: #bbc4d0;
+  --chart-grid: #e9edf3;
+  --chart-axis: #9aa4b2;
+  --chart-positive: #007aff;
+  --chart-negative: #505968;
+  --chart-neutral: #727d8c;
+}
+
+/* ------------------------------------------------------------------ *
+ * 2b. Semantic tokens — dark theme
+ * ------------------------------------------------------------------ */
+
+[data-theme='dark'] {
+  color-scheme: dark;
+
+  --color-background: #08090b;
+  --color-background-subtle: #0d0f12;
+  --color-surface: #11151b;
+  --color-surface-raised: #171d25;
+  --color-surface-muted: #171d25;
+  --color-surface-sunken: #0d0f12;
+  --color-surface-inverse: #f0f4f8;
+  --color-surface-hover: #222730;
+  --color-overlay: rgb(3 5 9 / 72%);
+
+  --color-border: #26303c;
+  --color-border-subtle: #222730;
+  --color-border-strong: #505968;
+  --color-border-inverse: #bbc4d0;
+
+  --color-text-primary: #ffffff;
+  --color-text-secondary: #aab5c5;
+  --color-text-muted: #858e9d;
+  --color-text-disabled: #505968;
+  --color-text-inverse: #111318;
+  --color-text-on-primary: #ffffff;
+
+  --color-primary: #0a84ff;
+  --color-primary-hover: #38a0ff;
+  --color-primary-active: #0066d6;
+  --color-primary-subtle: rgb(10 132 255 / 12%);
+  --color-primary-subtle-hover: rgb(10 132 255 / 18%);
+  --color-primary-border: rgb(10 132 255 / 35%);
+  --color-primary-text: #409cff;
+
+  --color-success: #409cff;
+  --color-success-text: #80baff;
+  --color-success-subtle: rgb(10 132 255 / 12%);
+  --color-success-border: rgb(10 132 255 / 35%);
+
+  --color-warning: #aab5c5;
+  --color-warning-text: #ffffff;
+  --color-warning-subtle: #171d25;
+  --color-warning-border: #505968;
+
+  --color-danger: #b8c0cc;
+  --color-danger-text: #ffffff;
+  --color-danger-subtle: #171d25;
+  --color-danger-border: #505968;
+  --color-error: #b8c0cc;
+  --color-error-text: #ffffff;
+  --color-error-subtle: #171d25;
+  --color-error-border: #505968;
+
+  --color-info: #409cff;
+  --color-info-text: #80baff;
+  --color-info-subtle: rgb(10 132 255 / 12%);
+  --color-info-border: rgb(10 132 255 / 35%);
+  --color-neutral: #858e9d;
+
+  --color-focus: #409cff;
+  --color-focus-ring: #0a84ff;
+
+  --shadow-none: none;
+  --shadow-xs: 0 1px 2px rgb(0 0 0 / 40%);
+  --shadow-sm: 0 1px 3px rgb(0 0 0 / 45%), 0 1px 2px rgb(0 0 0 / 30%);
+  --shadow-md: 0 4px 14px -2px rgb(0 0 0 / 55%), 0 2px 6px -3px rgb(0 0 0 / 40%);
+  --shadow-lg: 0 16px 32px -8px rgb(0 0 0 / 65%), 0 4px 12px -6px rgb(0 0 0 / 45%);
+  --shadow-focus: 0 0 0 3px color-mix(in srgb, var(--color-focus-ring) 42%, transparent);
+  --shadow-inset: inset 0 1px 2px rgb(0 0 0 / 30%);
+
+  --chart-series-1: #0a84ff;
+  --chart-series-2: #80baff;
+  --chart-series-3: #0066d6;
+  --chart-series-4: #b8c0cc;
+  --chart-series-5: #505968;
+  --chart-grid: #2a303a;
+  --chart-axis: #727d8c;
+  --chart-positive: #409cff;
+  --chart-negative: #b8c0cc;
+  --chart-neutral: #858e9d;
+}
+
+/* ------------------------------------------------------------------ *
+ * 3. Accessibility overlays
+ * ------------------------------------------------------------------ */
+
+/* High contrast — stronger borders, near-max text contrast, no soft tints */
+[data-contrast='high'] {
+  --color-border: var(--color-border-strong);
+  --color-border-subtle: var(--color-border-strong);
+  --color-text-muted: var(--color-text-secondary);
+  --color-text-secondary: var(--color-text-primary);
+  --color-primary-subtle: transparent;
+  --color-primary-subtle-hover: transparent;
+  --color-success-subtle: transparent;
+  --color-warning-subtle: transparent;
+  --color-danger-subtle: transparent;
+  --color-info-subtle: transparent;
+  --color-error-subtle: transparent;
+  --color-surface-muted: var(--color-background-subtle);
+  --shadow-xs: none;
+  --shadow-sm: none;
+  --shadow-md: none;
+  --shadow-lg: none;
+  --shadow-inset: none;
+  --border-strength: 2px;
+}
+
+[data-contrast='high'][data-theme='light'],
+[data-theme='light'][data-contrast='high'] {
+  --color-border: #727d8c;
+  --color-border-strong: #343b46;
+  --color-surface-muted: #f0f4f8;
+  --color-primary: #0066d6;
+  --color-primary-text: #0057b8;
+}
+
+[data-contrast='high'][data-theme='dark'],
+[data-theme='dark'][data-contrast='high'] {
+  --color-border: #858e9d;
+  --color-border-strong: #b8c0cc;
+  --color-surface-muted: #1b1f26;
+  --color-primary: #409cff;
+  --color-primary-text: #80baff;
+}
+
+/* ------------------------------------------------------------------ *
+ * 2b. Routing hero semantics
+ *
+ * The authentication hero is a deliberately dark branded panel and stays
+ * dark in every theme, so these are not theme-overridden. They are
+ * scoped to the hero by the class that consumes them in auth.css.
+ * ------------------------------------------------------------------ */
+
+:root {
+  --color-hero-bg: var(--palette-hero-900);
+  --color-hero-bg-lift: var(--palette-hero-850);
+  --color-hero-surface: var(--palette-hero-800);
+  --color-hero-surface-raised: var(--palette-hero-700);
+  --color-hero-line: rgb(154 172 255 / 14%);
+  --color-hero-line-strong: rgb(154 172 255 / 26%);
+  --color-hero-text: var(--palette-slate-25);
+  --color-hero-text-secondary: var(--palette-slate-400);
+  --color-hero-text-muted: var(--palette-slate-500);
+  --color-hero-accent: var(--palette-glow-blue);
+  --color-hero-accent-soft: var(--palette-glow-ice);
+  --color-hero-glass: rgb(12 18 34 / 72%);
+  --color-hero-glow: rgb(107 124 240 / 30%);
+  --color-hero-glow-wide: rgb(107 124 240 / 12%);
+}
+
+:root {
+  --border-strength: 1px;
+}
+
+/* Text scale — set by AccessibilityProvider on <html data-text-scale> */
+[data-text-scale='small'] {
+  --font-scale: 0.9375;
+}
+[data-text-scale='default'] {
+  --font-scale: 1;
+}
+[data-text-scale='large'] {
+  --font-scale: 1.125;
+}
+[data-text-scale='large'] {
+  --control-height-md: 2.75rem;
+  --control-height-lg: 3rem;
+}
+
+/* Reduced motion — from user preference OR OS setting */
+[data-reduced-motion='true'] {
+  --duration-instant: 0.01ms;
+  --duration-fast: 0.01ms;
+  --duration-base: 0.01ms;
+  --duration-slow: 0.01ms;
+}
