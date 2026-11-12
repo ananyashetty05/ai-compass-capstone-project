@@ -34,9 +34,13 @@ class Settings(BaseSettings):
     JWT_ALGORITHM: str = "HS256"
     JWT_EXPIRE_MINUTES: int = 60 * 24 * 7  # 7 days
 
-    # SQLite DB path
-    DB_PATH: str = os.path.join(os.path.dirname(__file__), "../../../aicompass.db")
+    # PostgreSQL database URL (Neon)
+    DATABASE_URL: str = ""
 
+    # SQLite path retained for migration/backup
+    DB_PATH: str = os.path.join(
+        os.path.dirname(__file__), "../../../aicompass.db"
+    )
     class Config:
         env_file = ".env"
         extra = "ignore"
