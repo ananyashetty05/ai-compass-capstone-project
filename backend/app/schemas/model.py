@@ -23,14 +23,14 @@ class ModelMetadata(BaseModel):
         le=1.0,
         description="Configured or benchmark-derived quality metadata; null when unavailable",
     )
-    estimated_cost: float = Field(ge=0.0, le=1.0, description="Normalized configured cost metadata")
-    estimated_latency: float = Field(ge=0.0, le=1.0, description="Normalized configured latency metadata")
-    reliability: float = Field(ge=0.0, le=1.0, description="Configured reliability metadata")
-    risk_level: float = Field(ge=0.0, le=1.0, description="Configured risk metadata")
+    estimated_cost: Optional[float] = Field(default=None, ge=0.0, le=1.0, description="Normalized configured cost metadata; null when unavailable")
+    estimated_latency: Optional[float] = Field(default=None, ge=0.0, le=1.0, description="Normalized configured latency metadata; null when unavailable")
+    reliability: Optional[float] = Field(default=None, ge=0.0, le=1.0, description="Configured reliability metadata; null when unavailable")
+    risk_level: Optional[float] = Field(default=None, ge=0.0, le=1.0, description="Configured risk metadata; null when unavailable")
 
     context_window: int = Field(default=4096)
-    cost_per_1k_tokens: float = Field(default=0.001, description="USD per 1k tokens")
-    avg_latency_seconds: float = Field(default=2.0, description="Observed/configured latency metadata")
+    cost_per_1k_tokens: Optional[float] = Field(default=None, ge=0.0, description="USD per 1k tokens; null when unavailable")
+    avg_latency_seconds: Optional[float] = Field(default=None, ge=0.0, description="Observed/configured latency metadata; null when unavailable")
     fallback_priority: int = Field(default=5, description="Lower = preferred fallback")
     active: bool = True
     source: str = Field(default="provider_config", description="provider_config | routerbench | measured")
@@ -57,6 +57,8 @@ class ModelMetadata(BaseModel):
         description="active | newly_discovered | deprecated | unavailable | retired | discovery_failed | incompatible",
     )
     adapter_compatible: bool = Field(default=False)
+    inference_access_status: str = Field(default="unverified", description="unverified | validated | unavailable | not_applicable")
+    routing_eligible: bool = Field(default=False, description="Whether this entry may enter the routing candidate pool")
     privacy_notes: Optional[str] = None
     data_handling_status: str = Field(
         default="unknown",

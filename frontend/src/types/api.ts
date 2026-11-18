@@ -99,13 +99,13 @@ export interface ModelInfo {
   supported_domains: string[];
   supported_tasks: string[];
   estimated_quality: number | null;
-  estimated_cost: number;
-  estimated_latency: number;
-  reliability: number;
-  risk_level: number;
+  estimated_cost: number | null;
+  estimated_latency: number | null;
+  reliability: number | null;
+  risk_level: number | null;
   context_window: number;
-  cost_per_1k_tokens: number;
-  avg_latency_seconds: number;
+  cost_per_1k_tokens: number | null;
+  avg_latency_seconds: number | null;
   fallback_priority: number;
   active: boolean;
   source: string;
@@ -123,9 +123,25 @@ export interface ModelInfo {
   metadata_status?: string;
   lifecycle_status?: string;
   adapter_compatible?: boolean;
+  inference_access_status?: string;
+  routing_eligible?: boolean;
   last_verified_at?: string | null;
   input_price_per_million?: number | null;
   output_price_per_million?: number | null;
+}
+
+export interface RegistryProviderRefresh {
+  provider: string;
+  status: string;
+  started_at?: string;
+  finished_at?: string | null;
+  last_success_at?: string | null;
+  error_code?: string | null;
+}
+
+export interface RegistryStatus {
+  persistence_available: boolean;
+  providers: RegistryProviderRefresh[];
 }
 
 /* ------------------------------------------------------------------ *

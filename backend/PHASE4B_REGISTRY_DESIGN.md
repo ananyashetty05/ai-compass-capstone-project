@@ -3,7 +3,9 @@
 ## Current findings
 
 The registry is an in-process static catalog plus consumer applications. OpenAI and
-OpenRouter have credential-gated discovery functions; no discovery result is persisted.
+OpenRouter have credential-gated discovery functions. Phase 5 adds append-only persistence
+code and an additive migration artifact, but the migration is intentionally not applied by
+startup or this change set.
 Adapters exist for OpenAI, Anthropic, Gemini, Groq, and OpenRouter. Discovered entries
 are deliberately inactive/incomplete, so ordinary recommendation routing does not wait
 for discovery or use an unvalidated model. PostgreSQL currently persists users,
@@ -77,8 +79,11 @@ applications remain recommendation destinations only.
 
 ## Migration, rollback, security, tests
 
-Use one additive idempotent migration: create tables/indexes and the current-snapshot
-view only. Backfill no production records; seed append-only snapshots through an approved
+The prepared additive migration is `migrations/20261118_live_model_registry.sql`; it creates
+the tables, indexes, and current-snapshot view only. It is not run by application startup.
+After explicit approval and migration application, set `LIVE_REGISTRY_ENABLED=true` in the
+deployment environment; it defaults to false so ordinary catalog reads remain static-safe.
+Backfill no production records; seed append-only snapshots through an approved
 manual refresh. Rollback disables readers/writers and leaves history intact—never deletes
 snapshots. Restrict refresh APIs to admins, redact upstream errors, use parameterized SQL,
 and never persist credentials. Organization fields are intentionally omitted until the
@@ -98,3 +103,15 @@ tests only after organization identity exists in authentication.
 2. Scheduler host/trigger and acceptable TTL/cost.
 3. Official Gemini/Groq discovery contract validation before implementation.
 4. Dedicated Neon test database and approval for additive migration.
+
+## Implemented Phase 5 boundary
+
+`model_registry_store.py` implements append-only snapshots, provider refresh leases,
+lease-expiry recovery, safe failure records, and last-known-good reads after an approved
+migration. The registry read path merges persisted live entries with the static catalog, but
+discovered records have null unknown metrics, `newly_discovered` lifecycle state, unverified
+inference access, and are excluded from routing. Read-only status/history APIs are available.
+
+No refresh API is exposed: the current authentication model has no administrator identity, so
+an authenticated user must not be able to trigger provider calls. Add that endpoint only after
+server-side admin authorization is approved.

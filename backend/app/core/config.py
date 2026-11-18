@@ -39,6 +39,8 @@ class Settings(BaseSettings):
     DATABASE_URL: str = ""
     # Test-only Neon branch/database. Never falls back to DATABASE_URL in tests.
     TEST_DATABASE_URL: str = ""
+    # Enable only after the approved live-registry migration is applied.
+    LIVE_REGISTRY_ENABLED: bool = False
 
     # SQLite path retained for migration/backup
     DB_PATH: str = os.path.join(

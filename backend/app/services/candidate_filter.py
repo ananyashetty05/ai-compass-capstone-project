@@ -95,12 +95,14 @@ def _check_hard_constraints(
         return f"Context window too small ({model.context_window} < {query_profile.estimated_tokens})"
 
     # Hard cost constraint
-    if max_cost is not None and (model.input_price_per_million is None or model.cost_per_1k_tokens <= 0):
+    if max_cost is not None and (model.input_price_per_million is None or model.cost_per_1k_tokens is None or model.cost_per_1k_tokens <= 0):
         return "Cannot verify cost constraint because pricing is unavailable"
     if max_cost is not None and model.cost_per_1k_tokens > max_cost:
         return f"Exceeds cost constraint (${model.cost_per_1k_tokens:.4f} > ${max_cost:.4f})"
 
     # Hard latency constraint
+    if max_latency is not None and model.avg_latency_seconds is None:
+        return "Cannot verify latency constraint because latency metadata is unavailable"
     if max_latency is not None and model.avg_latency_seconds > max_latency:
         return f"Exceeds latency constraint ({model.avg_latency_seconds:.1f}s > {max_latency:.1f}s)"
 

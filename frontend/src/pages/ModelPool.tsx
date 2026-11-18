@@ -21,7 +21,7 @@ import { MetadataEntry, MetadataRow } from '../components/ui/Metadata';
 import { Segmented, SkeletonMetrics, SkeletonTable } from '../components/ui/Skeleton';
 import { useAsync } from '../hooks/useAsync';
 import { useDocumentTitle } from '../hooks/useDocumentTitle';
-import { listModels } from '../services/models.service';
+import { getRegistryStatus, listModels } from '../services/models.service';
 import {
   formatCostPerThousand,
   formatInteger,
@@ -91,10 +91,12 @@ function availabilityLabel(value: string): string {
 export function ModelPool() {
   useDocumentTitle('Model registry · AI Compass');
   const models = useAsync((signal) => listModels(signal));
+  const registryStatus = useAsync((signal) => getRegistryStatus(signal));
   const [query, setQuery] = useState('');
   const [status, setStatus] = useState<StatusFilter>('all');
   const [provider, setProvider] = useState<string>('all');
   const [availability, setAvailability] = useState<string>('all');
+  const [lifecycle, setLifecycle] = useState<string>('all');
   const [entryType, setEntryType] = useState<EntryFilter>('all');
   const [capability, setCapability] = useState('all');
   const [view, setView] = useState<RegistryView>('cards');
@@ -117,6 +119,11 @@ export function ModelPool() {
     return Array.from(values).sort((a, b) => humanizeToken(a).localeCompare(humanizeToken(b)));
   }, [models.data]);
 
+  const lifecycleOptions = useMemo(() => {
+    const values = new Set((models.data ?? []).map((model) => model.lifecycle_status).filter((value): value is string => Boolean(value)));
+    return Array.from(values).sort((a, b) => humanizeToken(a).localeCompare(humanizeToken(b)));
+  }, [models.data]);
+
   const filtered = useMemo(() => {
     const needle = query.trim().toLowerCase();
     return (models.data ?? []).filter((model) => {
@@ -124,6 +131,7 @@ export function ModelPool() {
       if (status === 'inactive' && model.active) return false;
       if (provider !== 'all' && model.provider !== provider) return false;
       if (availability !== 'all' && model.availability !== availability) return false;
+      if (lifecycle !== 'all' && model.lifecycle_status !== lifecycle) return false;
       if (entryType === 'inference_model' && model.entry_type !== 'inference_model' && model.entry_type !== 'model') return false;
       if (entryType !== 'all' && entryType !== 'inference_model' && model.entry_type !== entryType) return false;
       if (capability !== 'all' && !model.capabilities.includes(capability)) return false;
@@ -135,7 +143,7 @@ export function ModelPool() {
         model.capabilities.some((capability) => capability.toLowerCase().includes(needle))
       );
     });
-  }, [availability, capability, entryType, models.data, provider, query, status]);
+  }, [availability, capability, entryType, lifecycle, models.data, provider, query, status]);
 
   const stats = useMemo(() => {
     const list = models.data ?? [];
@@ -145,6 +153,7 @@ export function ModelPool() {
       active: active.length,
       inactive: list.length - active.length,
       providers: new Set(list.map((model) => model.provider)).size,
+      live: list.filter((model) => model.source === 'live_discovered').length,
     };
   }, [models.data]);
 
@@ -163,11 +172,12 @@ export function ModelPool() {
     setStatus('all');
     setProvider('all');
     setAvailability('all');
+    setLifecycle('all');
     setEntryType('all');
     setCapability('all');
   }, []);
 
-  const filtersActive = query.trim().length > 0 || status !== 'all' || provider !== 'all' || availability !== 'all' || entryType !== 'all' || capability !== 'all';
+  const filtersActive = query.trim().length > 0 || status !== 'all' || provider !== 'all' || availability !== 'all' || lifecycle !== 'all' || entryType !== 'all' || capability !== 'all';
 
   const toggleCompare = useCallback((model: ModelInfo) => {
     setCompareIds((current) => {
@@ -284,7 +294,7 @@ export function ModelPool() {
       <PageHeader
         eyebrow="Registry"
         title="Model registry"
-        description="API inference models and consumer AI applications. Catalog estimates support routing; availability distinguishes direct applications from configured APIs."
+        description="Static catalog snapshots, discovered provider entries, and consumer AI applications. Discovery visibility never implies inference access or routing eligibility."
         actions={(
           <div className="row row-wrap">
             {compareIds.length > 0 && (
@@ -299,7 +309,7 @@ export function ModelPool() {
               </Button>
             )}
             <Button variant="secondary" size="sm" onClick={models.reload} loading={models.isLoading}>
-              Refresh
+              Reload catalog
             </Button>
           </div>
         )}
@@ -319,6 +329,12 @@ export function ModelPool() {
         />
       ) : (
         <div className="page-body registry-page-body">
+          <Notice tone={registryStatus.data?.persistence_available ? 'info' : 'neutral'}
+            title={registryStatus.data?.persistence_available ? 'Live registry status' : 'Static catalog currently in use'}>
+            {registryStatus.data?.persistence_available
+              ? `${formatNumber(stats.total, 0)} entries · ${formatNumber(stats.live, 0)} live-discovered · ${formatNumber(stats.providers, 0)} providers. ${registryStatus.data.providers.some((item) => item.status === 'running') ? 'A provider refresh is in progress.' : 'Refresh history is available to authorized operators.'}`
+              : 'No approved persisted live catalog is configured. Static provider-documentation snapshots remain available; refresh is restricted until server-side administrator authorization exists.'}
+          </Notice>
           <section className="registry-discovery" aria-labelledby="registry-categories-title">
             <div className="registry-discovery-heading">
               <div>
@@ -388,6 +404,14 @@ export function ModelPool() {
                   {availabilityOptions.map((value) => (
                     <option key={value} value={value}>{availabilityLabel(value)}</option>
                   ))}
+                </select>
+              </label>
+
+              <label className="toolbar-group registry-select-group">
+                <span className="toolbar-label">Lifecycle</span>
+                <select className="registry-filter-select" aria-label="Filter by lifecycle" value={lifecycle} onChange={(event) => setLifecycle(event.target.value)}>
+                  <option value="all">All lifecycle states</option>
+                  {lifecycleOptions.map((value) => <option key={value} value={value}>{humanizeToken(value)}</option>)}
                 </select>
               </label>
 
@@ -464,6 +488,8 @@ export function ModelPool() {
                             {entryTypeLabel(model.entry_type)}
                           </Badge>
                           {model.availability ? <Tag>{model.entry_type === 'application_integration' ? 'App' : 'API'}: {availabilityLabel(model.availability)}</Tag> : null}
+                          {model.lifecycle_status ? <Tag>{humanizeToken(model.lifecycle_status)}</Tag> : null}
+                          {model.entry_type === 'inference_model' ? <Tag>{model.routing_eligible ? 'Routing eligible' : model.inference_access_status === 'validated' ? 'Inference validated' : 'Not routing eligible'}</Tag> : null}
                           <ProvenanceTag
                             kind={model.source === 'measured' ? 'measured' : 'estimated'}
                             label={SOURCE_LABELS[model.source] ?? humanizeToken(model.source)}
@@ -682,15 +708,15 @@ function ModelDetail({ model }: { model: ModelInfo }) {
       <div className="dimension-list">
         <DimensionRow label="Estimated quality" value={model.estimated_quality} />
         <DimensionRow label="Reliability metadata" value={model.reliability} />
-        <DimensionRow label="Risk level" value={1 - model.risk_level} description="Inverted so that higher is safer." />
+        <DimensionRow label="Risk suitability" value={model.risk_level === null ? null : 1 - model.risk_level} description="Higher values indicate greater suitability; unavailable when risk metadata is missing." />
         <DimensionRow
           label="Cost efficiency"
-          value={1 - model.estimated_cost}
+          value={model.estimated_cost === null ? null : 1 - model.estimated_cost}
           description="Inverted configured cost, matching the routing score convention."
         />
         <DimensionRow
           label="Speed"
-          value={1 - model.estimated_latency}
+          value={model.estimated_latency === null ? null : 1 - model.estimated_latency}
           description="Inverted configured latency, matching the routing score convention."
         />
       </div>

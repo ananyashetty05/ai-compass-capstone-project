@@ -292,23 +292,24 @@ def _configured(provider: str) -> bool:
     return bool({"openai": settings.OPENAI_API_KEY, "anthropic": settings.ANTHROPIC_API_KEY, "google": settings.GEMINI_API_KEY, "groq": settings.GROQ_API_KEY, "openrouter": settings.OPENROUTER_API_KEY}.get(provider.lower()))
 
 
-def _discovered_model(model_id: str, provider: str, *, source: str, now: str, context: int = 4096,
+def _discovered_model(model_id: str, provider: str, *, source: str, now: str, context: int = 0,
                       input_price: float | None = None, output_price: float | None = None,
                       description: str | None = None) -> ModelMetadata:
     """Discovery records are informational until separately enriched/validated."""
     return ModelMetadata(
         model_id=model_id, model_name=model_id, provider=provider,
         model_family=model_id.split("/")[-1].split("-")[0].upper(), capabilities=["unknown"],
-        supported_domains=["general"], supported_tasks=["qa"], estimated_quality=.5,
-        estimated_cost=.5, estimated_latency=.5, reliability=.5, risk_level=.5,
-        context_window=context, cost_per_1k_tokens=(input_price or 0) / 1000,
-        avg_latency_seconds=0, source="live_discovered", modality="text", modalities=["text"],
+        supported_domains=[], supported_tasks=[], estimated_quality=None,
+        estimated_cost=None, estimated_latency=None, reliability=None, risk_level=None,
+        context_window=context, cost_per_1k_tokens=input_price / 1000 if input_price is not None else None,
+        avg_latency_seconds=None, source="live_discovered", modality="text", modalities=["text"],
         entry_type="inference_model", active=False, availability="discovered_unvalidated",
         requires_key=True, provider_source=source, authentication_requirement="api_key",
         data_provenance="provider_model_list_api", last_verified_at=now,
         metric_provenance={"model_id": "provider_published", "pricing": "provider_published" if input_price is not None else "unavailable", "capabilities": "unavailable", "quality": "unavailable", "latency": "unavailable", "reliability": "unavailable", "risk": "unavailable"},
         metadata_status="incomplete", lifecycle_status="newly_discovered",
         adapter_compatible=provider.lower() in _ADAPTER_PROVIDERS,
+        inference_access_status="unverified", routing_eligible=False,
         input_price_per_million=input_price, output_price_per_million=output_price,
         description=description or "Provider-discovered entry; metadata validation is required before routing eligibility.",
     )
@@ -320,6 +321,8 @@ def _status(entry: ModelMetadata) -> ModelMetadata:
     # valid recommendation candidate or make it appear unavailable.
     item.availability = "api_configured" if _configured(item.provider) else "configuration_required_for_inference"
     item.active = True
+    item.inference_access_status = "unverified"
+    item.routing_eligible = bool(_configured(item.provider) and item.adapter_compatible)
     return item
 
 def get_all_models() -> List[ModelMetadata]:
@@ -331,7 +334,19 @@ def get_all_registry_entries() -> List[ModelMetadata]:
     """Full catalog: API models + AI applications. Applications are always active."""
     api = [_status(m) for m in _API_MODELS]
     apps = [m.model_copy(update={"active": True, "availability": "consumer_app"}) for m in _AI_APPLICATIONS]
-    return [*api, *apps]
+    for app in apps:
+        app.inference_access_status = "not_applicable"
+        app.routing_eligible = False
+    try:
+        from app.services.model_registry_store import get_current_snapshots
+        live = get_current_snapshots()
+    except Exception:
+        # Persistence remains optional until its additive migration is applied.
+        live = []
+    merged = [*api, *apps]
+    known = {(item.provider.lower(), item.model_id) for item in merged}
+    merged.extend(item for item in live if (item.provider.lower(), item.model_id) not in known)
+    return merged
 
 def get_all_applications() -> List[ModelMetadata]:
     """AI consumer applications only — always available regardless of API keys."""
