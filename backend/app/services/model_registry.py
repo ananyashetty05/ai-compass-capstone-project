@@ -14,6 +14,8 @@ import json
 from app.core.config import settings
 from app.schemas.model import ModelMetadata
 
+_ADAPTER_PROVIDERS = {"openai", "anthropic", "google", "groq", "openrouter"}
+
 _VERIFIED = "2025-08-01T00:00:00+00:00"
 
 def _model(mid, name, provider, family, caps, tasks, modalities=("text",), *, context=128000,
@@ -289,6 +291,28 @@ _AI_APPLICATIONS: List[ModelMetadata] = [
 def _configured(provider: str) -> bool:
     return bool({"openai": settings.OPENAI_API_KEY, "anthropic": settings.ANTHROPIC_API_KEY, "google": settings.GEMINI_API_KEY, "groq": settings.GROQ_API_KEY, "openrouter": settings.OPENROUTER_API_KEY}.get(provider.lower()))
 
+
+def _discovered_model(model_id: str, provider: str, *, source: str, now: str, context: int = 4096,
+                      input_price: float | None = None, output_price: float | None = None,
+                      description: str | None = None) -> ModelMetadata:
+    """Discovery records are informational until separately enriched/validated."""
+    return ModelMetadata(
+        model_id=model_id, model_name=model_id, provider=provider,
+        model_family=model_id.split("/")[-1].split("-")[0].upper(), capabilities=["unknown"],
+        supported_domains=["general"], supported_tasks=["qa"], estimated_quality=.5,
+        estimated_cost=.5, estimated_latency=.5, reliability=.5, risk_level=.5,
+        context_window=context, cost_per_1k_tokens=(input_price or 0) / 1000,
+        avg_latency_seconds=0, source="live_discovered", modality="text", modalities=["text"],
+        entry_type="inference_model", active=False, availability="discovered_unvalidated",
+        requires_key=True, provider_source=source, authentication_requirement="api_key",
+        data_provenance="provider_model_list_api", last_verified_at=now,
+        metric_provenance={"model_id": "provider_published", "pricing": "provider_published" if input_price is not None else "unavailable", "capabilities": "unavailable", "quality": "unavailable", "latency": "unavailable", "reliability": "unavailable", "risk": "unavailable"},
+        metadata_status="incomplete", lifecycle_status="newly_discovered",
+        adapter_compatible=provider.lower() in _ADAPTER_PROVIDERS,
+        input_price_per_million=input_price, output_price_per_million=output_price,
+        description=description or "Provider-discovered entry; metadata validation is required before routing eligibility.",
+    )
+
 def _status(entry: ModelMetadata) -> ModelMetadata:
     item = entry.model_copy(deep=True)
     # Registry presence means the entry can be evaluated and recommended.
@@ -351,7 +375,7 @@ def discover_openai_models() -> List[ModelMetadata]:
     req = Request("https://api.openai.com/v1/models", headers={"Authorization": f"Bearer {settings.OPENAI_API_KEY}"})
     with urlopen(req, timeout=10) as response: payload = json.load(response)  # nosec B310: fixed HTTPS provider endpoint
     now = datetime.now(timezone.utc).isoformat()
-    return [ModelMetadata(model_id=row["id"], model_name=row["id"], provider="OpenAI", model_family=row["id"].split("-")[0].upper(), capabilities=["unknown"], supported_domains=["general"], supported_tasks=["qa"], estimated_quality=.5, estimated_cost=.5, estimated_latency=.5, reliability=.5, risk_level=.5, source="live_discovered", modality="text", modalities=["text"], entry_type="model", active=True, availability="configured", requires_key=True, provider_source="https://api.openai.com/v1/models", authentication_requirement="api_key", data_provenance="provider_model_list_api", last_verified_at=now, description="Live catalog entry; capability and price metadata await enrichment.") for row in payload.get("data", [])]
+    return [_discovered_model(row["id"], "OpenAI", source="https://api.openai.com/v1/models", now=now) for row in payload.get("data", []) if row.get("id")]
 
 def discover_openrouter_models() -> List[ModelMetadata]:
     """Fetch OpenRouter's catalog and retain only provider-supplied fields."""
@@ -364,5 +388,6 @@ def discover_openrouter_models() -> List[ModelMetadata]:
         pricing = row.get("pricing") or {}
         prompt_price = float(pricing.get("prompt") or 0) * 1_000_000
         completion_price = float(pricing.get("completion") or 0) * 1_000_000
-        discovered.append(ModelMetadata(model_id=row["id"], model_name=row.get("name") or row["id"], provider="OpenRouter", model_family=(row.get("id") or "unknown").split("/")[0], capabilities=["unknown"], supported_domains=["general"], supported_tasks=["qa"], estimated_quality=.5, estimated_cost=.5, estimated_latency=.5, reliability=.5, risk_level=.5, context_window=int(row.get("context_length") or 4096), cost_per_1k_tokens=prompt_price / 1000, avg_latency_seconds=0, source="live_discovered", modality="text", modalities=["text"], entry_type="model", active=True, availability="configured", requires_key=True, provider_source="https://openrouter.ai/api/v1/models", authentication_requirement="api_key", data_provenance="provider_model_list_api", last_verified_at=now, input_price_per_million=prompt_price, output_price_per_million=completion_price, description=row.get("description")))
+        if row.get("id"):
+            discovered.append(_discovered_model(row["id"], "OpenRouter", source="https://openrouter.ai/api/v1/models", now=now, context=int(row.get("context_length") or 4096), input_price=prompt_price, output_price=completion_price, description=row.get("description")))
     return discovered

@@ -8,7 +8,6 @@
  *
  * All data comes from the backend — nothing is simulated.
  */
-import { useCallback, useEffect, useState } from 'react';
 import { Brain, RefreshCw, Star, ThumbsDown, ThumbsUp } from 'lucide-react';
 import { PageHeader } from '../components/layout/PageHeader';
 import { Card, CardBody, CardHeader } from '../components/ui/Card';
@@ -18,37 +17,24 @@ import { Button } from '../components/ui/Button';
 import { EmptyState, ErrorState } from '../components/ui/EmptyState';
 import { LoadingIndicator } from '../components/ui/Skeleton';
 import { useDocumentTitle } from '../hooks/useDocumentTitle';
+import { useAsync } from '../hooks/useAsync';
 import { useAuth } from '../context/authContext';
 import { getFeedback, getLearningState } from '../services/feedback.service';
-import { describeError } from '../services/http';
 import { OBJECTIVES } from '../utils/domain';
 import { formatNumber, formatPercent, toPercent } from '../utils/format';
-import type { FeedbackRecord, LearningState, ModelSatisfaction } from '../types';
+import type { FeedbackRecord, ModelSatisfaction } from '../types';
 
 export function Personalization() {
   useDocumentTitle('Personalization · AI Compass');
   const { user } = useAuth();
-
-  const [learningState, setLearningState] = useState<LearningState | null>(null);
-  const [history, setHistory] = useState<FeedbackRecord[] | null>(null);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<{ message: string; hint?: string } | null>(null);
-
-  const load = useCallback(async () => {
-    setLoading(true);
-    setError(null);
-    try {
-      const [ls, fb] = await Promise.all([getLearningState(), getFeedback(50)]);
-      setLearningState(ls);
-      setHistory(fb);
-    } catch (cause) {
-      setError(describeError(cause, 'Could not load personalization data.'));
-    } finally {
-      setLoading(false);
-    }
+  const personalization = useAsync(async (signal) => {
+    const [learningState, history] = await Promise.all([
+      getLearningState(signal),
+      getFeedback(50, signal),
+    ]);
+    return { learningState, history };
   }, []);
-
-  useEffect(() => { void load(); }, [load]);
+  const { learningState, history } = personalization.data ?? {};
 
   return (
     <>
@@ -57,17 +43,17 @@ export function Personalization() {
         title="Personalization"
         description="AI Compass learns from your feedback to improve future routing decisions. Ratings are stored per model and used to nudge — not override — the objective routing scores."
         actions={
-          <Button variant="secondary" size="sm" onClick={() => void load()} leadingIcon={<RefreshCw />}>
+          <Button variant="secondary" size="sm" onClick={personalization.reload} leadingIcon={<RefreshCw />}>
             Refresh
           </Button>
         }
       />
 
       <div className="page-body personalization-page-body">
-        {loading ? (
+        {personalization.isLoading ? (
           <Card><CardBody><LoadingIndicator label="Loading personalization data" /></CardBody></Card>
-        ) : error ? (
-          <ErrorState title="Could not load" message={error.message} hint={error.hint} onRetry={() => void load()} retryLabel="Try again" />
+        ) : personalization.error ? (
+          <ErrorState title="Could not load" message={personalization.error.message} hint={personalization.error.hint} onRetry={personalization.reload} retryLabel="Try again" />
         ) : learningState ? (
           <div className="personalization-dashboard">
             <section className="personalization-overview" aria-label="Personalization overview">

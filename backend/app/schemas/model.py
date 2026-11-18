@@ -52,6 +52,11 @@ class ModelMetadata(BaseModel):
     data_provenance: str = Field(default="static_verified_catalog")
     metric_provenance: Dict[str, str] = Field(default_factory=dict)
     metadata_status: str = Field(default="estimated", description="verified | estimated | incomplete | stale")
+    lifecycle_status: str = Field(
+        default="active",
+        description="active | newly_discovered | deprecated | unavailable | retired | discovery_failed | incompatible",
+    )
+    adapter_compatible: bool = Field(default=False)
     privacy_notes: Optional[str] = None
     data_handling_status: str = Field(
         default="unknown",

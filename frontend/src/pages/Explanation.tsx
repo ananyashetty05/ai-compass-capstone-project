@@ -259,8 +259,8 @@ export function Explanation() {
             <div>
               <h3 className="section-title">Candidate scores</h3>
               <p className="section-subtitle">
-                Every model the router scored. Risk is shown inverted so a higher value is safer; overall is the
-                weighted score, not an average of the columns.
+                Every model the router scored. Risk suitability is already higher when the candidate is safer; overall
+                is the weighted score, not an average of the columns.
               </p>
             </div>
           </div>
@@ -311,8 +311,8 @@ export function Explanation() {
                       <dd className="record-metric-value">{formatPercent(score.reliability_score, 3)}</dd>
                     </div>
                     <div className="record-metric">
-                      <dt className="record-metric-label">Risk</dt>
-                      <dd className="record-metric-value">{formatPercent(1 - score.risk_score, 3)}</dd>
+                      <dt className="record-metric-label">Risk suitability</dt>
+                      <dd className="record-metric-value">{formatPercent(score.risk_score, 3)}</dd>
                     </div>
                     <div className="record-metric">
                       <dt className="record-metric-label">Task-fit proxy</dt>
@@ -362,9 +362,9 @@ export function Explanation() {
                   <DimensionRow label="Latency" value={selectedScore.latency_score} />
                   <DimensionRow label="Reliability" value={selectedScore.reliability_score} />
                   <DimensionRow
-                    label="Risk"
-                    value={1 - selectedScore.risk_score}
-                    description="Inverted so that higher is safer."
+                    label="Risk suitability"
+                    value={selectedScore.risk_score}
+                    description="Higher values indicate greater suitability for the query's risk requirements."
                   />
                   <DimensionRow label="Task/capability-fit proxy" value={selectedScore.preference_alignment} description="This score estimates query-to-model task/domain fit; it is not a validated semantic measure of personal preference." />
                 </div>

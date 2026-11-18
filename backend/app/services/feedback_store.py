@@ -258,27 +258,37 @@ def get_learning_state(user_id: str) -> LearningState:
     )
 
 
-def get_learning_bonus(user_id: str, model_id: str) -> float:
-    estimates = get_satisfaction_estimates(user_id)
-    if model_id not in estimates:
-        return 0.0
+def get_learning_bonuses(user_id: str, model_ids: List[str]) -> Dict[str, float]:
+    """Return all requested user-local bonuses with one connection/query.
 
-    sat = estimates[model_id]
-    deviation = sat - 0.5
-
+    This preserves the cold-start and per-model sample thresholds while avoiding
+    one aggregate lookup per eligible routing candidate.
+    """
+    wanted = set(model_ids)
+    if not wanted:
+        return {}
     with _conn() as c:
-        row = c.execute(
+        rows = c.execute(
             """
-            SELECT sample_count FROM model_satisfaction
-            WHERE user_id = %s AND model_id = %s
+            SELECT model_id, sum_ratings, sample_count,
+                   SUM(sample_count) OVER () AS total_samples
+            FROM model_satisfaction WHERE user_id = %s
             """,
-            (user_id, model_id),
-        ).fetchone()
+            (user_id,),
+        ).fetchall()
+    if not rows or rows[0]["total_samples"] < MIN_SAMPLES_FOR_INFLUENCE:
+        return {}
+    bonuses: Dict[str, float] = {}
+    for row in rows:
+        if row["model_id"] not in wanted or row["sample_count"] < MIN_SAMPLES_FOR_INFLUENCE:
+            continue
+        posterior = (PRIOR_WEIGHT * PRIOR_MEAN + row["sum_ratings"]) / (PRIOR_WEIGHT + row["sample_count"])
+        deviation = (posterior - 1.0) / 4.0 - 0.5
+        confidence = min(1.0, row["sample_count"] / CONFIDENCE_SATURATION)
+        bonuses[row["model_id"]] = round(deviation * 2 * MAX_LEARNING_BONUS * confidence, 4)
+    return bonuses
 
-    if not row:
-        return 0.0
 
-    confidence = min(1.0, row["sample_count"] / CONFIDENCE_SATURATION)
-    return round(
-        deviation * 2 * MAX_LEARNING_BONUS * confidence, 4
-    )
+def get_learning_bonus(user_id: str, model_id: str) -> float:
+    """Compatibility wrapper for callers requesting one model."""
+    return get_learning_bonuses(user_id, [model_id]).get(model_id, 0.0)

@@ -207,7 +207,7 @@ export function ModelPool() {
       },
       {
         id: 'quality',
-        header: 'Quality',
+        header: 'Quality estimate',
         numeric: true,
         cell: (row) => <span className="text-numeric">{formatPercent(row.estimated_quality, 0)}</span>,
         sortValue: (row) => row.estimated_quality,
@@ -221,7 +221,7 @@ export function ModelPool() {
       },
       {
         id: 'latency',
-        header: 'Latency',
+        header: 'Latency estimate',
         numeric: true,
         cell: (row) => <span className="text-numeric">{formatSeconds(row.avg_latency_seconds)}</span>,
         sortValue: (row) => row.avg_latency_seconds,
@@ -229,7 +229,7 @@ export function ModelPool() {
       },
       {
         id: 'reliability',
-        header: 'Reliability',
+        header: 'Reliability metadata',
         numeric: true,
         cell: (row) => <span className="text-numeric">{formatPercent(row.reliability, 0)}</span>,
         sortValue: (row) => row.reliability,
@@ -642,8 +642,8 @@ function ModelComparison({ models: entries }: { models: ModelInfo[] }) {
     { label: 'Status', value: (model) => model.active ? 'Active' : 'Inactive' },
     { label: 'Quality estimate', value: (model) => formatPercent(model.estimated_quality, 0) },
     { label: 'Cost / 1K tokens', value: (model) => formatCostPerThousand(model.cost_per_1k_tokens) },
-    { label: 'Average latency', value: (model) => formatSeconds(model.avg_latency_seconds) },
-    { label: 'Reliability', value: (model) => formatPercent(model.reliability, 0) },
+    { label: 'Latency estimate', value: (model) => formatSeconds(model.avg_latency_seconds) },
+    { label: 'Reliability metadata', value: (model) => formatPercent(model.reliability, 0) },
     { label: 'Context window', value: (model) => formatInteger(model.context_window) },
     { label: 'Capabilities', value: (model) => model.capabilities.length ? model.capabilities.map(humanizeToken).join(', ') : UNAVAILABLE },
     { label: 'Data source', value: (model) => SOURCE_LABELS[model.source] ?? humanizeToken(model.source) },
@@ -681,7 +681,7 @@ function ModelDetail({ model }: { model: ModelInfo }) {
 
       <div className="dimension-list">
         <DimensionRow label="Estimated quality" value={model.estimated_quality} />
-        <DimensionRow label="Reliability" value={model.reliability} />
+        <DimensionRow label="Reliability metadata" value={model.reliability} />
         <DimensionRow label="Risk level" value={1 - model.risk_level} description="Inverted so that higher is safer." />
         <DimensionRow
           label="Cost efficiency"
@@ -698,7 +698,7 @@ function ModelDetail({ model }: { model: ModelInfo }) {
       <MetadataRow label="Registry record" columns="2">
         <MetadataEntry label="Cost / 1K" value={formatCostPerThousand(model.cost_per_1k_tokens)} />
         <MetadataEntry label="Per request" value={formatUsdSafe(model.estimated_cost)} />
-        <MetadataEntry label="Latency" value={formatSeconds(model.avg_latency_seconds)} />
+        <MetadataEntry label="Latency estimate" value={formatSeconds(model.avg_latency_seconds)} />
         <MetadataEntry label="Context window" value={formatInteger(model.context_window)} />
         <MetadataEntry label="Source" value={SOURCE_LABELS[model.source] ?? humanizeToken(model.source)} />
         <MetadataEntry label="Fallback priority" value={`#${formatNumber(model.fallback_priority, 0)}`} />
@@ -732,8 +732,8 @@ function ModelDetail({ model }: { model: ModelInfo }) {
       </div>
 
       <Notice tone="info" icon={<Server />} title="How the router uses this record">
-        Estimated quality, cost and latency feed the per-model scores once a query has been analysed. Reliability and
-        risk come straight from the registry. No provider is contacted while this page is open.
+        Quality, cost and latency are registry estimates used in per-model scoring after analysis. Reliability and risk
+        are registry metadata, not measured provider outcomes. No provider is contacted while this page is open.
       </Notice>
     </div>
   );

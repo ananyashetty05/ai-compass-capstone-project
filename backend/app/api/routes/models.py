@@ -19,7 +19,7 @@ def discover_openai_models():
     try:
         return discover_openai_catalog()
     except Exception as exc:
-        raise HTTPException(status_code=502, detail=f"OpenAI discovery failed: {exc}") from exc
+        raise HTTPException(status_code=502, detail="OpenAI discovery is temporarily unavailable.") from exc
 
 
 @router.post("/models/discover/openrouter")
@@ -27,7 +27,7 @@ def discover_openrouter_models():
     try:
         return discover_openrouter_catalog()
     except Exception as exc:
-        raise HTTPException(status_code=502, detail=f"OpenRouter discovery failed: {exc}") from exc
+        raise HTTPException(status_code=502, detail="OpenRouter discovery is temporarily unavailable.") from exc
 
 
 @router.get("/models/tools")

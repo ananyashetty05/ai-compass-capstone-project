@@ -120,6 +120,9 @@ export interface ModelInfo {
   provider_source?: string | null;
   authentication_requirement?: string;
   data_provenance?: string;
+  metadata_status?: string;
+  lifecycle_status?: string;
+  adapter_compatible?: boolean;
   last_verified_at?: string | null;
   input_price_per_million?: number | null;
   output_price_per_million?: number | null;

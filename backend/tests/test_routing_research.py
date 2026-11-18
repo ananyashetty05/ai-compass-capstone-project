@@ -80,6 +80,12 @@ class MultiObjectiveRouterTests(unittest.TestCase):
         with self.assertRaises(ValueError):
             route(models, query_profile(), {"quality": -1.0}, [])
 
+    def test_invalid_legacy_weight_uses_documented_default(self):
+        models = [model("a", quality=0.9, cost=0.2, latency=0.2)]
+        decision = route(models, query_profile(), {"quality": "invalid"}, [])
+        self.assertAlmostEqual(sum(decision.applied_weights.values()), 1.0, places=7)
+        self.assertGreater(decision.applied_weights["quality"], 0.0)
+
     def test_each_score_dimension_is_bounded(self):
         models = [model("a", quality=0.9, cost=0.2, latency=0.2)]
         decision = route(models, query_profile(), DEFAULT_WEIGHTS, [])

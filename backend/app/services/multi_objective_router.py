@@ -103,10 +103,8 @@ def route(
     learning_bonuses: Dict[str, float] = {}
     if user_id:
         try:
-            from app.services.feedback_store import get_learning_bonus
-            learning_bonuses = {
-                m.model_id: get_learning_bonus(user_id, m.model_id) for m in models
-            }
+            from app.services.feedback_store import get_learning_bonuses
+            learning_bonuses = get_learning_bonuses(user_id, [m.model_id for m in models])
         except Exception as exc:
             logger.warning(f"Learning bonus lookup failed: {exc}")
 
@@ -140,7 +138,10 @@ def route(
     # If a caller explicitly sets every supplied weight to zero, use the
     # documented defaults rather than accidentally giving all weight to the
     # one dimension that may have been absent from an older profile.
-    supplied_known = [float(supplied[k]) for k in DEFAULT_WEIGHTS if k in supplied]
+    # Use the normalized values above. Legacy persisted profiles can contain
+    # non-numeric values; those deliberately fall back to the documented
+    # default instead of raising during this second pass.
+    supplied_known = [dimension_weights[k] for k in DEFAULT_WEIGHTS if k in supplied]
     total = sum(dimension_weights.values())
     if not supplied_known or sum(supplied_known) <= 0 or total <= 0:
         fallback_weights = dict(DEFAULT_WEIGHTS)
