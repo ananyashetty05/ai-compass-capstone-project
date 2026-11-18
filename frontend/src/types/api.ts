@@ -128,20 +128,143 @@ export interface ModelInfo {
   last_verified_at?: string | null;
   input_price_per_million?: number | null;
   output_price_per_million?: number | null;
+  /* Live-registry fields (`backend/app/schemas/model.py::RegistryEntry`) */
+  catalog_origin?: 'static' | 'live' | 'application';
+  eligibility?: RegistryEligibility | null;
+  verification?: { status: 'validated' | 'failed'; error_code: string | null; verified_at: string } | null;
+  catalog_last_confirmed_at?: string | null;
+  catalog_stale?: boolean;
+  lifecycle_reason?: string | null;
+  first_seen_at?: string | null;
+  deprecated_at?: string | null;
+  retires_at?: string | null;
+  consecutive_missing_refreshes?: number;
+  metric_provenance?: Record<string, string>;
+}
+
+export interface EligibilityMessage {
+  code: string;
+  message: string;
+}
+
+export interface RegistryEligibility {
+  eligible: boolean;
+  reasons: EligibilityMessage[];
+  warnings: EligibilityMessage[];
 }
 
 export interface RegistryProviderRefresh {
   provider: string;
-  status: string;
+  display_name?: string;
+  configured?: boolean;
+  disabled?: boolean;
+  status: string | null;
+  last_attempt_status?: string | null;
+  last_attempt_at?: string | null;
   started_at?: string;
   finished_at?: string | null;
   last_success_at?: string | null;
+  stale?: boolean | null;
   error_code?: string | null;
+  error_message?: string | null;
+  entries_seen?: number | null;
+  entries_new?: number | null;
+  entries_changed?: number | null;
+  entries_missing?: number | null;
+  entries_rejected?: number | null;
 }
 
 export interface RegistryStatus {
   persistence_available: boolean;
+  live_registry_enabled?: boolean;
+  admin_configured?: boolean;
+  refresh_ttl_minutes?: number;
   providers: RegistryProviderRefresh[];
+}
+
+export interface CatalogSummary {
+  total: number;
+  by_origin: Record<'static' | 'live' | 'application', number>;
+  by_lifecycle: Record<string, number>;
+  routing_eligible: number;
+}
+
+export interface CatalogPage {
+  items: ModelInfo[];
+  total: number;
+  page: number;
+  page_size: number;
+  summary: CatalogSummary;
+  providers: string[];
+  persistence_available: boolean;
+}
+
+export interface CatalogQuery {
+  search?: string;
+  provider?: string;
+  origin?: string;
+  lifecycle?: string;
+  eligible?: boolean;
+  sort?: string;
+  page?: number;
+  page_size?: number;
+}
+
+export interface LifecycleEvent {
+  event_type: string;
+  previous_status: string | null;
+  new_status: string;
+  reason: string | null;
+  occurred_at: string;
+}
+
+export interface RegistryActivityItem {
+  kind: 'lifecycle' | 'refresh_failure';
+  provider: string;
+  model_id: string | null;
+  event_type: string;
+  previous_status: string | null;
+  new_status: string | null;
+  reason: string | null;
+  occurred_at: string;
+}
+
+export interface RefreshHistoryItem {
+  provider: string;
+  status: string;
+  trigger: string;
+  started_at: string;
+  finished_at: string | null;
+  error_code: string | null;
+  error_message_safe: string | null;
+  entries_seen: number | null;
+  entries_new: number | null;
+  entries_changed: number | null;
+  entries_missing: number | null;
+  entries_rejected: number | null;
+}
+
+export interface RefreshResult {
+  provider: string;
+  status: 'success' | 'failed' | 'fresh' | 'already_running' | 'not_configured';
+  error_code?: string;
+  entries_seen?: number;
+  entries_new?: number;
+  entries_changed?: number;
+  entries_missing?: number;
+}
+
+export interface VerifyResult {
+  provider: string;
+  model_id: string;
+  status: 'validated' | 'failed';
+  error_code: string | null;
+  latency_ms: number;
+}
+
+export interface ModelDetailResponse {
+  entry: ModelInfo;
+  lifecycle_history: LifecycleEvent[];
 }
 
 /* ------------------------------------------------------------------ *
@@ -265,6 +388,10 @@ export interface RequestUsage {
   total_tokens?: number | null;
 }
 
+export type RouteMode = 'recommend' | 'execute';
+export type OptimizationMode = 'disabled' | 'conservative' | 'standard' | 'advanced' | 'custom';
+export type SubmitPrompt = 'original' | 'optimized';
+
 export interface RouteRequest {
   query: string;
   task_type_hint?: string;
@@ -273,11 +400,45 @@ export interface RouteRequest {
   max_latency?: number;
   require_capabilities?: string[];
   privacy_requirement?: 'standard' | 'strict';
+  /** Route Query Engine 2.0 */
+  mode?: RouteMode;
+  optimization_mode?: OptimizationMode;
+  optimization_options?: Record<string, boolean>;
+  /** The user-reviewed prompt; when omitted the engine optimizes server-side. */
+  optimized_prompt?: string;
+  submit_prompt?: SubmitPrompt;
+  preferred_providers?: string[];
+  excluded_providers?: string[];
+  excluded_model_ids?: string[];
+  weight_overrides?: Record<string, number>;
+  budget_usd?: number;
+  evaluate_response?: boolean;
+  idempotency_key?: string;
 }
 
 export interface OptimizePromptRequest {
   query: string;
   task_type_hint?: string;
+  mode?: OptimizationMode;
+  options?: Record<string, boolean>;
+  model_id?: string;
+}
+
+export interface PromptQuality {
+  clarity: number;
+  specificity: number;
+  structure: number;
+  constraint_coverage: number;
+  ambiguity: number;
+  overall: number;
+  method: string;
+}
+
+export interface EngineAmbiguity {
+  kind: string;
+  message: string;
+  severity: 'minor' | 'major';
+  clarifying_question?: string | null;
 }
 
 export interface OptimizePromptResponse {
@@ -285,6 +446,130 @@ export interface OptimizePromptResponse {
   task_type: string;
   domain: string;
   method: string;
+  original_prompt?: string;
+  mode?: OptimizationMode;
+  applied?: boolean;
+  changes?: { kind: string; description: string }[];
+  preserved_constraints?: string[];
+  ambiguities?: EngineAmbiguity[];
+  warnings?: string[];
+  intent_preserved?: boolean;
+  preservation_checks?: Record<string, boolean>;
+  quality_before?: PromptQuality | null;
+  quality_after?: PromptQuality | null;
+  model_adaptation?: string[];
+  isolated_untrusted_blocks?: number;
+  needs_clarification?: boolean;
+  analysis?: {
+    primary_intent: string;
+    secondary_intents: string[];
+    complexity: string;
+    domain: string;
+    sensitivity: string;
+    tokens_estimate: number;
+  };
+}
+
+/* ---- Route Query Engine 2.0 payload (`RouteResponse.engine`) ---- */
+
+export interface EngineRequirement { kind: string; value: string; origin: 'explicit' | 'inferred'; evidence: string }
+export interface EngineIntent { name: string; score: number; registry_tags: string[] }
+export interface EngineRiskIndicator { category: string; level: string; count: number; note: string }
+
+export interface EngineProfile {
+  version: string;
+  primary_intent: string;
+  secondary_intents: EngineIntent[];
+  intents: EngineIntent[];
+  task_type: string;
+  domain: string;
+  domain_confidence: number;
+  complexity: { score: number; category: string; components: Record<string, number>; weights: Record<string, number>; methodology: string };
+  required_capabilities: string[];
+  required_modalities: string[];
+  tokens: { input_tokens: number; output_tokens: number; method: string; exact: boolean; output_basis: string };
+  reasoning_requirement: string;
+  structured_output: string | null;
+  explicit_requirements: EngineRequirement[];
+  inferred_requirements: EngineRequirement[];
+  ambiguities: EngineAmbiguity[];
+  needs_clarification: boolean;
+  risk: {
+    sensitivity: string; score: number; indicators: EngineRiskIndicator[]; contains_credentials: boolean;
+    recommends_strict_privacy: boolean; execution_blocked: boolean; execution_block_reason?: string | null;
+  };
+  confidence: Record<string, number>;
+  analysis_method: string;
+  notes: string[];
+}
+
+export interface EngineMetricEvidence {
+  dimension: string; raw_value: number | null; unit: string; provenance: string; confidence: number; missing: boolean; note: string;
+}
+
+export interface EngineCandidate {
+  model_id: string; model_name: string; provider: string; entry_type: string; executable: boolean;
+  utilities: Record<string, number | null>;
+  contributions: Record<string, number>;
+  evidence: Record<string, EngineMetricEvidence>;
+  missing_dimensions: string[];
+  confidence: number; utility: number; robust_score: number; rank: number;
+  pareto_optimal: boolean; dominated_by: string[];
+  estimated_cost_usd: number | null;
+  learning_adjustment: number; task_fit: number; preferred_provider: boolean; metadata_status: string;
+}
+
+export interface EngineExclusion {
+  model_id: string; model_name?: string | null; provider?: string | null; code: string; requirement: string; reason: string;
+  evidence: Record<string, unknown>; permanence: string; stage: string;
+}
+
+export interface EngineStage { name: string; label: string; status: 'completed' | 'skipped' | 'failed' | 'not_run'; duration_ms: number; detail: string }
+
+export interface EngineAttempt {
+  attempt: number; model_id: string; provider: string; outcome: string; error_kind?: string | null; retryable?: boolean | null;
+  latency_ms?: number | null; input_tokens?: number | null; output_tokens?: number | null; cost_usd?: number | null; note: string;
+}
+
+export interface EngineResult {
+  version: string;
+  scoring_version: string;
+  mode: RouteMode;
+  status: string;
+  profile: EngineProfile;
+  optimization: OptimizePromptResponse & { original_prompt: string; optimized_prompt: string };
+  preferences: {
+    weights: Record<string, number>; base_weights: Record<string, number>; weight_source: string;
+    adjustments: { dimension: string; factor: number; reason: string }[];
+    hard_constraints: { kind: string; value: unknown; source: string }[];
+    defaults_applied: string[]; warnings: string[]; precedence: string[];
+  };
+  candidates: EngineCandidate[];
+  exclusions: EngineExclusion[];
+  normalization: { cost_basis: string; cost_method: string; latency_basis: string; uncertainty_penalty: number; missing_policy: string; notes: string[] } | null;
+  selection: {
+    selected_model_id: string | null; runner_up_ids: string[]; status: string; tie_break_applied?: string | null; score_margin?: number | null;
+    weight_stability?: number | null; confidence_level: 'high' | 'medium' | 'low'; confidence_value: number; caveats: string[];
+  };
+  explanation: {
+    summary: string; why_selected: string[]; why_alternatives_ranked_lower: Record<string, unknown>[]; hard_constraints_applied: string[];
+    influential_objectives: Record<string, unknown>[]; unavailable_data: string[]; tradeoffs: string[]; confidence_statement: string;
+  };
+  execution: {
+    status: string; mode: string; final_model_id?: string | null; final_model_name?: string | null; attempts: EngineAttempt[]; escalated: boolean;
+    escalation_reason?: string | null; total_cost_usd?: number | null; total_latency_ms?: number | null; blocked_reason?: string | null;
+    prompt_sent_source?: string | null; notes: string[];
+  };
+  evaluation: {
+    status: string; method: string; accepted?: boolean | null; checks: { name: string; passed: boolean; detail: string }[];
+    heuristic_scores: Record<string, number>; judge_model?: string | null; notes: string[];
+  };
+  stages: EngineStage[];
+  candidate_pool: string;
+  no_candidate_guidance: Record<string, unknown>;
+  prompt_used: string;
+  prompt_used_source: 'original' | 'optimized';
+  routing_latency_ms: number;
 }
 
 /** Ranked alternative model from the routing decision */
@@ -348,6 +633,8 @@ export interface RouteResponse {
     data_provenance: string;
     last_verified_at?: string | null;
   };
+  /** Present for Route Query Engine 2.0 responses. */
+  engine?: EngineResult;
 }
 
 /* ------------------------------------------------------------------ *

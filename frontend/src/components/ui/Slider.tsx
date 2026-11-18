@@ -1,5 +1,4 @@
 import { useId } from 'react';
-import { BandIndicator } from './ScoreBar';
 
 export interface SliderProps {
   label: string;
@@ -14,6 +13,8 @@ export interface SliderProps {
   /** Formats the readout; defaults to a percentage. */
   formatValue?: (value: number) => string;
   id?: string;
+  /** Hides the secondary band bar under the slider. */
+  hideBand?: boolean;
 }
 
 /**
@@ -53,6 +54,11 @@ export function Slider({
           {text} <span className="sr-only">({level})</span>
         </span>
       </div>
+      {description ? (
+        <p className="slider-description" id={descriptionId}>
+          {description}
+        </p>
+      ) : null}
       <input
         id={sliderId}
         className="slider-input"
@@ -67,12 +73,6 @@ export function Slider({
         aria-valuetext={`${text}, ${level}`}
         style={{ ['--slider-percent' as string]: `${percent}%` }}
       />
-      {description ? (
-        <p className="slider-description" id={descriptionId}>
-          {description}
-        </p>
-      ) : null}
-      <BandIndicator value={value} />
     </div>
   );
 }

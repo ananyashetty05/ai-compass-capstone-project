@@ -6,7 +6,7 @@ from pydantic import BaseModel, Field
 
 
 class ResponseEvaluation(BaseModel):
-    """Deterministic evaluation calculated from the generated response."""
+    """Evaluation summary. Heuristic scores are lexical indicators, not correctness judgements."""
     quality_score: float = Field(ge=0.0, le=1.0)
     relevance_score: float = Field(ge=0.0, le=1.0)
     completeness_score: float = Field(ge=0.0, le=1.0)
@@ -33,7 +33,7 @@ class RouteAndGenerateResponse(BaseModel):
     profile: str
     query_analysis: Dict[str, Any]
     candidate_models: List[str]
-    filtered_models: List[Dict[str, str]]
+    filtered_models: List[Dict[str, Any]]
     model_scores: List[Dict[str, Any]]
     selected_model_id: str
     selected_model_name: str
@@ -47,8 +47,9 @@ class RouteAndGenerateResponse(BaseModel):
     request_usage: List[Dict[str, Any]] = []
     optimized_prompt: Optional[str] = None
     learning_active: bool = False
-    # Ranked alternatives (top N models that were not selected)
     ranked_alternatives: List[Dict[str, Any]] = []
-    # Tool recommendations for specialized tasks
     tool_recommendations: List[Dict[str, Any]] = []
     recommended_destination: Dict[str, Any] = {}
+    # Route Query Engine 2.0: the complete structured decision (profile, optimizer, preferences,
+    # candidates, exclusions, selection, explanation, execution, evaluation, stages).
+    engine: Dict[str, Any] = {}

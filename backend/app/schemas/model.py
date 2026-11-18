@@ -67,3 +67,20 @@ class ModelMetadata(BaseModel):
     last_verified_at: Optional[str] = None
     input_price_per_million: Optional[float] = None
     output_price_per_million: Optional[float] = None
+
+    # Live-registry bookkeeping (all optional; static catalog rows leave them unset)
+    canonical_key: Optional[str] = Field(default=None, description="'<provider-lower>:<provider model id>'")
+    first_seen_at: Optional[str] = None
+    lifecycle_reason: Optional[str] = Field(default=None, description="Why the current lifecycle status was assigned")
+    deprecated_at: Optional[str] = Field(default=None, description="Provider-reported deprecation time")
+    retires_at: Optional[str] = Field(default=None, description="Provider-reported retirement time")
+    consecutive_missing_refreshes: int = Field(default=0, ge=0, description="Successful provider refreshes that did not list this model")
+
+
+class RegistryEntry(ModelMetadata):
+    """Catalog entry as presented by the live registry (additive superset of ModelMetadata)."""
+    catalog_origin: str = Field(default="static", description="static | live | application")
+    eligibility: Optional[dict] = Field(default=None, description="{eligible, reasons:[{code,message}], warnings:[{code,message}]}")
+    verification: Optional[dict] = Field(default=None, description="Latest inference verification: {status, error_code, verified_at}")
+    catalog_last_confirmed_at: Optional[str] = Field(default=None, description="Last successful provider refresh time for this provider")
+    catalog_stale: bool = False

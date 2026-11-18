@@ -7,8 +7,12 @@
  * table carries a provenance label rather than implying a benchmark.
  */
 import { useCallback, useMemo, useState } from 'react';
+import { LiveCatalogBrowser, LiveRegistryPanel, RegistryDetailBlock } from '../components/registry/LiveRegistry';
 import { ArrowUpRight, Boxes, Check, Filter, GitCompareArrows, LayoutGrid, List, Search, Server } from 'lucide-react';
 import { PageHeader } from '../components/layout/PageHeader';
+import { CapabilityOverview, ProviderDistribution } from '../components/dashboard/DistributionCards';
+import { KpiIcons, KpiRow } from '../components/dashboard/KpiRow';
+import { summariseModels } from '../components/dashboard/insights';
 import { Button } from '../components/ui/Button';
 import { Badge, ProvenanceTag, Status, Tag, TagList } from '../components/ui/Badge';
 import { DimensionRow } from '../components/ui/ScoreBar';
@@ -103,6 +107,8 @@ export function ModelPool() {
   const [selected, setSelected] = useState<ModelInfo | null>(null);
   const [compareIds, setCompareIds] = useState<string[]>([]);
   const [compareOpen, setCompareOpen] = useState(false);
+  const [adminToken, setAdminToken] = useState('');
+  const [catalogRefresh, setCatalogRefresh] = useState(0);
 
   const providers = useMemo(() => {
     const ids = new Set((models.data ?? []).map((model) => model.provider));
@@ -287,6 +293,8 @@ export function ModelPool() {
     [compareIds, toggleCompare],
   );
 
+  const catalogueSummary = useMemo(() => (models.data ? summariseModels(models.data) : null), [models.data]);
+
   const compareModels = (models.data ?? []).filter((model) => compareIds.includes(model.model_id));
 
   return (
@@ -329,12 +337,28 @@ export function ModelPool() {
         />
       ) : (
         <div className="page-body registry-page-body">
-          <Notice tone={registryStatus.data?.persistence_available ? 'info' : 'neutral'}
-            title={registryStatus.data?.persistence_available ? 'Live registry status' : 'Static catalog currently in use'}>
-            {registryStatus.data?.persistence_available
-              ? `${formatNumber(stats.total, 0)} entries · ${formatNumber(stats.live, 0)} live-discovered · ${formatNumber(stats.providers, 0)} providers. ${registryStatus.data.providers.some((item) => item.status === 'running') ? 'A provider refresh is in progress.' : 'Refresh history is available to authorized operators.'}`
-              : 'No approved persisted live catalog is configured. Static provider-documentation snapshots remain available; refresh is restricted until server-side administrator authorization exists.'}
-          </Notice>
+          {catalogueSummary ? (
+            <section className="cx-overview" aria-label="Catalogue overview">
+              <KpiRow
+                kpis={[
+                  { id: 'entries', label: 'Catalogue entries', icon: KpiIcons.models, value: stats.total, detail: `${catalogueSummary.inference.length} API models · ${catalogueSummary.nonInference} applications and tools` },
+                  { id: 'active', label: 'Active API models', icon: KpiIcons.registry, value: catalogueSummary.active, of: catalogueSummary.inference.length, detail: catalogueSummary.inactive > 0 ? `${catalogueSummary.inactive} inactive` : 'All registered API models are active' },
+                  { id: 'eligible', label: 'Routing-eligible', icon: KpiIcons.routing, value: catalogueSummary.eligible, of: catalogueSummary.eligible !== null ? catalogueSummary.inference.length : null, detail: catalogueSummary.eligible !== null ? 'Eligible for routing right now' : 'Eligibility is not reported for these entries' },
+                  { id: 'providers', label: 'Providers', icon: KpiIcons.providers, value: catalogueSummary.providers.length, detail: catalogueSummary.stale > 0 ? `${catalogueSummary.stale} model${catalogueSummary.stale === 1 ? '' : 's'} with stale data` : 'No stale catalog data reported' },
+                ]}
+              />
+              <div className="cx-grid cx-grid--2">
+                <ProviderDistribution summary={catalogueSummary} />
+                <CapabilityOverview summary={catalogueSummary} />
+              </div>
+            </section>
+          ) : null}
+          <LiveRegistryPanel
+            status={registryStatus.data}
+            adminToken={adminToken}
+            onAdminToken={setAdminToken}
+            onChanged={() => { registryStatus.reload(); models.reload(); setCatalogRefresh((value) => value + 1); }}
+          />
           <section className="registry-discovery" aria-labelledby="registry-categories-title">
             <div className="registry-discovery-heading">
               <div>
@@ -625,6 +649,8 @@ export function ModelPool() {
             }
           </div>
 
+          <LiveCatalogBrowser refreshKey={catalogRefresh} onInspect={setSelected} />
+
           <p className="inline-note">
             Filters apply to this list only. They do not change routing behaviour, which is driven by the live
             registry at query time.
@@ -639,7 +665,7 @@ export function ModelPool() {
         description={selected ? `Registry record for ${selected.model_id}` : undefined}
         size="lg"
       >
-        {selected ? <ModelDetail model={selected} /> : null}
+        {selected ? <ModelDetail model={selected} adminToken={adminToken} /> : null}
       </Modal>
 
       <Modal
@@ -693,7 +719,7 @@ function ModelComparison({ models: entries }: { models: ModelInfo[] }) {
   );
 }
 
-function ModelDetail({ model }: { model: ModelInfo }) {
+function ModelDetail({ model, adminToken }: { model: ModelInfo; adminToken: string }) {
   return (
     <div className="stack">
       <div className="row row-wrap">
@@ -756,6 +782,8 @@ function ModelDetail({ model }: { model: ModelInfo }) {
           <p className="text-muted">{UNAVAILABLE}</p>
         )}
       </div>
+
+      <RegistryDetailBlock model={model} adminToken={adminToken} />
 
       <Notice tone="info" icon={<Server />} title="How the router uses this record">
         Quality, cost and latency are registry estimates used in per-model scoring after analysis. Reliability and risk

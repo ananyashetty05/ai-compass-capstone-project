@@ -2040,7 +2040,7 @@ th[aria-sort='ascending'] .sort-button__text {
 
 @media (min-width: 64rem) {
   .settings-layout {
-    grid-template-columns: 15rem minmax(0, 1fr);
+    grid-template-columns: 13rem minmax(0, 1fr);
   }
 }
 
@@ -2051,7 +2051,7 @@ th[aria-sort='ascending'] .sort-button__text {
 }
 
 .settings-nav .nav-link {
-  align-items: flex-start;
+  align-items: center;
   height: 100%;
   padding-top: var(--space-2);
   padding-bottom: var(--space-2);
@@ -2071,6 +2071,7 @@ th[aria-sort='ascending'] .sort-button__text {
 }
 
 .settings-nav-description {
+  display: none;
   color: var(--color-text-muted);
   font-size: var(--font-size-2xs);
   font-weight: var(--weight-regular);
@@ -2093,6 +2094,7 @@ th[aria-sort='ascending'] .sort-button__text {
   display: grid;
   gap: var(--density-inner-gap);
   min-width: 0;
+  max-width: 64rem;
 }
 
 .settings-panel-intro {
@@ -3702,4 +3704,132 @@ th[aria-sort='ascending'] .sort-button__text {
   .evaluation-validity {
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
+}
+
+/* ── Live Model Pool (registry health, unified catalogue, activity) ───────── */
+.live-panel,
+.live-catalog {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+  padding: var(--space-5);
+  border: var(--border-strength) solid var(--color-border);
+  border-radius: var(--radius-lg);
+  background: var(--color-surface);
+}
+
+.live-panel-heading {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: var(--space-3);
+}
+
+.live-panel-heading h2 { margin: 0; }
+
+.live-table-wrap { overflow-x: auto; }
+
+.live-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: var(--font-size-xs);
+}
+
+.live-table th,
+.live-table td {
+  padding: var(--space-2) var(--space-3);
+  border-bottom: var(--border-strength) solid var(--color-border);
+  text-align: left;
+  vertical-align: middle;
+}
+
+.live-table thead th {
+  color: var(--color-text-muted);
+  font-size: var(--font-size-2xs);
+  letter-spacing: var(--letter-wide);
+  text-transform: uppercase;
+  white-space: nowrap;
+}
+
+.live-table tbody th { font-weight: var(--weight-semibold, 600); }
+.live-result { max-width: 22rem; color: var(--color-text-muted); }
+
+.live-admin {
+  border: var(--border-strength) solid var(--color-border);
+  border-radius: var(--radius-md);
+  padding: var(--space-3);
+}
+
+.live-admin summary { cursor: pointer; font-weight: var(--weight-semibold, 600); }
+
+.live-admin-body {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: var(--space-3);
+  margin-top: var(--space-3);
+}
+
+.live-check { display: inline-flex; align-items: center; gap: var(--space-2); font-size: var(--font-size-xs); }
+.live-results,
+.live-reasons { margin: 0; padding-left: var(--space-5); font-size: var(--font-size-xs); }
+
+.live-activity h3 {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  margin: 0 0 var(--space-2);
+  font-size: var(--font-size-sm);
+}
+
+.live-activity h3 svg { width: 1rem; height: 1rem; }
+
+.live-activity-list {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  font-size: var(--font-size-xs);
+}
+
+.live-activity-list li {
+  display: grid;
+  grid-template-columns: 11rem minmax(0, 1fr);
+  gap: var(--space-3);
+}
+
+.live-activity-list time { color: var(--color-text-muted); font-variant-numeric: tabular-nums; }
+.live-activity-list li[data-kind='refresh_failure'] span { color: var(--color-danger, inherit); }
+
+.live-summary {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(8rem, 1fr));
+  gap: var(--space-3);
+  margin: 0;
+}
+
+.live-summary div {
+  padding: var(--space-3);
+  border: var(--border-strength) solid var(--color-border);
+  border-radius: var(--radius-md);
+}
+
+.live-summary dt { color: var(--color-text-muted); font-size: var(--font-size-2xs); text-transform: uppercase; letter-spacing: var(--letter-wide); }
+.live-summary dd { margin: 0; font-size: var(--font-size-lg, 1.25rem); font-weight: var(--weight-bold); font-variant-numeric: tabular-nums; }
+
+.live-toolbar { padding: 0; }
+
+.live-pager {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--space-3);
+  font-size: var(--font-size-xs);
+}
+
+@media (max-width: 640px) {
+  .live-panel, .live-catalog { padding: var(--space-3); }
+  .live-activity-list li { grid-template-columns: 1fr; gap: 0; }
 }

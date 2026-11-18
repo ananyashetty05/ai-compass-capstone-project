@@ -77,8 +77,6 @@ export function SettingsPage() {
     return () => window.clearTimeout(timer);
   }, [confirmSignOut]);
 
-  const active = SECTIONS.find((entry) => entry.id === section) ?? SECTIONS[0];
-
   return (
     <>
       <PageHeader
@@ -104,6 +102,7 @@ export function SettingsPage() {
                     type="button"
                     className="nav-link"
                     aria-current={current ? 'page' : undefined}
+                    title={entry.description}
                     onClick={() => setSection(entry.id)}
                   >
                     <Icon aria-hidden="true" />
@@ -119,8 +118,6 @@ export function SettingsPage() {
         </nav>
 
         <div className="settings-panel">
-          <p className="settings-panel-intro">{active.description}</p>
-
           {section === 'appearance' ? (
             <Card>
               <CardHeader title="Theme" compact icon={<Palette />} description="Applied immediately and saved to your account." />

@@ -8,7 +8,9 @@
  *
  * All data comes from the backend — nothing is simulated.
  */
-import { Brain, RefreshCw, Star, ThumbsDown, ThumbsUp } from 'lucide-react';
+import { ArrowRight, Brain, RefreshCw, SlidersHorizontal, Star, ThumbsDown, ThumbsUp, UserRound } from 'lucide-react';
+import { Link } from 'react-router-dom';
+import { Reveal } from '../components/ui/Reveal';
 import { PageHeader } from '../components/layout/PageHeader';
 import { Card, CardBody, CardHeader } from '../components/ui/Card';
 import { Panel, PanelBody } from '../components/ui/Panel';
@@ -20,9 +22,11 @@ import { useDocumentTitle } from '../hooks/useDocumentTitle';
 import { useAsync } from '../hooks/useAsync';
 import { useAuth } from '../context/authContext';
 import { getFeedback, getLearningState } from '../services/feedback.service';
-import { OBJECTIVES } from '../utils/domain';
+import { OBJECTIVES, groupLabel } from '../utils/domain';
 import { formatNumber, formatPercent, toPercent } from '../utils/format';
 import type { FeedbackRecord, ModelSatisfaction } from '../types';
+
+const ACTIVATION_RATINGS = 3;
 
 export function Personalization() {
   useDocumentTitle('Personalization · AI Compass');
@@ -35,6 +39,7 @@ export function Personalization() {
     return { learningState, history };
   }, []);
   const { learningState, history } = personalization.data ?? {};
+  const averageRating = history && history.length > 0 ? history.reduce((sum, item) => sum + item.rating, 0) / history.length : null;
 
   return (
     <>
@@ -77,6 +82,36 @@ export function Personalization() {
               </div>
             </section>
 
+            <div className="cx-grid cx-grid--2 cx-persona">
+              <Reveal as="section" className="cx-card" ariaLabelledBy="persona-profile">
+                <header className="cx-card-head">
+                  <div><p className="cx-kicker">Configured by you</p><h2 id="persona-profile">Your routing profile</h2></div>
+                  <UserRound aria-hidden="true" />
+                </header>
+                <dl className="cx-kv">
+                  <div><dt>Name</dt><dd>{user?.name ?? 'Not set'}</dd></div>
+                  <div><dt>User group</dt><dd>{groupLabel(user?.user_group)}</dd></div>
+                  <div><dt>Priorities</dt><dd>{user?.preferences_customized ? 'Custom weights' : 'Group defaults'}</dd></div>
+                </dl>
+                <Link to="/profile" className="cx-link"><SlidersHorizontal aria-hidden="true" /> Edit priorities in Profile <ArrowRight aria-hidden="true" /></Link>
+              </Reveal>
+              <Reveal as="section" className="cx-card" delay={1} ariaLabelledBy="persona-learning">
+                <header className="cx-card-head">
+                  <div><p className="cx-kicker">Learned from feedback</p><h2 id="persona-learning">Learning progress</h2></div>
+                  <Brain aria-hidden="true" />
+                </header>
+                <div className="cx-progress" role="progressbar" aria-label="Ratings toward activation" aria-valuemin={0} aria-valuemax={ACTIVATION_RATINGS} aria-valuenow={Math.min(learningState.total_feedback, ACTIVATION_RATINGS)}>
+                  <span style={{ ['--w' as string]: `${Math.min(100, (learningState.total_feedback / ACTIVATION_RATINGS) * 100)}%` }} />
+                </div>
+                <p className="cx-muted">
+                  {learningState.cold_start
+                    ? `${learningState.total_feedback} of ${ACTIVATION_RATINGS} ratings needed to activate learning.`
+                    : `Learning is active with ${learningState.total_feedback} rating${learningState.total_feedback === 1 ? '' : 's'} across ${learningState.models_rated} model${learningState.models_rated === 1 ? '' : 's'}.`}
+                </p>
+                {averageRating !== null ? <p className="cx-note">Average rating you have given: {averageRating.toFixed(1)}★ across {history?.length} recent entries.</p> : null}
+              </Reveal>
+            </div>
+
             {learningState.cold_start ? (
               <Panel tone="muted">
                 <PanelBody>
@@ -102,6 +137,7 @@ export function Personalization() {
                         <PreferenceRow
                           key={objective.key}
                           label={objective.label}
+                          description={objective.description}
                           weight={user.routing_preferences[objective.key]}
                         />
                       ))}
@@ -178,7 +214,7 @@ export function Personalization() {
   );
 }
 
-function PreferenceRow({ label, weight }: { label: string; weight: number }) {
+function PreferenceRow({ label, weight, description }: { label: string; weight: number; description?: string }) {
   const percent = toPercent(weight);
 
   return (
@@ -195,6 +231,7 @@ function PreferenceRow({ label, weight }: { label: string; weight: number }) {
         <div className="satisfaction-bar-fill" style={{ width: `${percent}%` }} />
       </div>
       <span className="personalization-preference-value">{formatPercent(weight, 0)}</span>
+      {description ? <p className="cx-pref-help">A higher weight favours models that score well on this. {description}</p> : null}
     </div>
   );
 }

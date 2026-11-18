@@ -46,3 +46,9 @@ export { InfoHint, Tooltip } from './Tooltip';
 export type { TooltipPlacement, TooltipProps } from './Tooltip';
 
 export { Toast } from './Toast';
+
+export { Reveal } from './Reveal';
+export type { RevealProps } from './Reveal';
+
+export { CountUp } from './CountUp';
+export type { CountUpProps } from './CountUp';

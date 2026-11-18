@@ -19,6 +19,7 @@ import {
   Trophy,
 } from 'lucide-react';
 import { PageHeader } from '../components/layout/PageHeader';
+import { MetricGuide, ResultReading } from '../components/evaluation/EvaluationInsights';
 import { Button, ButtonLink } from '../components/ui/Button';
 import { useDocumentTitle } from '../hooks/useDocumentTitle';
 import { useRouteResult } from '../context/routeResultContext';
@@ -194,6 +195,8 @@ export function Evaluation() {
           </div>
         </section>
 
+        <MetricGuide />
+
         <section className="offline-evaluation-controls" aria-label="Evaluation controls">
           <div className="offline-query-field">
             <label htmlFor="offline-query">Test query</label>
@@ -334,6 +337,13 @@ export function Evaluation() {
                 })}
               </div>
             </section>
+
+            <ResultReading
+              rows={STRATEGIES.flatMap(({ key, title }) => {
+                const row = resultsByKey.get(key);
+                return row ? [{ ...row, title }] : [];
+              })}
+            />
 
             <section className="offline-chart-section" aria-label="Metric comparison chart">
               <div className="evaluation-section-heading">

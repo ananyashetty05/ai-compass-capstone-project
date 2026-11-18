@@ -31,6 +31,10 @@ pwd_ctx = CryptContext(
 )
 
 
+class DuplicateEmailError(Exception):
+    """Raised when registering an email that already exists."""
+
+
 def _conn():
     if psycopg is None:
         raise RuntimeError("PostgreSQL support is unavailable; install psycopg[binary].")
@@ -90,23 +94,29 @@ def register(req: RegisterRequest, password: str) -> PersistentUserProfile:
     acc = req.accessibility_preferences or AccessibilityPreferences()
     customized = req.routing_preferences is not None
 
+    email = req.email.strip().lower()
     with _conn() as c:
-        c.execute(
-            """INSERT INTO users
-               (user_id, name, email, password_hash, user_group,
-                routing_preferences, accessibility_preferences,
-                theme_preference, preferences_customized)
-               VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s)""",
-            (
-                user_id, req.name, req.email,
-                pwd_ctx.hash(password),
-                group,
-                json.dumps(prefs.model_dump()),
-                json.dumps(acc.model_dump()),
-                req.theme_preference,
-                int(customized),
+        if c.execute("SELECT 1 FROM users WHERE lower(email)=%s", (email,)).fetchone():
+            raise DuplicateEmailError(email)
+        try:
+            c.execute(
+                """INSERT INTO users
+                   (user_id, name, email, password_hash, user_group,
+                    routing_preferences, accessibility_preferences,
+                    theme_preference, preferences_customized)
+                   VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s)""",
+                (
+                    user_id, req.name, email,
+                    pwd_ctx.hash(password),
+                    group,
+                    json.dumps(prefs.model_dump()),
+                    json.dumps(acc.model_dump()),
+                    req.theme_preference,
+                    int(customized),
+                ),
             )
-        )
+        except psycopg.errors.UniqueViolation as exc:
+            raise DuplicateEmailError(email) from exc
 
     logger.info(f"Registered: {user_id} ({group})")
     return get_by_id(user_id)
@@ -115,7 +125,7 @@ def register(req: RegisterRequest, password: str) -> PersistentUserProfile:
 def login(email: str, password: str) -> Optional[PersistentUserProfile]:
     with _conn() as c:
         row = c.execute(
-            "SELECT * FROM users WHERE email=%s", (email,)
+            "SELECT * FROM users WHERE lower(email)=%s", (email.strip().lower(),)
         ).fetchone()
 
     if not row or not pwd_ctx.verify(password, row["password_hash"]):

@@ -36,6 +36,9 @@ import {
   Video,
 } from 'lucide-react';
 import { ButtonLink } from '../components/ui/Button';
+import { RoutingInsights } from '../components/result/RoutingInsights';
+import { EngineInsights } from '../components/route/EngineInsights';
+import { PromptOptimizerPanel } from '../components/route/PromptOptimizerPanel';
 import { useToast } from '../context/toastContext';
 import { useAuth } from '../context/authContext';
 import { useRouteResult } from '../context/routeResultContext';
@@ -45,7 +48,7 @@ import { optimizePrompt as requestPromptOptimization } from '../services/promptO
 import { describeError } from '../services/http';
 import { OBJECTIVES, EXAMPLE_QUERIES, groupLabel } from '../utils/domain';
 import { formatPercent, formatDuration, formatUsd, toPercent } from '../utils/format';
-import type { RouteRequest, RouteResponse, RankedAlternative, ModelInfo } from '../types';
+import type { RouteRequest, RouteResponse, RankedAlternative, ModelInfo, OptimizationMode, OptimizePromptResponse, RouteMode, SubmitPrompt } from '../types';
 
 const MAX_QUERY = 8000;
 
@@ -135,7 +138,12 @@ export function RouteQuery() {
   const [copied, setCopied] = useState(false);
   const [optimizerBusy, setOptimizerBusy] = useState(false);
   const [optimizerError, setOptimizerError] = useState<string | null>(null);
-  const [optimizerMethod, setOptimizerMethod] = useState(result ? 'Task-aware local optimizer' : '');
+  const [optMode, setOptMode] = useState<OptimizationMode>('standard');
+  const [optResult, setOptResult] = useState<OptimizePromptResponse | null>(result?.engine?.optimization ?? null);
+  const [submitChoice, setSubmitChoice] = useState<SubmitPrompt>('optimized');
+  const [promptEdited, setPromptEdited] = useState(false);
+  const [runMode, setRunMode] = useState<RouteMode>('recommend');
+  const [budget, setBudget] = useState('');
   const [optimizedFor, setOptimizedFor] = useState(result?.query ?? '');
   const [registryModels, setRegistryModels] = useState<ModelInfo[]>([]);
   const [registryLoading, setRegistryLoading] = useState(true);
@@ -182,7 +190,17 @@ export function RouteQuery() {
     if (q.length < 3) { setFieldError('Enter at least 3 characters.'); return; }
     setFieldError(null); setError(null);
 
-    const payload: RouteRequest = { query: q };
+    const payload: RouteRequest = { query: q, mode: runMode, optimization_mode: optMode, submit_prompt: submitChoice };
+    const fresh = !!optResult && optimizedFor === q && optResult.mode === optMode;
+    if (fresh && optimizedPrompt.trim()) payload.optimized_prompt = optimizedPrompt;
+    if (runMode === 'execute') {
+      payload.idempotency_key = crypto.randomUUID();
+      if (budget.trim()) {
+        const b = Number(budget);
+        if (!Number.isFinite(b) || b <= 0) { setFieldError('Budget must be a positive number of USD.'); return; }
+        payload.budget_usd = b;
+      }
+    }
     if (taskTypeHint) payload.task_type_hint = taskTypeHint;
     if (selectedModelIds.length) payload.model_ids = selectedModelIds;
     if (showConstraints) {
@@ -207,9 +225,13 @@ export function RouteQuery() {
 
     try {
       const res = await routeAndGenerate(payload, ctrl.signal);
-      setOptimizedPrompt(res.optimized_prompt || res.query);
+      if (res.engine) {
+        setOptResult(res.engine.optimization);
+        if (!promptEdited) setOptimizedPrompt(res.engine.optimization.optimized_prompt);
+      } else {
+        setOptimizedPrompt(res.optimized_prompt || res.query);
+      }
       setOptimizedFor(res.query);
-      setOptimizerMethod('Task-aware local optimizer');
       setOptimizerError(null);
       setResult(res);
       push({
@@ -224,7 +246,7 @@ export function RouteQuery() {
     } finally {
       if (!ctrl.signal.aborted) setRouting(false);
     }
-  }, [query, taskTypeHint, isRouting, showConstraints, maxCost, maxLatency, capabilities, selectedModelIds, push, setResult, setRouting]);
+  }, [query, taskTypeHint, isRouting, showConstraints, maxCost, maxLatency, capabilities, selectedModelIds, runMode, optMode, submitChoice, optResult, optimizedFor, optimizedPrompt, budget, promptEdited, push, setResult, setRouting]);
 
   const handleKey = useCallback((e: React.KeyboardEvent<HTMLTextAreaElement>) => {
     if (e.key === 'Enter' && (e.metaKey || e.ctrlKey)) { e.preventDefault(); void run(); }
@@ -272,12 +294,13 @@ export function RouteQuery() {
     setOptimizerError(null);
     try {
       const response = await requestPromptOptimization(
-        { query: originalPrompt, ...(taskTypeHint ? { task_type_hint: taskTypeHint } : {}) },
+        { query: originalPrompt, mode: optMode, ...(taskTypeHint ? { task_type_hint: taskTypeHint } : {}) },
         controller.signal,
       );
       setOptimizedPrompt(response.optimized_prompt);
+      setOptResult(response);
+      setPromptEdited(false);
       setOptimizedFor(originalPrompt);
-      setOptimizerMethod(response.method);
     } catch (cause) {
       if (!controller.signal.aborted) {
         const failure = describeError(cause, 'Prompt optimization failed.');
@@ -286,12 +309,12 @@ export function RouteQuery() {
     } finally {
       if (!controller.signal.aborted) setOptimizerBusy(false);
     }
-  }, [originalPrompt, taskTypeHint]);
+  }, [originalPrompt, taskTypeHint, optMode]);
 
   const resetOptimizedPrompt = useCallback(() => {
     setOptimizedPrompt(originalPrompt);
-    setOptimizedFor(originalPrompt);
-    setOptimizerMethod('Original query');
+    setPromptEdited(false);
+    setSubmitChoice('original');
     setOptimizerError(null);
   }, [originalPrompt]);
 
@@ -345,7 +368,7 @@ export function RouteQuery() {
               />
               {fieldError && <p className="rq-field-error">{fieldError}</p>}
               <div className="rq-textarea-foot">
-                <span className="rq-char-count">{query.length.toLocaleString()} / {MAX_QUERY.toLocaleString()}</span>
+                <span className="rq-char-count" title="Rough estimate: about 4 characters per token">{query.length.toLocaleString()} / {MAX_QUERY.toLocaleString()} · ≈{Math.ceil(query.length / 4).toLocaleString()} tokens</span>
                 <span className="rq-hint">⌘↵ to route</span>
               </div>
             </div>
@@ -453,6 +476,24 @@ export function RouteQuery() {
               </div>
             )}
 
+            <fieldset className="eng-exec">
+              <legend>Mode</legend>
+              <label>
+                <input type="radio" name="run-mode" checked={runMode === 'recommend'} onChange={() => setRunMode('recommend')} disabled={isRouting} />
+                <span><strong>Recommend</strong><small>Choose the best model. No model is run and nothing is spent.</small></span>
+              </label>
+              <label>
+                <input type="radio" name="run-mode" checked={runMode === 'execute'} onChange={() => setRunMode('execute')} disabled={isRouting} />
+                <span><strong>Recommend and run</strong><small>Also sends the prompt to the selected model using your configured provider key. This can incur provider charges.</small></span>
+              </label>
+              {runMode === 'execute' && (
+                <div className="rq-constraint-field">
+                  <label className="rq-constraint-label" htmlFor="run-budget">Spend limit for this run (USD, optional)</label>
+                  <input id="run-budget" className="rq-constraint-input" type="number" min="0" step="0.001" placeholder="0.05" value={budget} onChange={e => setBudget(e.target.value)} disabled={isRouting} />
+                </div>
+              )}
+            </fieldset>
+
             <div className="rq-actions">
               <div className="rq-profile-tag">
                 <Gauge aria-hidden="true" />
@@ -464,7 +505,7 @@ export function RouteQuery() {
                   <button type="button" className="rq-clear-btn" onClick={clearResult}>Clear</button>
                 )}
                 <button type="button" className="rq-route-btn" onClick={() => void run()} disabled={isRouting || !query.trim()}>
-                  {isRouting ? <><Loader2 className="spin" aria-hidden="true" />Routing…</> : <><Wand2 aria-hidden="true" />Find Best Model</>}
+                  {isRouting ? <><Loader2 className="spin" aria-hidden="true" />{runMode === 'execute' ? 'Running…' : 'Routing…'}</> : <><Wand2 aria-hidden="true" />{runMode === 'execute' ? 'Find model and run' : 'Find Best Model'}</>}
                 </button>
               </div>
             </div>
@@ -506,25 +547,28 @@ export function RouteQuery() {
                 />
               )}
 
+              {result.engine ? <EngineInsights engine={result.engine} /> : <RoutingInsights result={result} />}
+
             </>
           )}
         </div>
 
-        <OptimizedPromptCard
+        <PromptOptimizerPanel
           original={originalPrompt}
+          mode={optMode}
+          onModeChange={setOptMode}
+          result={optResult}
           prompt={optimizedPrompt}
-          method={optimizerMethod}
-          stale={!!optimizedFor && optimizedFor !== originalPrompt}
+          onPromptChange={value => { setOptimizedPrompt(value); setPromptEdited(true); setSubmitChoice('optimized'); setOptimizerError(null); }}
+          submit={submitChoice}
+          onSubmitChange={setSubmitChoice}
+          stale={!!optResult && (optimizedFor !== originalPrompt || optResult.mode !== optMode)}
           busy={optimizerBusy}
           error={optimizerError}
           copied={copied}
-          onChange={value => {
-            setOptimizedPrompt(value);
-            setOptimizerError(null);
-          }}
           onOptimize={() => void optimizeCurrentPrompt()}
-          onReset={resetOptimizedPrompt}
-          onCopy={() => void copyResult(optimizedPrompt)}
+          onRestore={resetOptimizedPrompt}
+          onCopy={() => void copyResult(submitChoice === 'original' ? originalPrompt : optimizedPrompt)}
         />
       </div>
 
@@ -636,7 +680,7 @@ function RoutingLoader() {
       </div>
       <p className="rq-loading-title">Routing your request…</p>
       <p className="rq-loading-sub">
-        Analysing query · Filtering candidates · Scoring models · Selecting best match
+        Waiting for the routing service. Progress is not streamed; the exact stages and their timings appear with the result.
       </p>
       <div className="rq-loading-stages">
         {['Query Analysis', 'Candidate Filter', 'Multi-Objective Score', 'Select & Generate'].map((s, i) => (
@@ -802,75 +846,6 @@ function RecommendationCard({
         )}
       </div>
     </div>
-  );
-}
-
-function OptimizedPromptCard({
-  original, prompt, method, stale, busy, error, copied,
-  onChange, onOptimize, onReset, onCopy,
-}: {
-  original: string;
-  prompt: string;
-  method: string;
-  stale: boolean;
-  busy: boolean;
-  error: string | null;
-  copied: boolean;
-  onChange: (value: string) => void;
-  onOptimize: () => void;
-  onReset: () => void;
-  onCopy: () => void;
-}) {
-  const approximateTokens = prompt.trim() ? Math.ceil(prompt.trim().length / 4) : 0;
-
-  return (
-    <section className="rq-prompt-card" aria-labelledby="optimized-prompt-title">
-      <div className="rq-prompt-header">
-        <div>
-          <div className="rq-rec-response-label" id="optimized-prompt-title">
-            <Wand2 aria-hidden="true" /> Prompt Optimizer
-          </div>
-          <p className="rq-prompt-subtitle">Transform your query into a clearer, more effective prompt.</p>
-        </div>
-        <span className="rq-prompt-method">{method || 'Ready to optimize locally'}</span>
-      </div>
-      {stale && <p className="rq-prompt-stale">The query has changed since this prompt was generated. Re-optimize to sync it.</p>}
-      <div className="rq-prompt-columns">
-        <div className="rq-prompt-original">
-          <span className="rq-prompt-label">Original query</span>
-          <p>{original || 'Enter a query above to begin.'}</p>
-        </div>
-        <div className="rq-prompt-editor">
-          <label className="rq-prompt-label" htmlFor="rq-optimized-prompt">Optimized prompt</label>
-          <textarea
-            id="rq-optimized-prompt"
-            className="rq-textarea rq-prompt-textarea"
-            value={prompt}
-            onChange={event => onChange(event.target.value)}
-            placeholder="Your task-aware prompt will appear here."
-            rows={9}
-            aria-label="Editable optimized prompt"
-          />
-        </div>
-      </div>
-      {error && <p className="rq-prompt-error" role="alert">{error}</p>}
-      <div className="rq-prompt-footer">
-        <span className="rq-prompt-token-count">Approx. tokens: {approximateTokens}</span>
-        <div className="rq-prompt-actions">
-          <button type="button" className="rq-clear-btn" onClick={onReset} disabled={!original || busy}>
-            Reset
-          </button>
-          <button type="button" className="rq-clear-btn" onClick={onOptimize} disabled={!original || busy}>
-            {busy ? <Loader2 className="spin" aria-hidden="true" /> : <Wand2 aria-hidden="true" />}
-            {busy ? 'Optimizing…' : 'Re-optimize'}
-          </button>
-          <button type="button" className="rq-route-btn" onClick={onCopy} disabled={!prompt.trim()}>
-            {copied ? <Check aria-hidden="true" /> : <Clipboard aria-hidden="true" />}
-            {copied ? 'Copied' : 'Copy optimized prompt'}
-          </button>
-        </div>
-      </div>
-    </section>
   );
 }
 

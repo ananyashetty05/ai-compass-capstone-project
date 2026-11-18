@@ -213,7 +213,7 @@ export function Profile() {
             }
           />
           <CardBody>
-            <div className="stack">
+            <div className="slider-grid">
               {OBJECTIVES.map((objective) => (
                 <Slider
                   key={objective.key}

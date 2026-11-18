@@ -34,6 +34,7 @@ export function RequireAuth() {
 /** Keeps signed-in users out of `/login` and `/onboarding`. */
 export function RedirectIfAuthenticated({ children }: { children: React.ReactNode }) {
   const { status, isAuthenticated } = useAuth();
+  const location = useLocation();
 
   if (status === 'initialising') {
     return (
@@ -44,6 +45,10 @@ export function RedirectIfAuthenticated({ children }: { children: React.ReactNod
     );
   }
 
-  if (isAuthenticated) return <Navigate to="/" replace />;
+  if (isAuthenticated) {
+    const from = (location.state as { from?: unknown } | null)?.from;
+    const target = typeof from === 'string' && from.startsWith('/') && !from.startsWith('//') ? from : '/';
+    return <Navigate to={target} replace />;
+  }
   return <>{children}</>;
 }

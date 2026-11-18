@@ -1,6 +1,9 @@
 """
 Auth & Profile routes — real JWT + SQLite.
 """
+import re
+import psycopg
+import logging
 from fastapi import APIRouter, HTTPException, Depends
 from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 from pydantic import BaseModel
@@ -12,6 +15,7 @@ from app.schemas.profile import (
 )
 from app.services import user_store
 
+logger = logging.getLogger(__name__)
 router = APIRouter()
 bearer = HTTPBearer(auto_error=False)
 
@@ -27,6 +31,24 @@ def require_user(creds: Optional[HTTPAuthorizationCredentials] = Depends(bearer)
     if not uid:
         raise HTTPException(status_code=401, detail="Not authenticated")
     return uid
+
+
+_EMAIL_RE = re.compile(r"^[^@\s]+@[^@\s]+\.[^@\s]{2,}$")
+MIN_PASSWORD_LENGTH = 8
+MAX_PASSWORD_LENGTH = 128
+
+
+def _db_unavailable_message(exc: Exception) -> str:
+    if isinstance(exc, RuntimeError) and "DATABASE_URL" in str(exc):
+        return "The database is not configured. Set DATABASE_URL in backend/.env and restart the backend."
+    return "Cannot reach the database. Check DATABASE_URL and your network, then try again."
+
+
+def _clean_email(value: str) -> str:
+    email = (value or "").strip().lower()
+    if len(email) > 254 or not _EMAIL_RE.match(email):
+        raise HTTPException(422, "Enter a valid email address.")
+    return email
 
 
 class LoginRequest(BaseModel):
@@ -53,26 +75,47 @@ class UpdateProfileBody(BaseModel):
 def register(body: RegisterBody):
     from app.schemas.profile import RoutingPreferences
     valid = list(GROUP_DEFAULT_PREFERENCES.keys())
-    if body.user_group.lower() not in valid:
+    group = (body.user_group or "").strip().lower()
+    if group not in valid:
         raise HTTPException(422, f"user_group must be one of: {valid}")
+    name = (body.name or "").strip()
+    if not name or len(name) > 100:
+        raise HTTPException(422, "Enter your name (up to 100 characters).")
+    email = _clean_email(body.email)
+    if len(body.password or "") < MIN_PASSWORD_LENGTH:
+        raise HTTPException(422, f"Password must be at least {MIN_PASSWORD_LENGTH} characters.")
+    if len(body.password) > MAX_PASSWORD_LENGTH:
+        raise HTTPException(422, f"Password must be at most {MAX_PASSWORD_LENGTH} characters.")
     try:
-        req = RegisterRequest(
-            name=body.name,
-            email=body.email,
-            user_group=body.user_group,
-            routing_preferences=RoutingPreferences(**body.routing_preferences) if body.routing_preferences else None,
-            theme_preference=body.theme_preference,
-        )
+        prefs = RoutingPreferences(**body.routing_preferences) if body.routing_preferences else None
+    except Exception:
+        raise HTTPException(422, "Routing preferences must be numbers between 0 and 1.")
+    req = RegisterRequest(
+        name=name, email=email, user_group=group,
+        routing_preferences=prefs, theme_preference=body.theme_preference,
+    )
+    try:
         profile = user_store.register(req, body.password)
-    except Exception as e:
-        raise HTTPException(400, str(e))
+    except user_store.DuplicateEmailError:
+        raise HTTPException(409, "An account with this email already exists. Sign in instead.")
+    except (RuntimeError, psycopg.OperationalError) as exc:
+        logger.exception("Registration failed: database unavailable")
+        raise HTTPException(503, _db_unavailable_message(exc))
+    except Exception:
+        logger.exception("Registration failed")
+        raise HTTPException(500, "Could not create the account. Please try again.")
     token = user_store.create_token(profile.user_id)
     return {"token": token, "profile": profile.model_dump()}
 
 
 @router.post("/auth/login")
 def login(body: LoginRequest):
-    profile = user_store.login(body.email, body.password)
+    email = (body.email or "").strip().lower()
+    try:
+        profile = user_store.login(email, body.password or "")
+    except (RuntimeError, psycopg.OperationalError) as exc:
+        logger.exception("Login failed: database unavailable")
+        raise HTTPException(503, _db_unavailable_message(exc))
     if not profile:
         raise HTTPException(401, "Invalid email or password")
     token = user_store.create_token(profile.user_id)

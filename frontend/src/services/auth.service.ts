@@ -48,3 +48,12 @@ export function listGroups(signal?: AbortSignal): Promise<GroupOption[]> {
 export function getGroupDefaults(group: string, signal?: AbortSignal): Promise<GroupDefaults> {
   return get<GroupDefaults>(`/profile/group-defaults/${encodeURIComponent(group)}`, { signal });
 }
+
+/** One entry of `GET /profile/groups`: description plus default weights. */
+export interface GroupCatalogEntry extends GroupOption {
+  defaults: RoutingPreferences;
+}
+
+export function getGroupCatalog(signal?: AbortSignal): Promise<GroupCatalogEntry[]> {
+  return get<GroupCatalogEntry[]>('/profile/groups', { signal });
+}

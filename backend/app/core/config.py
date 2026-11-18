@@ -2,8 +2,14 @@
 AI Compass - Core Configuration
 """
 import os
+from pathlib import Path
 from typing import List
 from pydantic_settings import BaseSettings, SettingsConfigDict
+
+
+# Resolve backend/.env relative to this file, so it loads regardless of the
+# directory uvicorn is started from.
+_ENV_FILE = str(Path(__file__).resolve().parents[2] / ".env")
 
 
 class Settings(BaseSettings):
@@ -41,12 +47,22 @@ class Settings(BaseSettings):
     TEST_DATABASE_URL: str = ""
     # Enable only after the approved live-registry migration is applied.
     LIVE_REGISTRY_ENABLED: bool = False
+    # Shared secret for registry refresh/verification endpoints. Empty = disabled.
+    REGISTRY_ADMIN_TOKEN: str = ""
+    # A provider catalog younger than this is "fresh"; refresh(only_if_stale) skips it.
+    REGISTRY_REFRESH_TTL_MINUTES: int = 360
+    # Consecutive successful provider lists that omit a model before it becomes "unavailable".
+    REGISTRY_MISSING_REFRESHES_BEFORE_UNAVAILABLE: int = 2
+    # A successful inference verification older than this no longer admits a live-only model.
+    REGISTRY_VERIFICATION_MAX_AGE_DAYS: int = 14
+    # Minimum seconds between verification calls for the same model (cost/abuse guard).
+    REGISTRY_VERIFICATION_COOLDOWN_SECONDS: int = 600
 
     # SQLite path retained for migration/backup
     DB_PATH: str = os.path.join(
         os.path.dirname(__file__), "../../../aicompass.db"
     )
-    model_config = SettingsConfigDict(env_file=".env", extra="ignore")
+    model_config = SettingsConfigDict(env_file=_ENV_FILE, extra="ignore")
 
 
 settings = Settings()

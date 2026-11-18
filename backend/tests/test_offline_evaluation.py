@@ -58,6 +58,7 @@ def model(model_id, *, quality=.8, price=None, priority=5, reliability=.8):
         active=True,
         source="unit_test_registry",
         input_price_per_million=price,
+            output_price_per_million=(price * 4 if price is not None else None),
         availability="configuration_required_for_inference",
         data_provenance="registry_metadata",
     )

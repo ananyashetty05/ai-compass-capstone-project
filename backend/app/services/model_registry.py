@@ -27,6 +27,7 @@ def _model(mid, name, provider, family, caps, tasks, modalities=("text",), *, co
         estimated_quality=quality, estimated_cost=cost, estimated_latency=latency, reliability=.85, risk_level=.15,
         context_window=context, cost_per_1k_tokens=(input_price or 0) / 1000, avg_latency_seconds=2.5, fallback_priority=5,
         active=True, source="static_catalog", entry_type="inference_model", requires_key=True,
+        adapter_compatible=provider.lower() in _ADAPTER_PROVIDERS, canonical_key=f"{provider.lower()}:{mid}",
         availability="unknown", provider_source=source, authentication_requirement="api_key",
         data_provenance="provider_documentation_snapshot", last_verified_at=_VERIFIED,
         metric_provenance={"capabilities": "provider_published", "context_window": "provider_published", "pricing": "provider_published" if input_price is not None else "unavailable", "quality": "estimated", "latency": "estimated", "reliability": "estimated", "risk": "estimated"},
@@ -371,8 +372,17 @@ def get_models_sorted_by_fallback() -> List[ModelMetadata]:
     return sorted(get_all_models(), key=lambda m: m.fallback_priority)
 
 def get_catalog_for_recommendation(task_type: str = "", modality: str = "text") -> List[ModelMetadata]:
-    """Return all catalog entries suitable for recommendation display.
-    Includes both API models (with availability status) and AI applications.
+    """Static, deterministic catalog (offline evaluation and research reproducibility)."""
+    return get_catalog_with_exclusions(task_type, modality, live=False)[0]
+
+
+def get_catalog_with_exclusions(task_type: str = "", modality: str = "text", live: bool = True):
+    """Return (catalog, registry_exclusions).
+
+    Catalog = configured static API models + consumer applications, adjusted by live
+    registry evidence when LIVE_REGISTRY_ENABLED (never blocks on provider discovery;
+    falls back to the static catalog if persistence is unavailable). ``registry_exclusions``
+    explains each model the live registry removed, in the candidate filter's format.
     """
     # Only executable API entries and consumer applications can be selected.
     # Unconfigured API entries remain visible through /models, but suggesting
@@ -382,7 +392,11 @@ def get_catalog_for_recommendation(task_type: str = "", modality: str = "text") 
     apps = get_all_applications()
     if task_type:
         apps = [a for a in apps if task_type in a.supported_tasks or task_type in a.capabilities]
-    return [*api, *apps]
+    exclusions: list = []
+    if live:
+        from app.services import registry_service
+        api, exclusions = registry_service.apply_live_registry(api)
+    return [*api, *apps], exclusions
 
 def discover_openai_models() -> List[ModelMetadata]:
     """Fetch OpenAI's authenticated model-list API; no key means no discovery."""
