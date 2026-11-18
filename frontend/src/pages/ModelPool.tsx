@@ -64,6 +64,9 @@ const PROVIDER_LABELS: Record<string, string> = {
 
 const SOURCE_LABELS: Record<string, string> = {
   provider_config: 'Provider configuration',
+  static_catalog: 'Bundled provider-documentation snapshot',
+  application_catalog: 'Bundled application catalog snapshot',
+  live_discovered: 'Live provider catalog discovery',
   routerbench: 'RouterBench import',
   measured: 'Measured in this environment',
 };
@@ -468,10 +471,10 @@ export function ModelPool() {
                         </div>
                         {model.description && <p className="registry-card-description">{model.description}</p>}
                         <dl className="registry-card-metrics">
-                          <div><dt>Quality</dt><dd>{formatPercent(model.estimated_quality, 0)}</dd></div>
+                          <div><dt>Quality estimate</dt><dd>{formatPercent(model.estimated_quality, 0)}</dd></div>
                           <div><dt>Cost / 1K</dt><dd>{formatCostPerThousand(model.cost_per_1k_tokens)}</dd></div>
-                          <div><dt>Latency</dt><dd>{formatSeconds(model.avg_latency_seconds)}</dd></div>
-                          <div><dt>Reliability</dt><dd>{formatPercent(model.reliability, 0)}</dd></div>
+                          <div><dt>Latency estimate</dt><dd>{formatSeconds(model.avg_latency_seconds)}</dd></div>
+                          <div><dt>Reliability metadata</dt><dd>{formatPercent(model.reliability, 0)}</dd></div>
                         </dl>
                         <div className="registry-card-capabilities" aria-label="Reported capabilities">
                           {model.capabilities.length > 0
@@ -538,7 +541,7 @@ export function ModelPool() {
                       <dd className="record-metric-value">{providerLabel(row.provider)}</dd>
                     </div>
                     <div className="record-metric">
-                      <dt className="record-metric-label">Quality</dt>
+                      <dt className="record-metric-label">Quality estimate</dt>
                       <dd className="record-metric-value">{formatPercent(row.estimated_quality, 0)}</dd>
                     </div>
                     <div className="record-metric">
@@ -546,11 +549,11 @@ export function ModelPool() {
                       <dd className="record-metric-value">{formatCostPerThousand(row.cost_per_1k_tokens)}</dd>
                     </div>
                     <div className="record-metric">
-                      <dt className="record-metric-label">Latency</dt>
+                      <dt className="record-metric-label">Latency estimate</dt>
                       <dd className="record-metric-value">{formatSeconds(row.avg_latency_seconds)}</dd>
                     </div>
                     <div className="record-metric">
-                      <dt className="record-metric-label">Reliability</dt>
+                      <dt className="record-metric-label">Reliability metadata</dt>
                       <dd className="record-metric-value">{formatPercent(row.reliability, 0)}</dd>
                     </div>
                     <div className="record-metric">

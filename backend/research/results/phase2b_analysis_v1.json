@@ -1,0 +1,680 @@
+{
+  "method": "deterministic_metadata_only",
+  "dataset": "aicompass-phase2-curated-v1",
+  "sensitivity": [
+    {
+      "query_id": "q01",
+      "winners": {
+        "balanced": "llama-3.3-70b-versatile",
+        "quality": "deepseek/deepseek-r1",
+        "cost": "llama-3.3-70b-versatile",
+        "reliability": "deepseek-r1-distill-llama-70b"
+      },
+      "unique_winners": 3
+    },
+    {
+      "query_id": "q02",
+      "winners": {
+        "balanced": "app/cursor",
+        "quality": "app/cursor",
+        "cost": "app/chatgpt",
+        "reliability": "app/chatgpt"
+      },
+      "unique_winners": 2
+    },
+    {
+      "query_id": "q03",
+      "winners": {
+        "balanced": "app/deepseek",
+        "quality": "app/deepseek",
+        "cost": "app/deepseek",
+        "reliability": "app/deepseek"
+      },
+      "unique_winners": 1
+    },
+    {
+      "query_id": "q04",
+      "winners": {
+        "balanced": "app/chatgpt",
+        "quality": "app/chatgpt",
+        "cost": "app/chatgpt",
+        "reliability": "app/chatgpt"
+      },
+      "unique_winners": 1
+    },
+    {
+      "query_id": "q05",
+      "winners": {
+        "balanced": "llama-3.3-70b-versatile",
+        "quality": "deepseek/deepseek-r1",
+        "cost": "llama-3.3-70b-versatile",
+        "reliability": "deepseek-r1-distill-llama-70b"
+      },
+      "unique_winners": 3
+    },
+    {
+      "query_id": "q06",
+      "winners": {
+        "balanced": "app/cursor",
+        "quality": "app/cursor",
+        "cost": "app/chatgpt",
+        "reliability": "app/chatgpt"
+      },
+      "unique_winners": 2
+    },
+    {
+      "query_id": "q07",
+      "winners": {
+        "balanced": "app/chatgpt",
+        "quality": "app/chatgpt",
+        "cost": "app/chatgpt",
+        "reliability": "app/chatgpt"
+      },
+      "unique_winners": 1
+    },
+    {
+      "query_id": "q08",
+      "winners": {
+        "balanced": "app/chatgpt",
+        "quality": "app/chatgpt",
+        "cost": "app/chatgpt",
+        "reliability": "app/chatgpt"
+      },
+      "unique_winners": 1
+    },
+    {
+      "query_id": "q09",
+      "winners": {
+        "balanced": "app/chatgpt",
+        "quality": "app/chatgpt",
+        "cost": "app/chatgpt",
+        "reliability": "app/chatgpt"
+      },
+      "unique_winners": 1
+    },
+    {
+      "query_id": "q10",
+      "winners": {
+        "balanced": "app/midjourney",
+        "quality": "app/midjourney",
+        "cost": "app/adobe-firefly",
+        "reliability": "app/adobe-firefly"
+      },
+      "unique_winners": 2
+    }
+  ],
+  "ablations": [
+    {
+      "query_id": "q01",
+      "removed_dimension": "quality",
+      "baseline_winner": "llama-3.3-70b-versatile",
+      "ablated_winner": "llama-3.3-70b-versatile",
+      "changed": false,
+      "eligible_candidates": 3
+    },
+    {
+      "query_id": "q01",
+      "removed_dimension": "cost",
+      "baseline_winner": "llama-3.3-70b-versatile",
+      "ablated_winner": "llama-3.3-70b-versatile",
+      "changed": false,
+      "eligible_candidates": 3
+    },
+    {
+      "query_id": "q01",
+      "removed_dimension": "latency",
+      "baseline_winner": "llama-3.3-70b-versatile",
+      "ablated_winner": "llama-3.3-70b-versatile",
+      "changed": false,
+      "eligible_candidates": 3
+    },
+    {
+      "query_id": "q01",
+      "removed_dimension": "reliability",
+      "baseline_winner": "llama-3.3-70b-versatile",
+      "ablated_winner": "llama-3.3-70b-versatile",
+      "changed": false,
+      "eligible_candidates": 3
+    },
+    {
+      "query_id": "q01",
+      "removed_dimension": "risk",
+      "baseline_winner": "llama-3.3-70b-versatile",
+      "ablated_winner": "llama-3.3-70b-versatile",
+      "changed": false,
+      "eligible_candidates": 3
+    },
+    {
+      "query_id": "q01",
+      "removed_dimension": "preference_alignment",
+      "baseline_winner": "llama-3.3-70b-versatile",
+      "ablated_winner": "llama-3.3-70b-versatile",
+      "changed": false,
+      "eligible_candidates": 3
+    },
+    {
+      "query_id": "q02",
+      "removed_dimension": "quality",
+      "baseline_winner": "app/cursor",
+      "ablated_winner": "app/chatgpt",
+      "changed": true,
+      "eligible_candidates": 12
+    },
+    {
+      "query_id": "q02",
+      "removed_dimension": "cost",
+      "baseline_winner": "app/cursor",
+      "ablated_winner": "app/cursor",
+      "changed": false,
+      "eligible_candidates": 12
+    },
+    {
+      "query_id": "q02",
+      "removed_dimension": "latency",
+      "baseline_winner": "app/cursor",
+      "ablated_winner": "app/cursor",
+      "changed": false,
+      "eligible_candidates": 12
+    },
+    {
+      "query_id": "q02",
+      "removed_dimension": "reliability",
+      "baseline_winner": "app/cursor",
+      "ablated_winner": "app/cursor",
+      "changed": false,
+      "eligible_candidates": 12
+    },
+    {
+      "query_id": "q02",
+      "removed_dimension": "risk",
+      "baseline_winner": "app/cursor",
+      "ablated_winner": "app/cursor",
+      "changed": false,
+      "eligible_candidates": 12
+    },
+    {
+      "query_id": "q02",
+      "removed_dimension": "preference_alignment",
+      "baseline_winner": "app/cursor",
+      "ablated_winner": "app/cursor",
+      "changed": false,
+      "eligible_candidates": 12
+    },
+    {
+      "query_id": "q03",
+      "removed_dimension": "quality",
+      "baseline_winner": "app/deepseek",
+      "ablated_winner": "app/deepseek",
+      "changed": false,
+      "eligible_candidates": 3
+    },
+    {
+      "query_id": "q03",
+      "removed_dimension": "cost",
+      "baseline_winner": "app/deepseek",
+      "ablated_winner": "app/deepseek",
+      "changed": false,
+      "eligible_candidates": 3
+    },
+    {
+      "query_id": "q03",
+      "removed_dimension": "latency",
+      "baseline_winner": "app/deepseek",
+      "ablated_winner": "app/deepseek",
+      "changed": false,
+      "eligible_candidates": 3
+    },
+    {
+      "query_id": "q03",
+      "removed_dimension": "reliability",
+      "baseline_winner": "app/deepseek",
+      "ablated_winner": "app/deepseek",
+      "changed": false,
+      "eligible_candidates": 3
+    },
+    {
+      "query_id": "q03",
+      "removed_dimension": "risk",
+      "baseline_winner": "app/deepseek",
+      "ablated_winner": "app/deepseek",
+      "changed": false,
+      "eligible_candidates": 3
+    },
+    {
+      "query_id": "q03",
+      "removed_dimension": "preference_alignment",
+      "baseline_winner": "app/deepseek",
+      "ablated_winner": "app/deepseek",
+      "changed": false,
+      "eligible_candidates": 3
+    },
+    {
+      "query_id": "q04",
+      "removed_dimension": "quality",
+      "baseline_winner": "app/chatgpt",
+      "ablated_winner": "app/chatgpt",
+      "changed": false,
+      "eligible_candidates": 10
+    },
+    {
+      "query_id": "q04",
+      "removed_dimension": "cost",
+      "baseline_winner": "app/chatgpt",
+      "ablated_winner": "app/chatgpt",
+      "changed": false,
+      "eligible_candidates": 10
+    },
+    {
+      "query_id": "q04",
+      "removed_dimension": "latency",
+      "baseline_winner": "app/chatgpt",
+      "ablated_winner": "app/chatgpt",
+      "changed": false,
+      "eligible_candidates": 10
+    },
+    {
+      "query_id": "q04",
+      "removed_dimension": "reliability",
+      "baseline_winner": "app/chatgpt",
+      "ablated_winner": "app/chatgpt",
+      "changed": false,
+      "eligible_candidates": 10
+    },
+    {
+      "query_id": "q04",
+      "removed_dimension": "risk",
+      "baseline_winner": "app/chatgpt",
+      "ablated_winner": "app/chatgpt",
+      "changed": false,
+      "eligible_candidates": 10
+    },
+    {
+      "query_id": "q04",
+      "removed_dimension": "preference_alignment",
+      "baseline_winner": "app/chatgpt",
+      "ablated_winner": "app/chatgpt",
+      "changed": false,
+      "eligible_candidates": 10
+    },
+    {
+      "query_id": "q05",
+      "removed_dimension": "quality",
+      "baseline_winner": "llama-3.3-70b-versatile",
+      "ablated_winner": "llama-3.3-70b-versatile",
+      "changed": false,
+      "eligible_candidates": 3
+    },
+    {
+      "query_id": "q05",
+      "removed_dimension": "cost",
+      "baseline_winner": "llama-3.3-70b-versatile",
+      "ablated_winner": "llama-3.3-70b-versatile",
+      "changed": false,
+      "eligible_candidates": 3
+    },
+    {
+      "query_id": "q05",
+      "removed_dimension": "latency",
+      "baseline_winner": "llama-3.3-70b-versatile",
+      "ablated_winner": "llama-3.3-70b-versatile",
+      "changed": false,
+      "eligible_candidates": 3
+    },
+    {
+      "query_id": "q05",
+      "removed_dimension": "reliability",
+      "baseline_winner": "llama-3.3-70b-versatile",
+      "ablated_winner": "llama-3.3-70b-versatile",
+      "changed": false,
+      "eligible_candidates": 3
+    },
+    {
+      "query_id": "q05",
+      "removed_dimension": "risk",
+      "baseline_winner": "llama-3.3-70b-versatile",
+      "ablated_winner": "llama-3.3-70b-versatile",
+      "changed": false,
+      "eligible_candidates": 3
+    },
+    {
+      "query_id": "q05",
+      "removed_dimension": "preference_alignment",
+      "baseline_winner": "llama-3.3-70b-versatile",
+      "ablated_winner": "llama-3.3-70b-versatile",
+      "changed": false,
+      "eligible_candidates": 3
+    },
+    {
+      "query_id": "q06",
+      "removed_dimension": "quality",
+      "baseline_winner": "app/cursor",
+      "ablated_winner": "app/chatgpt",
+      "changed": true,
+      "eligible_candidates": 16
+    },
+    {
+      "query_id": "q06",
+      "removed_dimension": "cost",
+      "baseline_winner": "app/cursor",
+      "ablated_winner": "app/cursor",
+      "changed": false,
+      "eligible_candidates": 16
+    },
+    {
+      "query_id": "q06",
+      "removed_dimension": "latency",
+      "baseline_winner": "app/cursor",
+      "ablated_winner": "app/cursor",
+      "changed": false,
+      "eligible_candidates": 16
+    },
+    {
+      "query_id": "q06",
+      "removed_dimension": "reliability",
+      "baseline_winner": "app/cursor",
+      "ablated_winner": "app/cursor",
+      "changed": false,
+      "eligible_candidates": 16
+    },
+    {
+      "query_id": "q06",
+      "removed_dimension": "risk",
+      "baseline_winner": "app/cursor",
+      "ablated_winner": "app/cursor",
+      "changed": false,
+      "eligible_candidates": 16
+    },
+    {
+      "query_id": "q06",
+      "removed_dimension": "preference_alignment",
+      "baseline_winner": "app/cursor",
+      "ablated_winner": "app/cursor",
+      "changed": false,
+      "eligible_candidates": 16
+    },
+    {
+      "query_id": "q07",
+      "removed_dimension": "quality",
+      "baseline_winner": "app/chatgpt",
+      "ablated_winner": "app/chatgpt",
+      "changed": false,
+      "eligible_candidates": 7
+    },
+    {
+      "query_id": "q07",
+      "removed_dimension": "cost",
+      "baseline_winner": "app/chatgpt",
+      "ablated_winner": "app/chatgpt",
+      "changed": false,
+      "eligible_candidates": 7
+    },
+    {
+      "query_id": "q07",
+      "removed_dimension": "latency",
+      "baseline_winner": "app/chatgpt",
+      "ablated_winner": "app/chatgpt",
+      "changed": false,
+      "eligible_candidates": 7
+    },
+    {
+      "query_id": "q07",
+      "removed_dimension": "reliability",
+      "baseline_winner": "app/chatgpt",
+      "ablated_winner": "app/chatgpt",
+      "changed": false,
+      "eligible_candidates": 7
+    },
+    {
+      "query_id": "q07",
+      "removed_dimension": "risk",
+      "baseline_winner": "app/chatgpt",
+      "ablated_winner": "app/chatgpt",
+      "changed": false,
+      "eligible_candidates": 7
+    },
+    {
+      "query_id": "q07",
+      "removed_dimension": "preference_alignment",
+      "baseline_winner": "app/chatgpt",
+      "ablated_winner": "app/chatgpt",
+      "changed": false,
+      "eligible_candidates": 7
+    },
+    {
+      "query_id": "q08",
+      "removed_dimension": "quality",
+      "baseline_winner": "app/chatgpt",
+      "ablated_winner": "app/chatgpt",
+      "changed": false,
+      "eligible_candidates": 11
+    },
+    {
+      "query_id": "q08",
+      "removed_dimension": "cost",
+      "baseline_winner": "app/chatgpt",
+      "ablated_winner": "app/chatgpt",
+      "changed": false,
+      "eligible_candidates": 11
+    },
+    {
+      "query_id": "q08",
+      "removed_dimension": "latency",
+      "baseline_winner": "app/chatgpt",
+      "ablated_winner": "app/chatgpt",
+      "changed": false,
+      "eligible_candidates": 11
+    },
+    {
+      "query_id": "q08",
+      "removed_dimension": "reliability",
+      "baseline_winner": "app/chatgpt",
+      "ablated_winner": "app/chatgpt",
+      "changed": false,
+      "eligible_candidates": 11
+    },
+    {
+      "query_id": "q08",
+      "removed_dimension": "risk",
+      "baseline_winner": "app/chatgpt",
+      "ablated_winner": "app/chatgpt",
+      "changed": false,
+      "eligible_candidates": 11
+    },
+    {
+      "query_id": "q08",
+      "removed_dimension": "preference_alignment",
+      "baseline_winner": "app/chatgpt",
+      "ablated_winner": "app/chatgpt",
+      "changed": false,
+      "eligible_candidates": 11
+    },
+    {
+      "query_id": "q09",
+      "removed_dimension": "quality",
+      "baseline_winner": "app/chatgpt",
+      "ablated_winner": "app/chatgpt",
+      "changed": false,
+      "eligible_candidates": 11
+    },
+    {
+      "query_id": "q09",
+      "removed_dimension": "cost",
+      "baseline_winner": "app/chatgpt",
+      "ablated_winner": "app/chatgpt",
+      "changed": false,
+      "eligible_candidates": 11
+    },
+    {
+      "query_id": "q09",
+      "removed_dimension": "latency",
+      "baseline_winner": "app/chatgpt",
+      "ablated_winner": "app/chatgpt",
+      "changed": false,
+      "eligible_candidates": 11
+    },
+    {
+      "query_id": "q09",
+      "removed_dimension": "reliability",
+      "baseline_winner": "app/chatgpt",
+      "ablated_winner": "app/chatgpt",
+      "changed": false,
+      "eligible_candidates": 11
+    },
+    {
+      "query_id": "q09",
+      "removed_dimension": "risk",
+      "baseline_winner": "app/chatgpt",
+      "ablated_winner": "app/chatgpt",
+      "changed": false,
+      "eligible_candidates": 11
+    },
+    {
+      "query_id": "q09",
+      "removed_dimension": "preference_alignment",
+      "baseline_winner": "app/chatgpt",
+      "ablated_winner": "app/chatgpt",
+      "changed": false,
+      "eligible_candidates": 11
+    },
+    {
+      "query_id": "q10",
+      "removed_dimension": "quality",
+      "baseline_winner": "app/midjourney",
+      "ablated_winner": "app/adobe-firefly",
+      "changed": true,
+      "eligible_candidates": 7
+    },
+    {
+      "query_id": "q10",
+      "removed_dimension": "cost",
+      "baseline_winner": "app/midjourney",
+      "ablated_winner": "app/midjourney",
+      "changed": false,
+      "eligible_candidates": 7
+    },
+    {
+      "query_id": "q10",
+      "removed_dimension": "latency",
+      "baseline_winner": "app/midjourney",
+      "ablated_winner": "app/midjourney",
+      "changed": false,
+      "eligible_candidates": 7
+    },
+    {
+      "query_id": "q10",
+      "removed_dimension": "reliability",
+      "baseline_winner": "app/midjourney",
+      "ablated_winner": "app/midjourney",
+      "changed": false,
+      "eligible_candidates": 7
+    },
+    {
+      "query_id": "q10",
+      "removed_dimension": "risk",
+      "baseline_winner": "app/midjourney",
+      "ablated_winner": "app/midjourney",
+      "changed": false,
+      "eligible_candidates": 7
+    },
+    {
+      "query_id": "q10",
+      "removed_dimension": "preference_alignment",
+      "baseline_winner": "app/midjourney",
+      "ablated_winner": "app/midjourney",
+      "changed": false,
+      "eligible_candidates": 7
+    }
+  ],
+  "pareto": [
+    {
+      "query_id": "q01",
+      "eligible_candidates": 3,
+      "pareto_frontier": [
+        "deepseek-r1-distill-llama-70b",
+        "deepseek/deepseek-r1",
+        "llama-3.3-70b-versatile"
+      ]
+    },
+    {
+      "query_id": "q02",
+      "eligible_candidates": 12,
+      "pareto_frontier": [
+        "app/cursor",
+        "deepseek-r1-distill-llama-70b",
+        "llama-3.3-70b-versatile"
+      ]
+    },
+    {
+      "query_id": "q03",
+      "eligible_candidates": 3,
+      "pareto_frontier": [
+        "app/deepseek",
+        "deepseek-r1-distill-llama-70b"
+      ]
+    },
+    {
+      "query_id": "q04",
+      "eligible_candidates": 10,
+      "pareto_frontier": [
+        "app/chatgpt",
+        "app/claude",
+        "app/notebooklm",
+        "deepseek-r1-distill-llama-70b",
+        "llama-3.3-70b-versatile"
+      ]
+    },
+    {
+      "query_id": "q05",
+      "eligible_candidates": 3,
+      "pareto_frontier": [
+        "deepseek-r1-distill-llama-70b",
+        "deepseek/deepseek-r1",
+        "llama-3.3-70b-versatile"
+      ]
+    },
+    {
+      "query_id": "q06",
+      "eligible_candidates": 16,
+      "pareto_frontier": [
+        "app/cursor",
+        "deepseek-r1-distill-llama-70b",
+        "llama-3.3-70b-versatile"
+      ]
+    },
+    {
+      "query_id": "q07",
+      "eligible_candidates": 7,
+      "pareto_frontier": [
+        "app/chatgpt",
+        "app/notebooklm"
+      ]
+    },
+    {
+      "query_id": "q08",
+      "eligible_candidates": 11,
+      "pareto_frontier": [
+        "app/chatgpt",
+        "app/claude",
+        "deepseek-r1-distill-llama-70b",
+        "llama-3.3-70b-versatile"
+      ]
+    },
+    {
+      "query_id": "q09",
+      "eligible_candidates": 11,
+      "pareto_frontier": [
+        "app/chatgpt",
+        "app/claude",
+        "deepseek-r1-distill-llama-70b",
+        "llama-3.3-70b-versatile"
+      ]
+    },
+    {
+      "query_id": "q10",
+      "eligible_candidates": 7,
+      "pareto_frontier": [
+        "app/midjourney"
+      ]
+    }
+  ]
+}

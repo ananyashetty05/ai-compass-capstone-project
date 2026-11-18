@@ -51,6 +51,8 @@ def build_explanation(
             "risk_level": query_profile.risk_level,
         },
         "score_breakdown": selected_score.score_breakdown if selected_score else {},
+        "metadata_provenance": selected.metric_provenance if selected else {},
+        "metadata_status": selected.metadata_status if selected else "unavailable",
         "overall_score": selected_score.overall_score if selected_score else 0,
         "filtered_out": routing_decision.filtered_out_models,
         "candidate_count": len(routing_decision.candidate_models),
@@ -77,11 +79,16 @@ def _narrative(routing_decision, query_profile, selected, selected_score, user_p
     else:
         cost_note = f" weighting {top_dim} most heavily ({w.get(top_dim, 0):.0%})."
 
-    quality_note = (
-        "satisfied the required quality threshold"
-        if selected.estimated_quality >= query_profile.quality_requirement
-        else "was the closest available match to the quality requirement"
-    )
+    if selected.estimated_quality is None:
+        quality_note = "was selected without usable quality metadata; quality was excluded from comparison"
+    elif selected.estimated_quality >= query_profile.quality_requirement:
+        quality_note = "satisfied the required quality threshold"
+    else:
+        quality_note = "was the closest available match to the quality requirement"
+
+    uncertainty_note = ""
+    if selected.metadata_status in {"stale", "incomplete", "estimated"}:
+        uncertainty_note = " Its registry metrics include estimated or stale fields and are not guarantees of response quality."
 
     return (
         f"AI Compass evaluated the query using the saved user preferences, query complexity, "
@@ -91,5 +98,5 @@ def _narrative(routing_decision, query_profile, selected, selected_score, user_p
         f"(complexity: {query_profile.complexity:.0%}). "
         f"{group_str}{cost_note} "
         f"Among the eligible models, {selected.model_name} {quality_note} "
-        f"and achieved an overall routing score of {selected_score.overall_score:.3f}."
+        f"and achieved an overall routing score of {selected_score.overall_score:.3f}.{uncertainty_note}"
     )

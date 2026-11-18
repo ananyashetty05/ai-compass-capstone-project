@@ -83,12 +83,11 @@ const SCORE_COLUMNS: ColumnDef<ModelScore>[] = [
   },
   {
     id: 'risk',
-    header: 'Risk',
+    header: 'Risk suitability',
     numeric: true,
-    // Inverted so a higher value is safer, matching every other column.
-    // The raw field is riskier-is-higher.
-    cell: (score) => <span className="text-numeric">{formatPercent(1 - score.risk_score, 3)}</span>,
-    sortValue: (score) => 1 - score.risk_score,
+    // The router already exposes risk suitability: higher is safer.
+    cell: (score) => <span className="text-numeric">{formatPercent(score.risk_score, 3)}</span>,
+    sortValue: (score) => score.risk_score,
     secondary: true,
   },
   {

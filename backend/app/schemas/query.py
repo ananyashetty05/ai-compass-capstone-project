@@ -9,7 +9,7 @@ from pydantic import BaseModel, Field
 
 
 class QueryRequest(BaseModel):
-    query: str = Field(..., min_length=1, description="The user's query text")
+    query: str = Field(..., min_length=1, max_length=50000, description="The user's query text")
     task_type_hint: Optional[str] = Field(
         default=None,
         description="Optional user-selected task category. The analyzer remains the default when omitted.",
@@ -21,9 +21,14 @@ class QueryRequest(BaseModel):
         description="Resolved from auth token; clients must not supply a profile per request."
     )
     # Hard constraints (optional, query-level overrides only)
-    max_cost: Optional[float] = Field(default=None)
-    max_latency: Optional[float] = Field(default=None)
-    require_capabilities: Optional[list] = Field(default=None)
+    max_cost: Optional[float] = Field(default=None, gt=0)
+    max_latency: Optional[float] = Field(default=None, gt=0)
+    require_capabilities: Optional[list[str]] = Field(default=None, max_length=32)
+    privacy_requirement: Optional[str] = Field(
+        default=None,
+        pattern="^(standard|strict)$",
+        description="Optional hard data-handling restriction; strict excludes unknown metadata.",
+    )
     model_ids: Optional[list[str]] = Field(
         default=None,
         description="Optional selected model pool. When omitted, all eligible catalog models are considered.",
@@ -61,3 +66,5 @@ class QueryProfile(BaseModel):
     analysis_method: str = Field(default="keyword_rule_analyzer")
     required_modalities: list[str] = Field(default_factory=lambda: ["text"])
     required_capabilities: list[str] = Field(default_factory=list)
+    classification_confidence: float = Field(default=0.0, ge=0.0, le=1.0)
+    uncertainty_notes: list[str] = Field(default_factory=list)

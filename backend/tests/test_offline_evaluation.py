@@ -94,7 +94,9 @@ class OfflineEvaluationTests(unittest.TestCase):
         models = [model("unscored", quality=None, price=2), model("scored", quality=.7, price=4)]
         results = evaluate(models, profile(), {"quality": .9, "cost": .1}, [])
         self.assertEqual(next(row for row in results if row.strategy == STRONGEST).selected_model_id, "scored")
-        self.assertIsNone(next(row for row in results if row.strategy == AI_COMPASS).quality_score)
+        # Deterministic model-id tie breaking selects the scored record once
+        # quality is omitted from the shared comparison.
+        self.assertEqual(next(row for row in results if row.strategy == AI_COMPASS).selected_model_id, "scored")
         compass = next(row for row in results if row.strategy == AI_COMPASS)
         self.assertIsNotNone(compass.routing_score)
         self.assertTrue(any("Quality dimension omitted" in item for item in compass.missing_data))

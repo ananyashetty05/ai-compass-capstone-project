@@ -24,9 +24,11 @@ def _model(mid, name, provider, family, caps, tasks, modalities=("text",), *, co
         supported_tasks=[*tasks, "qa"], modality=modalities[0], modalities=list(modalities),
         estimated_quality=quality, estimated_cost=cost, estimated_latency=latency, reliability=.85, risk_level=.15,
         context_window=context, cost_per_1k_tokens=(input_price or 0) / 1000, avg_latency_seconds=2.5, fallback_priority=5,
-        active=True, source="static_verified_catalog", entry_type="inference_model", requires_key=True,
+        active=True, source="static_catalog", entry_type="inference_model", requires_key=True,
         availability="unknown", provider_source=source, authentication_requirement="api_key",
         data_provenance="provider_documentation_snapshot", last_verified_at=_VERIFIED,
+        metric_provenance={"capabilities": "provider_published", "context_window": "provider_published", "pricing": "provider_published" if input_price is not None else "unavailable", "quality": "estimated", "latency": "estimated", "reliability": "estimated", "risk": "estimated"},
+        metadata_status="stale",
         input_price_per_million=input_price, output_price_per_million=output_price,
         external_url=source or None, description=description,
     )
@@ -73,6 +75,7 @@ def _app(mid, name, provider, caps, tasks, modality, url, description, *,
         entry_type=entry_type, requires_key=not free,
         authentication_requirement="account" if free else "account_or_api_key",
         availability="consumer_app", data_provenance="provider_documentation_snapshot",
+        metric_provenance={"capabilities": "provider_published", "quality": "estimated", "cost": "estimated", "latency": "estimated", "reliability": "estimated", "risk": "estimated"}, metadata_status="stale",
         last_verified_at=_VERIFIED, external_url=url, description=description,
     )
 
@@ -332,10 +335,11 @@ def get_catalog_for_recommendation(task_type: str = "", modality: str = "text") 
     """Return all catalog entries suitable for recommendation display.
     Includes both API models (with availability status) and AI applications.
     """
-    # A catalog recommendation is independent of execution credentials. The
-    # separate availability field tells the UI whether this deployment can
-    # invoke the API; it must not suppress a documented candidate.
-    api = [m.model_copy(update={"active": True, "availability": "configured" if _configured(m.provider) else "unknown"}) for m in _API_MODELS]
+    # Only executable API entries and consumer applications can be selected.
+    # Unconfigured API entries remain visible through /models, but suggesting
+    # one as an actionable destination would be misleading.
+    disabled = {p.strip().lower() for p in settings.DISABLED_PROVIDERS.split(",") if p.strip()}
+    api = [m.model_copy(update={"active": True, "availability": "configured"}) for m in _API_MODELS if _configured(m.provider) and m.provider.lower() not in disabled]
     apps = get_all_applications()
     if task_type:
         apps = [a for a in apps if task_type in a.supported_tasks or task_type in a.capabilities]

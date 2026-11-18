@@ -57,7 +57,7 @@ def _describe_constraints(
         return {}
 
     described: Dict[str, Any] = {}
-    for key in ("max_cost", "max_latency"):
+    for key in ("max_cost", "max_latency", "privacy_requirement"):
         value = constraints.get(key)
         if value is not None:
             described[key] = value
@@ -160,8 +160,8 @@ def route(
         ms = _score_model(model, query_profile, norm_weights, learning_bonuses.get(model.model_id, 0.0))
         scored.append(ms)
 
-    # Sort by overall score descending
-    scored.sort(key=lambda s: s.overall_score, reverse=True)
+    # Stable tie-breaking must not depend on caller-provided list ordering.
+    scored.sort(key=lambda s: (-s.overall_score, s.model_id))
 
     selected = scored[0]
     fallback = scored[1] if len(scored) > 1 else None
@@ -195,10 +195,11 @@ def _score_model(
     """Compute per-dimension scores and weighted overall score."""
 
     quality_score = _quality_score(model, query_profile)
-    cost_score = 1.0 - model.estimated_cost
-    latency_score = 1.0 - model.estimated_latency
-    reliability_score = model.reliability
-    risk_score = 1.0 - model.risk_level
+    bounded = lambda value: min(1.0, max(0.0, float(value)))
+    cost_score = 1.0 - bounded(model.estimated_cost)
+    latency_score = 1.0 - bounded(model.estimated_latency)
+    reliability_score = bounded(model.reliability)
+    risk_score = 1.0 - bounded(model.risk_level)
     preference_alignment = _preference_alignment(model, query_profile)
 
     breakdown = {

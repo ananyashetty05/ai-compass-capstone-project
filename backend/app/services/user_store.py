@@ -7,8 +7,12 @@ import json
 from datetime import datetime, timedelta
 from typing import Optional
 
-import psycopg
-from psycopg.rows import dict_row
+try:
+    import psycopg
+    from psycopg.rows import dict_row
+except ImportError:  # keeps routing-only deployments and unit tests importable
+    psycopg = None
+    dict_row = None
 from passlib.context import CryptContext
 from jose import jwt, JWTError
 
@@ -28,6 +32,10 @@ pwd_ctx = CryptContext(
 
 
 def _conn():
+    if psycopg is None:
+        raise RuntimeError("PostgreSQL support is unavailable; install psycopg[binary].")
+    if not settings.DATABASE_URL:
+        raise RuntimeError("DATABASE_URL is not configured.")
     return psycopg.connect(
         settings.DATABASE_URL,
         row_factory=dict_row
@@ -112,7 +120,6 @@ def login(email: str, password: str) -> Optional[PersistentUserProfile]:
 
     if not row or not pwd_ctx.verify(password, row["password_hash"]):
         return None
-
     return _row_to_profile(row)
 
 
@@ -171,6 +178,8 @@ def update_profile_fields(
 # ── JWT helpers ──────────────────────────────────────────────────────────────
 
 def create_token(user_id: str) -> str:
+    if not settings.JWT_SECRET:
+        raise RuntimeError("JWT_SECRET is not configured.")
     expire = datetime.utcnow() + timedelta(
         minutes=settings.JWT_EXPIRE_MINUTES
     )
@@ -182,6 +191,8 @@ def create_token(user_id: str) -> str:
 
 
 def decode_token(token: str) -> Optional[str]:
+    if not settings.JWT_SECRET:
+        return None
     try:
         payload = jwt.decode(
             token,
@@ -191,7 +202,3 @@ def decode_token(token: str) -> Optional[str]:
         return payload.get("sub")
     except JWTError:
         return None
-
-
-# Initialise DB on import
-init_db()

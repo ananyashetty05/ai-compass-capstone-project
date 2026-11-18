@@ -21,6 +21,7 @@ def filter_candidates(
     max_cost: float = None,
     max_latency: float = None,
     require_capabilities: List[str] = None,
+    privacy_requirement: str = None,
 ) -> Tuple[List[ModelMetadata], List[Dict[str, str]]]:
     """
     Returns (passing_models, filtered_out_list).
@@ -31,7 +32,7 @@ def filter_candidates(
 
     for model in models:
         reason = _check_hard_constraints(
-            model, query_profile, max_cost, max_latency, require_capabilities
+            model, query_profile, max_cost, max_latency, require_capabilities, privacy_requirement
         )
         if reason:
             filtered_out.append({"model_id": model.model_id, "reason": reason})
@@ -48,11 +49,19 @@ def _check_hard_constraints(
     max_cost: float,
     max_latency: float,
     require_capabilities: List[str],
+    privacy_requirement: str,
 ) -> str:
     """Returns a reason string if the model should be filtered, else empty string."""
 
     if not model.active:
         return "Model is inactive"
+
+    # Privacy is a hard eligibility decision when the user explicitly asks
+    # for strict handling. Unknown is not treated as a provider guarantee.
+    if privacy_requirement == "strict" and model.data_handling_status not in {
+        "provider_documented_restricted", "customer_controlled",
+    }:
+        return "Does not have documented data-handling metadata required for strict privacy"
 
     required_modalities = set(query_profile.required_modalities or ["text"])
     model_modalities = set(model.modalities or [model.modality])
@@ -86,6 +95,8 @@ def _check_hard_constraints(
         return f"Context window too small ({model.context_window} < {query_profile.estimated_tokens})"
 
     # Hard cost constraint
+    if max_cost is not None and (model.input_price_per_million is None or model.cost_per_1k_tokens <= 0):
+        return "Cannot verify cost constraint because pricing is unavailable"
     if max_cost is not None and model.cost_per_1k_tokens > max_cost:
         return f"Exceeds cost constraint (${model.cost_per_1k_tokens:.4f} > ${max_cost:.4f})"
 

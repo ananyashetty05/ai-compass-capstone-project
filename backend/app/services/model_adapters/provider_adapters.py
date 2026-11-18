@@ -15,7 +15,27 @@ logger = get_logger(__name__)
 
 
 class ProviderUnavailableError(Exception):
-    """Raised when a provider cannot be reached or is not configured."""
+    """Safe, classified provider failure; upstream details are not exposed."""
+    def __init__(self, message: str, *, kind: str = "unavailable", retryable: bool = False):
+        super().__init__(message)
+        self.kind = kind
+        self.retryable = retryable
+
+
+def _safe_provider_error(provider: str, exc: Exception) -> ProviderUnavailableError:
+    status = getattr(exc, "status_code", None)
+    name = type(exc).__name__.lower()
+    if status == 429 or "ratelimit" in name:
+        return ProviderUnavailableError(f"{provider} rate limit reached.", kind="rate_limited", retryable=True)
+    if status in {401, 403} or "authentication" in name:
+        return ProviderUnavailableError(f"{provider} authentication failed.", kind="authentication")
+    if status == 404 or "notfound" in name:
+        return ProviderUnavailableError(f"{provider} model is unavailable.", kind="invalid_model")
+    if "timeout" in name:
+        return ProviderUnavailableError(f"{provider} request timed out.", kind="timeout", retryable=True)
+    if "connection" in name or "network" in name:
+        return ProviderUnavailableError(f"{provider} network connection failed.", kind="network", retryable=True)
+    return ProviderUnavailableError(f"{provider} request failed.")
 
 
 class OpenAIAdapter(BaseModelAdapter):
@@ -25,7 +45,7 @@ class OpenAIAdapter(BaseModelAdapter):
             raise ProviderUnavailableError(
                 f"OPENAI_API_KEY is not configured. Cannot use model '{model.model_id}'."
             )
-        self._client = OpenAI(api_key=settings.OPENAI_API_KEY)
+        self._client = OpenAI(api_key=settings.OPENAI_API_KEY, timeout=settings.PROVIDER_TIMEOUT_SECONDS, max_retries=0)
 
     def generate(self, query: str, max_tokens: int = 1024) -> str:
         model_name = self.model.model_id
@@ -37,8 +57,8 @@ class OpenAIAdapter(BaseModelAdapter):
                 max_tokens=max_tokens,
                 temperature=0.7,
             )
-        except OpenAIError as e:
-            raise ProviderUnavailableError(f"OpenAI API error for '{model_name}': {e}")
+        except OpenAIError as exc:
+            raise _safe_provider_error("OpenAI", exc) from exc
         self._last_latency = time.time() - t0
         usage = resp.usage
         self._last_input_tokens = usage.prompt_tokens if usage else 0
@@ -54,7 +74,7 @@ class AnthropicAdapter(BaseModelAdapter):
             raise ProviderUnavailableError(
                 f"ANTHROPIC_API_KEY is not configured. Cannot use model '{model.model_id}'."
             )
-        self._client = anthropic_sdk.Anthropic(api_key=settings.ANTHROPIC_API_KEY)
+        self._client = anthropic_sdk.Anthropic(api_key=settings.ANTHROPIC_API_KEY, timeout=settings.PROVIDER_TIMEOUT_SECONDS, max_retries=0)
 
     def generate(self, query: str, max_tokens: int = 1024) -> str:
         model_name = self.model.model_id
@@ -65,8 +85,8 @@ class AnthropicAdapter(BaseModelAdapter):
                 max_tokens=max_tokens,
                 messages=[{"role": "user", "content": query}],
             )
-        except Exception as e:
-            raise ProviderUnavailableError(f"Anthropic API error for '{model_name}': {e}")
+        except Exception as exc:
+            raise _safe_provider_error("Anthropic", exc) from exc
         self._last_latency = time.time() - t0
         usage = msg.usage
         self._last_input_tokens = usage.input_tokens if usage else 0
@@ -104,9 +124,7 @@ class GeminiAdapter(BaseModelAdapter):
                 ),
             )
         except Exception as exc:
-            raise ProviderUnavailableError(
-                f"Gemini API error for '{self.model.model_id}': {exc}"
-            ) from exc
+            raise _safe_provider_error("Google Gemini", exc) from exc
         self._last_latency = time.time() - t0
         usage = getattr(response, "usage_metadata", None)
         self._last_input_tokens = getattr(usage, "prompt_token_count", None)
@@ -122,7 +140,7 @@ class GroqAdapter(BaseModelAdapter):
             raise ProviderUnavailableError(
                 f"GROQ_API_KEY is not configured. Cannot use model '{model.model_id}'."
             )
-        self._client = OpenAI(api_key=settings.GROQ_API_KEY, base_url="https://api.groq.com/openai/v1")
+        self._client = OpenAI(api_key=settings.GROQ_API_KEY, base_url="https://api.groq.com/openai/v1", timeout=settings.PROVIDER_TIMEOUT_SECONDS, max_retries=0)
 
     def generate(self, query: str, max_tokens: int = 1024) -> str:
         t0 = time.time()
@@ -134,7 +152,7 @@ class GroqAdapter(BaseModelAdapter):
                 temperature=0.7,
             )
         except OpenAIError as exc:
-            raise ProviderUnavailableError(f"Groq API error for '{self.model.model_id}': {exc}") from exc
+            raise _safe_provider_error("Groq", exc) from exc
         self._last_latency = time.time() - t0
         usage = response.usage
         self._last_input_tokens = usage.prompt_tokens if usage else None
@@ -169,6 +187,8 @@ class OpenRouterAdapter(BaseModelAdapter):
         self._client = OpenAI(
             api_key=settings.OPENROUTER_API_KEY,
             base_url=self._BASE_URL,
+            timeout=settings.PROVIDER_TIMEOUT_SECONDS,
+            max_retries=0,
         )
 
     def generate(self, query: str, max_tokens: int = 1024) -> str:
@@ -181,9 +201,7 @@ class OpenRouterAdapter(BaseModelAdapter):
                 temperature=0.7,
             )
         except OpenAIError as exc:
-            raise ProviderUnavailableError(
-                f"OpenRouter API error for '{self.model.model_id}': {exc}"
-            ) from exc
+            raise _safe_provider_error("OpenRouter", exc) from exc
         self._last_latency = time.time() - t0
         usage = response.usage
         self._last_input_tokens = usage.prompt_tokens if usage else None

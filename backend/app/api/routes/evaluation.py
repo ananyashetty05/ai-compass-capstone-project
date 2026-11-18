@@ -51,6 +51,7 @@ def evaluate_offline(
         max_cost=req.max_cost,
         max_latency=req.max_latency,
         require_capabilities=req.require_capabilities,
+        privacy_requirement=getattr(req, "privacy_requirement", None),
     )
     if req.max_cost is not None:
         unknown_pricing = [

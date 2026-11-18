@@ -5,8 +5,12 @@ import json
 from datetime import datetime, timezone
 from typing import List, Dict
 
-import psycopg
-from psycopg.rows import dict_row
+try:
+    import psycopg
+    from psycopg.rows import dict_row
+except ImportError:
+    psycopg = None
+    dict_row = None
 
 from app.core.config import settings
 from app.core.logging import get_logger
@@ -19,6 +23,10 @@ from app.schemas.feedback import (
 
 logger = get_logger(__name__)
 
+
+class InvalidFeedbackError(ValueError):
+    """Feedback does not correspond to an authenticated routing decision."""
+
 PRIOR_MEAN = 3.0
 PRIOR_WEIGHT = 2.0
 MIN_SAMPLES_FOR_INFLUENCE = 3
@@ -27,11 +35,14 @@ MAX_LEARNING_BONUS = 0.12
 
 
 def _conn():
+    if psycopg is None:
+        raise RuntimeError("PostgreSQL support is unavailable; install psycopg[binary].")
+    if not settings.DATABASE_URL:
+        raise RuntimeError("DATABASE_URL is not configured.")
     return psycopg.connect(
         settings.DATABASE_URL,
         row_factory=dict_row,
     )
-
 
 def init_feedback_db():
     with _conn() as c:
@@ -62,16 +73,43 @@ def init_feedback_db():
                 PRIMARY KEY (user_id, model_id)
             )
         """)
+        c.execute("""
+            CREATE TABLE IF NOT EXISTS routing_decisions (
+                routing_id TEXT PRIMARY KEY,
+                user_id TEXT NOT NULL,
+                selected_model_id TEXT NOT NULL,
+                created_at TEXT NOT NULL
+            )
+        """)
     logger.info("PostgreSQL feedback tables initialised")
 
 
 # ── Submission ────────────────────────────────────────────────────────────────
+
+def record_routing_decision(routing_id: str, user_id: str, selected_model_id: str) -> None:
+    """Persist the minimal ownership evidence needed to validate feedback."""
+    with _conn() as c:
+        c.execute(
+            """INSERT INTO routing_decisions (routing_id, user_id, selected_model_id, created_at)
+               VALUES (%s, %s, %s, %s)
+               ON CONFLICT (routing_id) DO NOTHING""",
+            (routing_id, user_id, selected_model_id, datetime.now(timezone.utc).isoformat()),
+        )
 
 def submit_feedback(user_id: str, sub: FeedbackSubmission) -> FeedbackRecord:
     fid = str(uuid.uuid4())
     now = datetime.now(timezone.utc).isoformat()
 
     with _conn() as c:
+        decision = c.execute(
+            """SELECT selected_model_id FROM routing_decisions
+               WHERE routing_id = %s AND user_id = %s""",
+            (sub.routing_id, user_id),
+        ).fetchone()
+        if not decision:
+            raise InvalidFeedbackError("Feedback must reference one of your recorded routing decisions.")
+        if decision["selected_model_id"] != sub.model_id:
+            raise InvalidFeedbackError("Feedback model does not match the recorded routing decision.")
         c.execute(
             """
             INSERT INTO feedback
@@ -244,7 +282,3 @@ def get_learning_bonus(user_id: str, model_id: str) -> float:
     return round(
         deviation * 2 * MAX_LEARNING_BONUS * confidence, 4
     )
-
-
-# Initialise on import
-init_feedback_db()

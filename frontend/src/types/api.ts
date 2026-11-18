@@ -17,6 +17,7 @@ export const ROUTING_OBJECTIVES = [
   'latency',
   'reliability',
   'risk',
+  'preference_alignment',
 ] as const;
 
 export type RoutingObjective = (typeof ROUTING_OBJECTIVES)[number];
@@ -141,6 +142,10 @@ export interface QueryProfile {
   reliability_requirement: number;
   estimated_tokens: number;
   analysis_method: string;
+  required_modalities?: string[];
+  required_capabilities?: string[];
+  classification_confidence?: number;
+  uncertainty_notes?: string[];
 }
 
 /* ------------------------------------------------------------------ *
@@ -248,6 +253,7 @@ export interface RouteRequest {
   max_cost?: number;
   max_latency?: number;
   require_capabilities?: string[];
+  privacy_requirement?: 'standard' | 'strict';
 }
 
 export interface OptimizePromptRequest {

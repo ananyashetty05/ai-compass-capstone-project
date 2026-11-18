@@ -18,7 +18,10 @@ def _require_uid(creds: Optional[HTTPAuthorizationCredentials] = Depends(bearer)
 
 @router.post("/feedback", response_model=FeedbackRecord, status_code=201)
 def submit_feedback(sub: FeedbackSubmission, uid: str = Depends(_require_uid)):
-    return feedback_store.submit_feedback(uid, sub)
+    try:
+        return feedback_store.submit_feedback(uid, sub)
+    except feedback_store.InvalidFeedbackError as exc:
+        raise HTTPException(422, str(exc)) from exc
 
 
 @router.get("/feedback", response_model=list[FeedbackRecord])

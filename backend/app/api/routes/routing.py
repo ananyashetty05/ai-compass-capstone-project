@@ -9,7 +9,7 @@ from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 from app.schemas.query import OptimizePromptRequest, OptimizePromptResponse, QueryRequest
 from app.schemas.response import RouteAndGenerateResponse
 from app.services import query_analyzer, candidate_filter, multi_objective_router
-from app.services import explanation, user_store, prompt_adapter
+from app.services import explanation, user_store, prompt_adapter, feedback_store
 from app.services import prompt_optimizer
 from app.services.model_registry import get_catalog_for_recommendation, get_tool_recommendations
 from app.schemas.response import ResponseEvaluation, EscalationInfo
@@ -88,6 +88,7 @@ def route_and_generate(req: QueryRequest, uid: Optional[str] = Depends(_get_uid)
         max_cost=req.max_cost,
         max_latency=req.max_latency,
         require_capabilities=req.require_capabilities,
+        privacy_requirement=req.privacy_requirement,
     )
     if not candidates:
         reasons = "; ".join(f"{item['model_id']}: {item['reason']}" for item in filtered_out)
@@ -99,6 +100,7 @@ def route_and_generate(req: QueryRequest, uid: Optional[str] = Depends(_get_uid)
             "max_cost": req.max_cost,
             "max_latency": req.max_latency,
             "require_capabilities": req.require_capabilities,
+            "privacy_requirement": req.privacy_requirement,
         },
         user_id=uid,
     )
@@ -119,12 +121,12 @@ def route_and_generate(req: QueryRequest, uid: Optional[str] = Depends(_get_uid)
         "open the official destination and use the optimized prompt."
     )
     final_eval = ResponseEvaluation(
-        quality_score=1.0,
-        relevance_score=1.0,
-        completeness_score=1.0,
+        quality_score=0.0,
+        relevance_score=0.0,
+        completeness_score=0.0,
         risk_score=0.0,
-        accepted=True,
-        evaluation_reasons=["Recommendation-only workflow; no provider response was evaluated."],
+        accepted=False,
+        evaluation_reasons=["No provider response was generated; evaluation is not applicable to this recommendation."],
         evaluation_method="not_applicable_recommendation_only",
     )
     escalation_info = EscalationInfo(
@@ -136,7 +138,7 @@ def route_and_generate(req: QueryRequest, uid: Optional[str] = Depends(_get_uid)
     final_response = generated_response
     final_optimized_prompt = optimized_prompt
 
-    exp = explanation.build_explanation(routing_decision, query_profile, all_models, user_profile)
+    exp = explanation.build_explanation(routing_decision, query_profile, candidates, user_profile)
 
     final_model_id = routing_decision.selected_model_id
     final_model = selected_model
@@ -182,6 +184,14 @@ def route_and_generate(req: QueryRequest, uid: Optional[str] = Depends(_get_uid)
     total_ms = (time.time() - t0) * 1000
     total_cost = sum(item["estimated_cost"] or 0 for item in request_usage)
     routing_id = str(uuid.uuid4())
+    try:
+        feedback_store.record_routing_decision(
+            routing_id, uid, routing_decision.selected_model_id,
+        )
+    except Exception:
+        # Routing remains available if optional feedback persistence is down;
+        # feedback submission will later fail safely instead of being unowned.
+        logger.exception("Could not persist routing decision for feedback validation")
 
     logger.info(f"Routed: {user_profile.user_group} | {routing_decision.selected_model_id} | {total_ms:.0f}ms")
 

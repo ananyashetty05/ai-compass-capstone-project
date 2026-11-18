@@ -1,3 +1,4 @@
+"""Vercel Python entry point for the backend application."""
 import sys
 from pathlib import Path
 

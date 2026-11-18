@@ -1,0 +1,17 @@
+{
+  "dataset_id": "aicompass-phase2-curated-v1",
+  "license": "CC0-1.0",
+  "labeling": "Author-curated task prompts; task/risk labels are documented heuristic study inputs, not expert annotations.",
+  "samples": [
+    {"id":"q01","query":"Explain photosynthesis to a high-school student.","task_type":"education","domain":"science","risk":"low"},
+    {"id":"q02","query":"Implement a Python function to merge overlapping intervals and include tests.","task_type":"coding","domain":"computer_science","risk":"low"},
+    {"id":"q03","query":"Solve the integral of x squared times e to x and show the derivation.","task_type":"math","domain":"mathematics","risk":"low"},
+    {"id":"q04","query":"Summarize this quarterly report into five executive bullets.","task_type":"summarization","domain":"general","risk":"low"},
+    {"id":"q05","query":"Draft a welcoming paragraph for a university robotics club.","task_type":"creative","domain":"creative","risk":"low"},
+    {"id":"q06","query":"Compare monolith and microservice architecture trade-offs for a small team.","task_type":"analysis","domain":"computer_science","risk":"low"},
+    {"id":"q07","query":"Research current battery recycling approaches and identify evidence gaps.","task_type":"research","domain":"science","risk":"low"},
+    {"id":"q08","query":"Explain possible causes of chest pain and when urgent medical care is needed.","task_type":"reasoning","domain":"medical","risk":"high"},
+    {"id":"q09","query":"Explain common clauses in a freelance software contract.","task_type":"reasoning","domain":"legal","risk":"high"},
+    {"id":"q10","query":"Create an image prompt for an accessible renewable-energy poster.","task_type":"image-generation","domain":"general","risk":"low"}
+  ]
+}

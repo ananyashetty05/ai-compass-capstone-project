@@ -1,8 +1,14 @@
 """Tests for feedback persistence and adaptive learning pipeline."""
 import uuid
 import pytest
+from tests.conftest import HAS_ISOLATED_TEST_DATABASE
 from app.services import feedback_store
 from app.schemas.feedback import FeedbackSubmission
+
+pytestmark = pytest.mark.skipif(
+    not HAS_ISOLATED_TEST_DATABASE,
+    reason="requires TEST_DATABASE_URL for an isolated Neon test database",
+)
 
 
 def _uid():
@@ -11,7 +17,7 @@ def _uid():
 
 def _sub(model_id: str, rating: int, thumbs: str = "up") -> FeedbackSubmission:
     return FeedbackSubmission(
-        routing_id="r1",
+        routing_id=str(uuid.uuid4()),
         model_id=model_id,
         model_name=model_id,
         query_summary="test query",
@@ -24,10 +30,16 @@ def _sub(model_id: str, rating: int, thumbs: str = "up") -> FeedbackSubmission:
     )
 
 
+def _submit(uid: str, model_id: str, rating: int, thumbs: str = "up"):
+    sub = _sub(model_id, rating, thumbs)
+    feedback_store.record_routing_decision(sub.routing_id, uid, model_id)
+    return feedback_store.submit_feedback(uid, sub)
+
+
 class TestFeedbackPersistence:
     def test_submit_returns_record(self):
         uid = _uid()
-        rec = feedback_store.submit_feedback(uid, _sub("model-a", 4))
+        rec = _submit(uid, "model-a", 4)
         assert rec.feedback_id
         assert rec.user_id == uid
         assert rec.rating == 4
@@ -35,23 +47,37 @@ class TestFeedbackPersistence:
 
     def test_get_user_feedback_returns_submitted(self):
         uid = _uid()
-        feedback_store.submit_feedback(uid, _sub("model-a", 5))
-        feedback_store.submit_feedback(uid, _sub("model-b", 3))
+        _submit(uid, "model-a", 5)
+        _submit(uid, "model-b", 3)
         records = feedback_store.get_user_feedback(uid)
         assert len(records) == 2
 
     def test_feedback_isolated_per_user(self):
         uid1, uid2 = _uid(), _uid()
-        feedback_store.submit_feedback(uid1, _sub("model-a", 5))
+        _submit(uid1, "model-a", 5)
         assert len(feedback_store.get_user_feedback(uid2)) == 0
+
+    def test_feedback_rejects_another_users_routing_decision(self):
+        owner, attacker = _uid(), _uid()
+        sub = _sub("model-a", 5)
+        feedback_store.record_routing_decision(sub.routing_id, owner, sub.model_id)
+        with pytest.raises(feedback_store.InvalidFeedbackError):
+            feedback_store.submit_feedback(attacker, sub)
+
+    def test_feedback_rejects_model_not_selected_for_decision(self):
+        uid = _uid()
+        sub = _sub("model-b", 5)
+        feedback_store.record_routing_decision(sub.routing_id, uid, "model-a")
+        with pytest.raises(feedback_store.InvalidFeedbackError):
+            feedback_store.submit_feedback(uid, sub)
 
 
 class TestColdStart:
     def test_cold_start_no_influence(self):
         uid = _uid()
         # 2 ratings — below MIN_SAMPLES_FOR_INFLUENCE=3
-        feedback_store.submit_feedback(uid, _sub("model-a", 5))
-        feedback_store.submit_feedback(uid, _sub("model-a", 5))
+        _submit(uid, "model-a", 5)
+        _submit(uid, "model-a", 5)
         estimates = feedback_store.get_satisfaction_estimates(uid)
         assert estimates == {}
 
@@ -64,7 +90,7 @@ class TestColdStart:
     def test_activates_after_threshold(self):
         uid = _uid()
         for _ in range(3):
-            feedback_store.submit_feedback(uid, _sub("model-a", 4))
+            _submit(uid, "model-a", 4)
         state = feedback_store.get_learning_state(uid)
         assert state.learning_active is True
         assert state.cold_start is False
@@ -74,35 +100,35 @@ class TestLearningBonuses:
     def test_positive_ratings_give_positive_bonus(self):
         uid = _uid()
         for _ in range(4):
-            feedback_store.submit_feedback(uid, _sub("model-good", 5))
+            _submit(uid, "model-good", 5)
         bonus = feedback_store.get_learning_bonus(uid, "model-good")
         assert bonus > 0
 
     def test_negative_ratings_give_negative_bonus(self):
         uid = _uid()
         for _ in range(4):
-            feedback_store.submit_feedback(uid, _sub("model-bad", 1, "down"))
+            _submit(uid, "model-bad", 1, "down")
         bonus = feedback_store.get_learning_bonus(uid, "model-bad")
         assert bonus < 0
 
     def test_neutral_ratings_near_zero(self):
         uid = _uid()
         for _ in range(4):
-            feedback_store.submit_feedback(uid, _sub("model-neutral", 3))
+            _submit(uid, "model-neutral", 3)
         bonus = feedback_store.get_learning_bonus(uid, "model-neutral")
         assert abs(bonus) < 0.02
 
     def test_bonus_bounded(self):
         uid = _uid()
         for _ in range(25):  # saturate confidence
-            feedback_store.submit_feedback(uid, _sub("model-x", 5))
+            _submit(uid, "model-x", 5)
         bonus = feedback_store.get_learning_bonus(uid, "model-x")
         assert bonus <= feedback_store.MAX_LEARNING_BONUS
 
     def test_unrated_model_zero_bonus(self):
         uid = _uid()
         for _ in range(4):
-            feedback_store.submit_feedback(uid, _sub("model-a", 5))
+            _submit(uid, "model-a", 5)
         bonus = feedback_store.get_learning_bonus(uid, "model-unrated")
         assert bonus == 0.0
 
@@ -120,7 +146,7 @@ class TestRoutingIntegration:
 
         target = models[0].model_id
         for _ in range(5):
-            feedback_store.submit_feedback(uid, _sub(target, 5))
+            _submit(uid, target, 5)
 
         qp = analyze("Explain neural networks")
         weights = {"quality": 0.3, "cost": 0.2, "latency": 0.15,

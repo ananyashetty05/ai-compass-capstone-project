@@ -3,7 +3,7 @@ AI Compass - Core Configuration
 """
 import os
 from typing import List
-from pydantic_settings import BaseSettings
+from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
 class Settings(BaseSettings):
@@ -17,6 +17,7 @@ class Settings(BaseSettings):
     ]
 
     MAX_ESCALATION_ATTEMPTS: int = 2
+    PROVIDER_TIMEOUT_SECONDS: float = 30.0
     QUALITY_ACCEPTANCE_THRESHOLD: float = 0.55
     RISK_ACCEPTANCE_THRESHOLD: float = 0.80
 
@@ -36,17 +37,14 @@ class Settings(BaseSettings):
 
     # PostgreSQL database URL (Neon)
     DATABASE_URL: str = ""
+    # Test-only Neon branch/database. Never falls back to DATABASE_URL in tests.
+    TEST_DATABASE_URL: str = ""
 
     # SQLite path retained for migration/backup
     DB_PATH: str = os.path.join(
         os.path.dirname(__file__), "../../../aicompass.db"
     )
-    class Config:
-        env_file = ".env"
-        extra = "ignore"
+    model_config = SettingsConfigDict(env_file=".env", extra="ignore")
 
 
 settings = Settings()
-
-if not settings.JWT_SECRET:
-    raise RuntimeError("JWT_SECRET must be configured through the environment.")

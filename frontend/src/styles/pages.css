@@ -2667,6 +2667,39 @@ th[aria-sort='ascending'] .sort-button__text {
   font-size: 0.65rem;
 }
 
+/* Compact method explanation: keeps the research framing visible without
+   competing with the query form or duplicating the result comparison. */
+.evaluation-how-it-works {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: var(--space-3);
+  margin-top: var(--space-3);
+}
+.evaluation-how-it-works > div {
+  display: flex;
+  gap: var(--space-3);
+  align-items: flex-start;
+  padding: var(--space-3);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+  background: var(--color-surface-muted);
+}
+.evaluation-how-it-works span {
+  display: grid;
+  place-items: center;
+  flex: 0 0 auto;
+  inline-size: 1.5rem;
+  block-size: 1.5rem;
+  border-radius: var(--radius-pill);
+  background: var(--color-primary-subtle);
+  color: var(--color-primary);
+  font-size: var(--font-size-xs);
+  font-weight: var(--weight-bold);
+}
+.evaluation-how-it-works p { margin: 0; color: var(--color-text-secondary); font-size: var(--font-size-sm); line-height: var(--line-height-normal); }
+.evaluation-how-it-works strong { color: var(--color-text-primary); }
+@media (max-width: 48rem) { .evaluation-how-it-works { grid-template-columns: 1fr; } }
+
 .evaluation-validity {
   display: grid;
   grid-template-columns: repeat(4, minmax(0, 1fr));

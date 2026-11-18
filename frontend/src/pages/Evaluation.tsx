@@ -183,28 +183,14 @@ export function Evaluation() {
           <div className="evaluation-status-line">
             <div>
               <span className="evaluation-kicker">OFFLINE EVALUATION</span>
-              <strong>{running ? 'Evaluating routing strategies' : evaluation ? 'Comparison complete' : 'Ready to evaluate'}</strong>
+              <strong>How evaluation works</strong>
             </div>
             <span className="offline-status"><CheckCircle2 size={15} aria-hidden="true" /> No provider calls</span>
           </div>
-          <div className="evaluation-strategy-grid">
-            {STRATEGIES.map(({ key, title, description, icon: Icon }) => (
-              <article
-                key={key}
-                className="evaluation-strategy"
-                data-own={key === 'aicompass' || undefined}
-                data-evaluated={resultsByKey.has(key) ? 'true' : undefined}
-              >
-                <span className="evaluation-strategy-icon"><Icon size={17} aria-hidden="true" /></span>
-                <div className="evaluation-strategy-copy">
-                  <h2>{title}</h2>
-                  <p>{description}</p>
-                </div>
-                <span className="evaluation-strategy-state">
-                  {resultsByKey.has(key) ? 'Evaluated' : 'Ready'}
-                </span>
-              </article>
-            ))}
+          <div className="evaluation-how-it-works">
+            <div><span>1</span><p><strong>Define a test query</strong><br />Choose a task and any hard constraints.</p></div>
+            <div><span>2</span><p><strong>Analyse and select</strong><br />Each strategy uses the same eligible model pool.</p></div>
+            <div><span>3</span><p><strong>Examine results</strong><br />Compare selections and metadata-derived estimates.</p></div>
           </div>
         </section>
 

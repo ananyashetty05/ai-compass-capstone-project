@@ -35,7 +35,7 @@ def escalate_if_needed(initial_response: str, initial_eval: ResponseEvaluation,
             adapter = get_adapter(model)
             response = adapter.generate(escalation_prompt)
         except ProviderUnavailableError as exc:
-            failures.append(f"{model.model_id}: {exc}")
+            failures.append(f"{model.model_id}: {exc.kind}")
             continue
         usages.append(adapter.get_usage() | {"model_id": model.model_id})
         fallback_id, current_response = model.model_id, response

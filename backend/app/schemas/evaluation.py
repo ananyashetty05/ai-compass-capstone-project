@@ -12,6 +12,7 @@ class OfflineEvaluationRequest(BaseModel):
     max_cost: Optional[float] = Field(default=None, gt=0)
     max_latency: Optional[float] = Field(default=None, gt=0)
     require_capabilities: Optional[list[str]] = None
+    privacy_requirement: Optional[str] = Field(default=None, pattern="^(standard|strict)$")
     model_ids: Optional[list[str]] = None
 
 

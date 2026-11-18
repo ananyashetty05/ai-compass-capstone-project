@@ -142,6 +142,14 @@ class CandidateFilterTests(unittest.TestCase):
         self.assertEqual(passing, [])
         self.assertIn("Context window", filtered[0]["reason"])
 
+    def test_strict_privacy_excludes_unknown_data_handling(self):
+        candidate = model("privacy-unknown", quality=0.8, cost=0.2, latency=0.2)
+        passing, filtered = candidate_filter.filter_candidates(
+            [candidate], query_profile(), privacy_requirement="strict"
+        )
+        self.assertEqual(passing, [])
+        self.assertIn("data-handling", filtered[0]["reason"])
+
 
 class TaskCategoryHintTests(unittest.TestCase):
     def test_presentation_hint_requires_presentation_capability(self):

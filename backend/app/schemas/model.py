@@ -1,7 +1,7 @@
 """
 AI Compass - Pydantic Schemas: Model
 """
-from typing import List, Optional
+from typing import Dict, List, Optional
 from pydantic import BaseModel, Field
 
 
@@ -50,6 +50,13 @@ class ModelMetadata(BaseModel):
     provider_source: Optional[str] = None
     authentication_requirement: str = Field(default="api_key")
     data_provenance: str = Field(default="static_verified_catalog")
+    metric_provenance: Dict[str, str] = Field(default_factory=dict)
+    metadata_status: str = Field(default="estimated", description="verified | estimated | incomplete | stale")
+    privacy_notes: Optional[str] = None
+    data_handling_status: str = Field(
+        default="unknown",
+        description="unknown | provider_documented_restricted | customer_controlled",
+    )
     last_verified_at: Optional[str] = None
     input_price_per_million: Optional[float] = None
     output_price_per_million: Optional[float] = None

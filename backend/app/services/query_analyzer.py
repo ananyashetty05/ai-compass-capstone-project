@@ -99,6 +99,10 @@ def analyze(query: str) -> QueryProfile:
     Analyze the submitted text and return a QueryProfile.
     Replace this function with a trained classifier for production use.
     """
+    if not isinstance(query, str) or not query.strip():
+        raise ValueError("A non-empty query is required for analysis.")
+    if len(query) > 50_000:
+        raise ValueError("Query exceeds the 50,000-character analysis limit.")
     q = query.lower()
     words = set(re.findall(r'\b\w+\b', q))
 
@@ -130,6 +134,17 @@ def analyze(query: str) -> QueryProfile:
     # Reliability: high for critical domains
     reliability_requirement = 0.9 if domain in {"medical", "legal"} else 0.75
 
+    matched_task_families = sum(bool(words & keywords) for keywords in (
+        _CODING_KEYWORDS, _MATH_KEYWORDS, _SCIENCE_KEYWORDS, _CREATIVE_KEYWORDS,
+        _SUMMARY_KEYWORDS, _RESEARCH_KEYWORDS,
+    ))
+    confidence = 0.8 if matched_task_families == 1 else (0.55 if matched_task_families > 1 else 0.35)
+    uncertainty_notes = []
+    if matched_task_families == 0:
+        uncertainty_notes.append("No strong task keyword match; defaulted to general question answering.")
+    elif matched_task_families > 1:
+        uncertainty_notes.append("Multiple task signals detected; the primary task is selected by deterministic precedence.")
+
     profile = QueryProfile(
         task_type=task_type,
         domain=domain,
@@ -144,6 +159,8 @@ def analyze(query: str) -> QueryProfile:
         analysis_method="keyword_rule_analyzer",
         required_modalities=_required_modalities(q, words),
         required_capabilities=_required_capabilities(task_type, q, words),
+        classification_confidence=confidence,
+        uncertainty_notes=uncertainty_notes,
     )
     logger.debug(f"Query analyzed: task={task_type}, domain={domain}, complexity={complexity:.2f}")
     return profile
