@@ -76,7 +76,15 @@ def _overlay_static(model: ModelMetadata, live: Optional[ModelMetadata]) -> Mode
     return model.model_copy(update=update)
 
 
+# Reasons that remove a model from comparison/routing. Credentials and adapters are deliberately absent:
+# they only decide whether AI Compass can *execute* the model.
+_KEYLESS_BLOCKERS = {"provider_disabled", "lifecycle_excluded", "inference_verification_failed", "metadata_incomplete"}
+
+
 def _entry(model: ModelMetadata, origin: str, state: LiveState, evaluate: bool = True) -> RegistryEntry:
+    from app.services import model_taxonomy
+    if model.taxonomy_status == "unclassified":
+        model = model_taxonomy.classify(model)
     verification = _verification_for(state, model)
     confirmed, stale = _freshness(state, model.provider) if model.entry_type == "inference_model" else (None, False)
     data = model.model_dump()
@@ -91,19 +99,35 @@ def _entry(model: ModelMetadata, origin: str, state: LiveState, evaluate: bool =
             "eligible": result.eligible, "reasons": result.explain(),
             "warnings": [{"code": w, "message": eligibility.WARNINGS.get(w, w)} for w in result.warnings],
         }
-        entry.routing_eligible = result.eligible
+        blockers = [r for r in result.reasons if r in _KEYLESS_BLOCKERS]
+        routable = model.entry_type == "inference_model" and not blockers
+        entry.routing_eligible = routable
+        entry.comparison_eligible = routable
+        entry.execution_available = result.eligible
+        entry.eligibility.update({
+            "routing_eligible": routable,
+            "routing_blockers": [{"code": r, "message": eligibility.REASONS.get(r, r)} for r in blockers],
+            "execution_available": result.eligible,
+            "execution_requirements": [{"code": r, "message": eligibility.REASONS.get(r, r)} for r in result.reasons if r not in _KEYLESS_BLOCKERS],
+        })
     return entry
 
 
-def build_registry(include_live: bool = True) -> list[RegistryEntry]:
+def build_registry(include_live: bool = True, include_retired: bool = False) -> list[RegistryEntry]:
     state = live_state()
     entries: list[RegistryEntry] = []
     known = set()
-    for base in model_registry._API_MODELS:
+    for base in model_registry.api_models():
         status = model_registry._status(base)
         key = canonical_key(status.provider, status.model_id)
         known.add(key)
         entries.append(_entry(_overlay_static(status, state.snapshots.get(key)), "static", state))
+    if include_retired:
+        # Superseded generations never appear in active surfaces; they stay resolvable for history, logs and evaluations.
+        from app.services.catalog import registry as catalog_registry
+        for old in (m for m in catalog_registry.all_models() if m.catalog and m.catalog["publication"] == "retired"):
+            retired = model_registry._status(old).model_copy(update={"active": False, "routing_eligible": False, "comparison_eligible": False, "execution_available": False})
+            entries.append(_entry(retired, "static", state, evaluate=False))
     for app in model_registry.get_all_applications():
         item = app.model_copy(update={"inference_access_status": "not_applicable", "routing_eligible": False})
         entries.append(_entry(item, "application", state, evaluate=False))

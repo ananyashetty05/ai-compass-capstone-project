@@ -6,16 +6,18 @@
  * figures are registry metadata from the configured `source`, so every
  * table carries a provenance label rather than implying a benchmark.
  */
-import { useCallback, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { LiveCatalogBrowser, LiveRegistryPanel } from '../components/registry/LiveRegistry';
-import { ArrowUpRight, Boxes, Check, Filter, GitCompareArrows, LayoutGrid, List, Search } from 'lucide-react';
+import { EcosystemPanel } from '../components/registry/Ecosystem';
+import { CATEGORY_LABEL, KIND_LABEL, ModelCard, cardKey } from '../components/registry/ModelCard';
+import { Boxes, Check, Filter, GitCompareArrows, LayoutGrid, List, Search, SlidersHorizontal } from 'lucide-react';
 import { PageHeader } from '../components/layout/PageHeader';
 import { CapabilityOverview, ProviderDistribution } from '../components/dashboard/DistributionCards';
 import { KpiIcons, KpiRow } from '../components/dashboard/KpiRow';
 import { summariseModels } from '../components/dashboard/insights';
 import { Button } from '../components/ui/Button';
-import { Badge, ProvenanceTag, Status, Tag } from '../components/ui/Badge';
+import { Status } from '../components/ui/Badge';
 import { DataTable } from '../components/ui/DataTable';
 import type { ColumnDef } from '../components/ui/DataTable';
 import { Modal } from '../components/ui/Modal';
@@ -24,7 +26,7 @@ import { EmptyState, ErrorState } from '../components/ui/EmptyState';
 import { Segmented, SkeletonMetrics, SkeletonTable } from '../components/ui/Skeleton';
 import { useAsync } from '../hooks/useAsync';
 import { useDocumentTitle } from '../hooks/useDocumentTitle';
-import { getRegistryStatus, listModels } from '../services/models.service';
+import { getPoolStats, getRegistryStatus, listModels } from '../services/models.service';
 import {
   formatModelCostPerThousand,
   hasPublishedPrice,
@@ -35,11 +37,13 @@ import {
   humanizeToken,
 } from '../utils/format';
 import { UNAVAILABLE } from '../types';
-import type { ModelInfo } from '../types';
+import type { ModelInfo, PoolStats, PrimaryCategory } from '../types';
 
 type StatusFilter = 'all' | 'active' | 'inactive';
-type EntryFilter = 'all' | 'inference_model' | 'application_integration' | 'specialized_ai_tool';
 type RegistryView = 'cards' | 'table';
+type UseCategory = 'all' | PrimaryCategory;
+type FreeFilter = 'all' | 'free_any' | 'free_download' | 'paid';
+type WeightsFilter = 'all' | 'open_weights' | 'proprietary';
 const MAX_COMPARE = 3;
 
 type SortKey = 'default' | 'name' | 'provider' | 'quality' | 'cost' | 'latency';
@@ -52,19 +56,14 @@ const SORT_OPTIONS: { value: SortKey; label: string }[] = [
   { value: 'latency', label: 'Latency estimate (low first)' },
 ];
 
-const REGISTRY_CATEGORIES: { key: EntryFilter; title: string; detail: string; countKey: keyof RegistryCategoryCounts }[] = [
-  { key: 'all', title: 'All entries', detail: 'Everything in the registry', countKey: 'all' },
-  { key: 'inference_model', title: 'API models', detail: 'Available for model routing', countKey: 'models' },
-  { key: 'application_integration', title: 'AI applications', detail: 'Products opened at their destination', countKey: 'applications' },
-  { key: 'specialized_ai_tool', title: 'Specialized tools', detail: 'Task-specific AI tools', countKey: 'tools' },
-];
-
-type RegistryCategoryCounts = {
-  all: number;
-  models: number;
-  applications: number;
-  tools: number;
+const CATEGORY_DETAIL: Record<PrimaryCategory, string> = {
+  conversational: 'Chat and instruction-tuned models that answer questions directly',
+  developer: 'Embeddings, code, speech, vision, image/video and base models to integrate',
+  application: 'Consumer AI apps and tools you open yourself; not models and not routable',
+  unclassified: 'No verified capability evidence yet; shown, never guessed',
 };
+const PAGE_SIZE = 48;
+function isFreeAny(m: ModelInfo): boolean { return m.free_download === true || m.free_access === 'free' || m.free_access === 'limited_free'; }
 
 const PROVIDER_LABELS: Record<string, string> = {
   openai: 'OpenAI',
@@ -81,6 +80,7 @@ const SOURCE_LABELS: Record<string, string> = {
   static_catalog: 'Bundled provider-documentation snapshot',
   application_catalog: 'Bundled application catalog snapshot',
   live_discovered: 'Live provider catalog discovery',
+  catalog: 'Autonomous catalogue',
   routerbench: 'RouterBench import',
   measured: 'Measured in this environment',
 };
@@ -104,19 +104,25 @@ function availabilityLabel(value: string): string {
 
 export function ModelPool() {
   const navigate = useNavigate();
-  const setSelected = (m: ModelInfo) => navigate(`/models/inspect?provider=${encodeURIComponent(m.provider)}&model=${encodeURIComponent(m.model_id)}`);
+  const setSelected = useCallback((m: ModelInfo) => navigate(`/models/inspect?provider=${encodeURIComponent(m.provider)}&model=${encodeURIComponent(m.model_id)}`), [navigate]);
   useDocumentTitle('Model registry · AI Compass');
   const models = useAsync((signal) => listModels(signal));
+  const poolStats = useAsync((signal) => getPoolStats(signal));
   const registryStatus = useAsync((signal) => getRegistryStatus(signal));
   const [query, setQuery] = useState('');
   const [status, setStatus] = useState<StatusFilter>('all');
   const [provider, setProvider] = useState<string>('all');
   const [availability, setAvailability] = useState<string>('all');
   const [lifecycle, setLifecycle] = useState<string>('all');
-  const [entryType, setEntryType] = useState<EntryFilter>('all');
+  const [useCat, setUseCat] = useState<UseCategory>('all');
+  const [kind, setKind] = useState('all');
+  const [freeFilter, setFreeFilter] = useState<FreeFilter>('all');
+  const [weightsFilter, setWeightsFilter] = useState<WeightsFilter>('all');
   const [capability, setCapability] = useState('all');
   const [view, setView] = useState<RegistryView>('cards');
   const [sortKey, setSortKey] = useState<SortKey>('default');
+  const [showAdvanced, setShowAdvanced] = useState(false);
+  const [limit, setLimit] = useState(PAGE_SIZE);
   const [compareIds, setCompareIds] = useState<string[]>([]);
   const [compareOpen, setCompareOpen] = useState(false);
   const [adminToken, setAdminToken] = useState('');
@@ -128,7 +134,7 @@ export function ModelPool() {
   }, [models.data]);
 
   const capabilities = useMemo(() => {
-    const values = new Set((models.data ?? []).flatMap((model) => model.capabilities));
+    const values = new Set((models.data ?? []).flatMap((model) => model.capability_tags ?? []));
     return Array.from(values).sort((a, b) => humanizeToken(a).localeCompare(humanizeToken(b)));
   }, [models.data]);
 
@@ -145,20 +151,28 @@ export function ModelPool() {
   const filtered = useMemo(() => {
     const needle = query.trim().toLowerCase();
     const rows = (models.data ?? []).filter((model) => {
+      if (useCat !== 'all' && (model.primary_category ?? 'unclassified') !== useCat) return false;
+      if (kind !== 'all' && (model.category_kind ?? 'unclassified') !== kind) return false;
+      if (freeFilter === 'free_any' && !isFreeAny(model)) return false;
+      if (freeFilter === 'free_download' && model.free_download !== true) return false;
+      if (freeFilter === 'paid' && model.free_access !== 'paid') return false;
+      if (weightsFilter !== 'all' && (model.weights_status ?? 'unknown') !== weightsFilter) return false;
       if (status === 'active' && !model.active) return false;
       if (status === 'inactive' && model.active) return false;
       if (provider !== 'all' && model.provider !== provider) return false;
       if (availability !== 'all' && model.availability !== availability) return false;
       if (lifecycle !== 'all' && model.lifecycle_status !== lifecycle) return false;
-      if (entryType === 'inference_model' && model.entry_type !== 'inference_model' && model.entry_type !== 'model') return false;
-      if (entryType !== 'all' && entryType !== 'inference_model' && model.entry_type !== entryType) return false;
-      if (capability !== 'all' && !model.capabilities.includes(capability)) return false;
+      if (capability !== 'all' && !(model.capability_tags ?? []).includes(capability)) return false;
       if (needle.length === 0) return true;
       return (
         model.model_id.toLowerCase().includes(needle) ||
         model.model_name.toLowerCase().includes(needle) ||
         model.provider.toLowerCase().includes(needle) ||
-        model.capabilities.some((capability) => capability.toLowerCase().includes(needle))
+        (model.developer ?? '').toLowerCase().includes(needle) ||
+        (model.model_family ?? '').toLowerCase().includes(needle) ||
+        (model.category_kind ?? '').toLowerCase().includes(needle) ||
+        model.capabilities.some((value) => value.toLowerCase().includes(needle)) ||
+        (model.capability_tags ?? []).some((value) => value.toLowerCase().includes(needle))
       );
     });
     // Missing numbers sort last so unknown values never look "best".
@@ -181,47 +195,45 @@ export function ModelPool() {
     };
     const compare = by[sortKey];
     return compare ? rows.slice().sort(compare) : rows;
-  }, [availability, capability, entryType, lifecycle, models.data, provider, query, status, sortKey]);
+  }, [availability, capability, freeFilter, kind, lifecycle, models.data, provider, query, status, sortKey, useCat, weightsFilter]);
 
-  const stats = useMemo(() => {
-    const list = models.data ?? [];
-    const active = list.filter((model) => model.active);
-    return {
-      total: list.length,
-      active: active.length,
-      inactive: list.length - active.length,
-      providers: new Set(list.map((model) => model.provider)).size,
-      live: list.filter((model) => model.source === 'live_discovered').length,
-    };
-  }, [models.data]);
+  // Page size resets whenever the result set changes; the visible slice never hides records (the count always shows the full total).
+  useEffect(() => { setLimit(PAGE_SIZE); }, [filtered]);
+  const visible = useMemo(() => filtered.slice(0, limit), [filtered, limit]);
 
-  const categoryCounts = useMemo(() => {
-    const list = models.data ?? [];
-    return {
-      all: list.length,
-      models: list.filter((model) => model.entry_type === 'inference_model' || model.entry_type === 'model').length,
-      applications: list.filter((model) => model.entry_type === 'application_integration').length,
-      tools: list.filter((model) => model.entry_type === 'specialized_ai_tool').length,
-    };
+  const total = (models.data ?? []).length;
+  // Headline numbers come from the server (`/models/pool-stats`); this is only a fallback if that call fails, computed with the same rules.
+  const stats: PoolStats | null = poolStats.data ?? null;
+  const fallbackCounts = useMemo(() => {
+    const out: Record<PrimaryCategory, number> = { conversational: 0, developer: 0, application: 0, unclassified: 0 };
+    for (const model of models.data ?? []) out[model.primary_category ?? 'unclassified'] += 1;
+    return out;
   }, [models.data]);
+  const primary = stats?.primary ?? fallbackCounts;
+  const mismatch = stats !== null && stats.pool_total !== total;
+  const kindOptions = useMemo(() => {
+    if (useCat === 'all') return [];
+    const fromStats = stats?.kinds?.[useCat];
+    if (fromStats) return fromStats;
+    const counts = new Map<string, number>();
+    for (const model of models.data ?? []) if ((model.primary_category ?? 'unclassified') === useCat) counts.set(model.category_kind ?? 'unclassified', (counts.get(model.category_kind ?? 'unclassified') ?? 0) + 1);
+    return Array.from(counts, ([k, count]) => ({ kind: k, label: KIND_LABEL[k] ?? humanizeToken(k), count }));
+  }, [models.data, stats, useCat]);
+
+  const advancedActive = [status !== 'all', availability !== 'all', lifecycle !== 'all', capability !== 'all', freeFilter !== 'all', weightsFilter !== 'all'].filter(Boolean).length;
+  const filtersActive = query.trim().length > 0 || provider !== 'all' || useCat !== 'all' || kind !== 'all' || advancedActive > 0;
 
   const clearFilters = useCallback(() => {
-    setQuery('');
-    setStatus('all');
-    setProvider('all');
-    setAvailability('all');
-    setLifecycle('all');
-    setEntryType('all');
-    setCapability('all');
+    setQuery(''); setStatus('all'); setProvider('all'); setAvailability('all'); setLifecycle('all'); setUseCat('all'); setKind('all');
+    setFreeFilter('all'); setWeightsFilter('all'); setCapability('all');
   }, []);
 
-  const filtersActive = query.trim().length > 0 || status !== 'all' || provider !== 'all' || availability !== 'all' || lifecycle !== 'all' || entryType !== 'all' || capability !== 'all';
-
   const toggleCompare = useCallback((model: ModelInfo) => {
+    const key = cardKey(model);
     setCompareIds((current) => {
-      if (current.includes(model.model_id)) return current.filter((id) => id !== model.model_id);
+      if (current.includes(key)) return current.filter((id) => id !== key);
       if (current.length >= MAX_COMPARE) return current;
-      return [...current, model.model_id];
+      return [...current, key];
     });
   }, []);
 
@@ -310,12 +322,12 @@ export function ModelPool() {
             </Button>
             <Button
               size="sm"
-              variant={compareIds.includes(row.model_id) ? 'subtle' : 'secondary'}
-              disabled={!compareIds.includes(row.model_id) && compareIds.length >= MAX_COMPARE}
+              variant={compareIds.includes(cardKey(row)) ? 'subtle' : 'secondary'}
+              disabled={!compareIds.includes(cardKey(row)) && compareIds.length >= MAX_COMPARE}
               onClick={() => toggleCompare(row)}
             >
-              {compareIds.includes(row.model_id) ? <Check aria-hidden="true" /> : <GitCompareArrows aria-hidden="true" />}
-              <span className="sr-only">{compareIds.includes(row.model_id) ? 'Remove from comparison' : 'Add to comparison'} </span>
+              {compareIds.includes(cardKey(row)) ? <Check aria-hidden="true" /> : <GitCompareArrows aria-hidden="true" />}
+              <span className="sr-only">{compareIds.includes(cardKey(row)) ? 'Remove from comparison' : 'Add to comparison'} </span>
             </Button>
           </div>
         ),
@@ -326,31 +338,30 @@ export function ModelPool() {
   );
 
   const catalogueSummary = useMemo(() => (models.data ? summariseModels(models.data) : null), [models.data]);
-
-  const compareModels = (models.data ?? []).filter((model) => compareIds.includes(model.model_id));
+  const compareModels = (models.data ?? []).filter((model) => compareIds.includes(cardKey(model)));
+  const chooseCategory = (next: UseCategory) => { setUseCat(next); setKind('all'); };
+  const categoryTabs: Array<{ key: UseCategory; label: string; detail: string; count: number }> = [
+    { key: 'all', label: 'All entries', detail: 'Everything in the active pool: models plus AI applications', count: stats?.pool_total ?? total },
+    { key: 'conversational', label: CATEGORY_LABEL.conversational, detail: CATEGORY_DETAIL.conversational, count: primary.conversational },
+    { key: 'developer', label: 'Developer & Project models', detail: CATEGORY_DETAIL.developer, count: primary.developer },
+    { key: 'application', label: 'AI applications', detail: CATEGORY_DETAIL.application, count: primary.application },
+    ...(primary.unclassified > 0 ? [{ key: 'unclassified' as UseCategory, label: 'Unclassified', detail: CATEGORY_DETAIL.unclassified, count: primary.unclassified }] : []),
+  ];
 
   return (
     <>
       <PageHeader
         eyebrow="Registry"
         title="Model registry"
-        description="Static catalog snapshots, discovered provider entries, and consumer AI applications. Discovery visibility never implies inference access or routing eligibility."
+        description="The active catalogue of verified models and AI applications. Each entry has exactly one primary category; capabilities overlap and are filtered separately."
         actions={(
           <div className="row row-wrap">
             {compareIds.length > 0 && (
-              <Button
-                variant="secondary"
-                size="sm"
-                leadingIcon={<GitCompareArrows />}
-                disabled={compareIds.length < 2}
-                onClick={() => setCompareOpen(true)}
-              >
+              <Button variant="secondary" size="sm" leadingIcon={<GitCompareArrows />} disabled={compareIds.length < 2} onClick={() => setCompareOpen(true)}>
                 Compare ({compareIds.length})
               </Button>
             )}
-            <Button variant="secondary" size="sm" onClick={models.reload} loading={models.isLoading}>
-              Reload catalog
-            </Button>
+            <Button variant="secondary" size="sm" onClick={() => { models.reload(); poolStats.reload(); }} loading={models.isLoading}>Reload catalog</Button>
           </div>
         )}
       />
@@ -361,338 +372,196 @@ export function ModelPool() {
           <SkeletonTable rows={8} />
         </div>
       ) : models.error ? (
-        <ErrorState
-          title="The model registry could not be loaded"
-          message={models.error.message}
-          hint={models.error.hint}
-          onRetry={models.reload}
-        />
+        <ErrorState title="The model registry could not be loaded" message={models.error.message} hint={models.error.hint} onRetry={models.reload} />
       ) : (
-        <div className="page-body registry-page-body">
-          {catalogueSummary ? (
-            <section className="cx-overview" aria-label="Catalogue overview">
-              <KpiRow
-                kpis={[
-                  { id: 'entries', label: 'Catalogue entries', icon: KpiIcons.models, value: stats.total, detail: `${catalogueSummary.inference.length} API models · ${catalogueSummary.nonInference} applications and tools` },
-                  { id: 'active', label: 'Active API models', icon: KpiIcons.registry, value: catalogueSummary.active, of: catalogueSummary.inference.length, detail: catalogueSummary.inactive > 0 ? `${catalogueSummary.inactive} inactive` : 'All registered API models are active' },
-                  { id: 'eligible', label: 'Routing-eligible', icon: KpiIcons.routing, value: catalogueSummary.eligible, of: catalogueSummary.eligible !== null ? catalogueSummary.inference.length : null, detail: catalogueSummary.eligible !== null ? 'Eligible for routing right now' : 'Eligibility is not reported for these entries' },
-                  { id: 'providers', label: 'Providers', icon: KpiIcons.providers, value: catalogueSummary.providers.length, detail: catalogueSummary.stale > 0 ? `${catalogueSummary.stale} model${catalogueSummary.stale === 1 ? '' : 's'} with stale data` : 'No stale catalog data reported' },
-                ]}
-              />
-              <div className="cx-grid cx-grid--2">
-                <ProviderDistribution summary={catalogueSummary} />
-                <CapabilityOverview summary={catalogueSummary} />
-              </div>
-            </section>
-          ) : null}
-          <LiveRegistryPanel
-            status={registryStatus.data}
-            adminToken={adminToken}
-            onAdminToken={setAdminToken}
-            onChanged={() => { registryStatus.reload(); models.reload(); setCatalogRefresh((value) => value + 1); }}
-          />
-          <section className="registry-discovery" aria-labelledby="registry-categories-title">
-            <div className="registry-discovery-heading">
-              <div>
-                <p className="registry-eyebrow">Explore the catalog</p>
-                <h2 id="registry-categories-title">Find a model for the work</h2>
-                <p>Browse registered APIs and applications by how they’re available to your workflow.</p>
-              </div>
-              <span className="registry-discovery-count">{formatNumber(stats.total, 0)} entries</span>
-            </div>
-            <div className="registry-category-grid">
-              {REGISTRY_CATEGORIES.map((category) => (
-                <button
-                  type="button"
-                  className="registry-category"
-                  data-selected={entryType === category.key}
-                  key={category.key}
-                  aria-pressed={entryType === category.key}
-                  onClick={() => setEntryType(category.key)}
-                >
-                  <span className="registry-category-label">{category.title}</span>
-                  <span className="registry-category-detail">{category.detail}</span>
-                  <strong>{formatNumber(categoryCounts[category.countKey], 0)}</strong>
+        <div className="page-body registry-page-body mp">
+          <section className="mp-overview" aria-labelledby="mp-overview-title">
+            <h2 id="mp-overview-title" className="sr-only">Catalogue overview</h2>
+            <KpiRow
+              kpis={[
+                { id: 'canonical', label: 'Active canonical models', icon: KpiIcons.models, value: stats?.canonical_models ?? catalogueSummary?.inference.length ?? 0, detail: `One per model identity · plus ${formatInteger(stats?.applications ?? primary.application)} AI applications` },
+                { id: 'offerings', label: 'Provider offerings', icon: KpiIcons.providers, value: stats?.provider_offerings.count ?? null, detail: stats ? `Access routes across ${stats.provider_offerings.providers} providers, not extra models` : 'Offering count unavailable' },
+                { id: 'pending', label: 'Awaiting verification', icon: KpiIcons.registry, value: stats?.pending_verification ?? null, detail: 'Discovered but not yet published; excluded from the pool' },
+                { id: 'retired', label: 'Retired generations', icon: KpiIcons.routing, value: stats?.retired ?? null, detail: 'Older generations kept as history; excluded from the pool' },
+              ]}
+            />
+            <div className="mp-cats" role="group" aria-label="Primary category">
+              {categoryTabs.map((tab) => (
+                <button type="button" className="mp-cat" key={tab.key} aria-pressed={useCat === tab.key} onClick={() => chooseCategory(tab.key)}>
+                  <span className="mp-cat-count">{formatNumber(tab.count, 0)}</span>
+                  <span className="mp-cat-label">{tab.label}</span>
+                  <span className="mp-cat-detail">{tab.detail}</span>
                 </button>
               ))}
             </div>
+            <p className="mp-math" role="status">
+              <span>Primary categories are exclusive:
+                {' '}<strong>{formatNumber(primary.conversational, 0)}</strong> <span className="mp-sep">+</span> <strong>{formatNumber(primary.developer, 0)}</strong> <span className="mp-sep">+</span> <strong>{formatNumber(primary.application, 0)}</strong>
+                {primary.unclassified > 0 ? <> <span className="mp-sep">+</span> <strong>{formatNumber(primary.unclassified, 0)}</strong></> : null}
+                {' '}<span className="mp-sep">=</span> <strong>{formatNumber(stats?.pool_total ?? total, 0)}</strong></span>
+              {stats ? (
+                <span className="mp-audit" data-ok={stats.integrity.ok && !mismatch} title={stats.integrity.checks.map((c) => `${c.ok ? '✓' : '✗'} ${c.check.replace(/_/g, ' ')}`).join('\n')}>
+                  {stats.integrity.ok && !mismatch ? 'Counts reconcile · integrity audit passed' : 'Count audit found a problem — see tooltip'}
+                </span>
+              ) : poolStats.isLoading ? <span className="mp-audit" data-ok="true">Loading server counts…</span> : <span className="mp-audit" data-ok="false">Server counts unavailable; showing counts from the loaded list</span>}
+            </p>
+            {kindOptions.length > 0 ? (
+              <div className="mp-kinds" role="group" aria-label={`${CATEGORY_LABEL[useCat as PrimaryCategory]} types`}>
+                <button type="button" className="mp-kind" aria-pressed={kind === 'all'} onClick={() => setKind('all')}>All types</button>
+                {kindOptions.map((option) => (
+                  <button type="button" className="mp-kind" key={option.kind} aria-pressed={kind === option.kind} onClick={() => setKind(option.kind)}>{option.label}<b>{formatNumber(option.count, 0)}</b></button>
+                ))}
+              </div>
+            ) : null}
           </section>
 
-          {/* Toolbar and table share one surface: the controls act on
-              the rows directly beneath them. */}
           <div className="table-surface">
-            <div className="table-toolbar">
-              <TextInput
-                className="toolbar-search"
-                label="Search"
-                hideLabel
-                type="search"
-                placeholder="Model name, id, provider or capability"
-                value={query}
-                onChange={(event) => setQuery(event.target.value)}
-                leadingIcon={<Search />}
-              />
-
-              <label className="toolbar-group registry-select-group">
-                <span className="toolbar-label">Provider</span>
-                <select
-                  className="registry-filter-select"
-                  aria-label="Filter by provider"
-                  value={provider}
-                  onChange={(event) => setProvider(event.target.value)}
-                >
+            <div className="mp-toolbar">
+              <TextInput className="toolbar-search" label="Search" hideLabel type="search" placeholder="Search name, id, developer, provider or capability" value={query} onChange={(event) => setQuery(event.target.value)} leadingIcon={<Search />} />
+              <label className="mp-field">
+                <span>Provider</span>
+                <select className="registry-filter-select" aria-label="Filter by provider" value={provider} onChange={(event) => setProvider(event.target.value)}>
                   <option value="all">All providers</option>
-                  {providers.map((id) => (
-                    <option key={id} value={id}>{providerLabel(id)}</option>
-                  ))}
+                  {providers.map((id) => <option key={id} value={id}>{providerLabel(id)}</option>)}
                 </select>
               </label>
-
-              <label className="toolbar-group registry-select-group">
-                <span className="toolbar-label">Availability</span>
-                <select
-                  className="registry-filter-select"
-                  aria-label="Filter by availability"
-                  value={availability}
-                  onChange={(event) => setAvailability(event.target.value)}
-                >
-                  <option value="all">All availability</option>
-                  {availabilityOptions.map((value) => (
-                    <option key={value} value={value}>{availabilityLabel(value)}</option>
-                  ))}
-                </select>
-              </label>
-
-              <label className="toolbar-group registry-select-group">
-                <span className="toolbar-label">Lifecycle</span>
-                <select className="registry-filter-select" aria-label="Filter by lifecycle" value={lifecycle} onChange={(event) => setLifecycle(event.target.value)}>
-                  <option value="all">All lifecycle states</option>
-                  {lifecycleOptions.map((value) => <option key={value} value={value}>{humanizeToken(value)}</option>)}
-                </select>
-              </label>
-
-              <div className="toolbar-group">
-                <span className="toolbar-label">Status</span>
-                <Segmented<StatusFilter>
-                  size="sm"
-                  label="Filter by status"
-                  value={status}
-                  onChange={setStatus}
-                  options={[
-                    { value: 'all', label: 'All' },
-                    { value: 'active', label: 'Active' },
-                    { value: 'inactive', label: 'Inactive' },
-                  ]}
-                />
-              </div>
-
-              <label className="toolbar-group registry-select-group">
-                <span className="toolbar-label">Capability</span>
-                <select
-                  className="registry-filter-select"
-                  aria-label="Filter by capability"
-                  value={capability}
-                  onChange={(event) => setCapability(event.target.value)}
-                >
-                  <option value="all">All capabilities</option>
-                  {capabilities.map((value) => (
-                    <option key={value} value={value}>{humanizeToken(value)}</option>
-                  ))}
-                </select>
-              </label>
-
-              <label className="toolbar-group registry-select-group">
-                <span className="toolbar-label">Sort by</span>
+              <label className="mp-field">
+                <span>Sort by</span>
                 <select className="registry-filter-select" aria-label="Sort models" value={sortKey} onChange={(event) => setSortKey(event.target.value as SortKey)}>
                   {SORT_OPTIONS.map((o) => <option key={o.value} value={o.value}>{o.label}</option>)}
                 </select>
               </label>
+              <Button variant="secondary" size="sm" leadingIcon={<SlidersHorizontal />} aria-expanded={showAdvanced} onClick={() => setShowAdvanced((v) => !v)}>
+                Filters{advancedActive > 0 ? ` (${advancedActive})` : ''}
+              </Button>
+              <Segmented<RegistryView> size="sm" label="Registry display" value={view} onChange={setView}
+                options={[{ value: 'cards', label: 'Cards', icon: <LayoutGrid /> }, { value: 'table', label: 'Table', icon: <List /> }]} />
+            </div>
 
-              {filtersActive ? (
-                <Button variant="ghost" size="sm" onClick={clearFilters} leadingIcon={<Filter />}>
-                  Clear
-                </Button>
-              ) : null}
+            {showAdvanced ? (
+              <div className="mp-adv" role="group" aria-label="More filters">
+                <label className="mp-field"><span>Capability (overlapping)</span>
+                  <select className="registry-filter-select" aria-label="Filter by capability" value={capability} onChange={(event) => setCapability(event.target.value)}>
+                    <option value="all">Any capability</option>
+                    {capabilities.map((value) => <option key={value} value={value}>{humanizeToken(value)}{stats?.capabilities.counts[value] ? ` (${stats.capabilities.counts[value]})` : ''}</option>)}
+                  </select></label>
+                <label className="mp-field"><span>Weights</span>
+                  <select className="registry-filter-select" aria-label="Filter by weights availability" value={weightsFilter} onChange={(event) => setWeightsFilter(event.target.value as WeightsFilter)}>
+                    <option value="all">Any</option><option value="open_weights">Open weights</option><option value="proprietary">Proprietary</option>
+                  </select></label>
+                <label className="mp-field"><span>Cost to use</span>
+                  <select className="registry-filter-select" aria-label="Filter by free access" value={freeFilter} onChange={(event) => setFreeFilter(event.target.value as FreeFilter)}>
+                    <option value="all">Any</option><option value="free_any">Free download or free tier</option><option value="free_download">Free to download (weights)</option><option value="paid">Paid only</option>
+                  </select></label>
+                <label className="mp-field"><span>Availability</span>
+                  <select className="registry-filter-select" aria-label="Filter by availability" value={availability} onChange={(event) => setAvailability(event.target.value)}>
+                    <option value="all">All availability</option>
+                    {availabilityOptions.map((value) => <option key={value} value={value}>{availabilityLabel(value)}</option>)}
+                  </select></label>
+                <label className="mp-field"><span>Lifecycle</span>
+                  <select className="registry-filter-select" aria-label="Filter by lifecycle" value={lifecycle} onChange={(event) => setLifecycle(event.target.value)}>
+                    <option value="all">All lifecycle states</option>
+                    {lifecycleOptions.map((value) => <option key={value} value={value}>{humanizeToken(value)}</option>)}
+                  </select></label>
+                <div className="mp-field"><span>Status</span>
+                  <Segmented<StatusFilter> size="sm" label="Filter by status" value={status} onChange={setStatus}
+                    options={[{ value: 'all', label: 'All' }, { value: 'active', label: 'Active' }, { value: 'inactive', label: 'Inactive' }]} /></div>
+              </div>
+            ) : null}
 
-              <p className="toolbar-count" role="status">
-                {formatInteger(filtered.length)} of {formatInteger(stats.total)}
+            <div className="mp-resultbar">
+              <p className="toolbar-count" role="status" style={{ margin: 0 }}>
+                {view === 'cards' ? `Showing ${formatInteger(visible.length)} of ${formatInteger(filtered.length)}` : `${formatInteger(filtered.length)}`} matching · {formatInteger(total)} in the active pool
               </p>
-              <Segmented<RegistryView>
-                size="sm"
-                label="Registry display"
-                value={view}
-                onChange={setView}
-                options={[
-                  { value: 'cards', label: 'Cards', icon: <LayoutGrid /> },
-                  { value: 'table', label: 'Table', icon: <List /> },
-                ]}
-              />
+              {filtersActive ? <Button variant="ghost" size="sm" onClick={clearFilters} leadingIcon={<Filter />}>Clear all filters</Button> : null}
             </div>
 
             {view === 'cards' ? (
               filtered.length > 0 ? (
-                <div className="registry-card-grid">
-                  {filtered.map((model) => {
-                    const isCompared = compareIds.includes(model.model_id);
-                    return (
-                      <article className="registry-card" key={model.model_id}>
-                        <div className="registry-card-top">
-                          <div>
-                            <p className="registry-card-provider">{providerLabel(model.provider)}</p>
-                            <h2 className="registry-card-title">{model.model_name}</h2>
-                            <p className="registry-card-id">{model.model_id}</p>
-                          </div>
-                          <Status name={model.active ? 'active' : 'inactive'}>
-                            {model.active ? 'Active' : 'Inactive'}
-                          </Status>
-                        </div>
-                        <div className="registry-card-badges">
-                          <Badge tone={model.entry_type === 'inference_model' || model.entry_type === 'model' ? 'primary' : 'neutral'}>
-                            {entryTypeLabel(model.entry_type)}
-                          </Badge>
-                          {model.availability ? <Tag>{model.entry_type === 'application_integration' ? 'App' : 'API'}: {availabilityLabel(model.availability)}</Tag> : null}
-                          {model.lifecycle_status ? <Tag>{humanizeToken(model.lifecycle_status)}</Tag> : null}
-                          {model.entry_type === 'inference_model' ? <Tag>{model.routing_eligible ? 'Routing eligible' : model.inference_access_status === 'validated' ? 'Inference validated' : 'Not routing eligible'}</Tag> : null}
-                          <ProvenanceTag
-                            kind={model.source === 'measured' ? 'measured' : 'estimated'}
-                            label={SOURCE_LABELS[model.source] ?? humanizeToken(model.source)}
-                          />
-                        </div>
-                        {model.description && <p className="registry-card-description">{model.description}</p>}
-                        <dl className="registry-card-metrics">
-                          <div><dt>Quality estimate</dt><dd>{formatPercent(model.estimated_quality, 0)}</dd></div>
-                          <div><dt>Cost / 1K</dt><dd>{formatModelCostPerThousand(model)}</dd></div>
-                          <div><dt>Latency estimate</dt><dd>{formatSeconds(model.avg_latency_seconds)}</dd></div>
-                          <div><dt>Reliability metadata</dt><dd>{formatPercent(model.reliability, 0)}</dd></div>
-                        </dl>
-                        <div className="registry-card-capabilities" aria-label="Reported capabilities">
-                          {model.capabilities.length > 0
-                            ? model.capabilities.slice(0, 5).map((value) => <Tag key={value}>{humanizeToken(value)}</Tag>)
-                            : <span className="text-muted text-xs">No capabilities reported</span>}
-                          {model.capabilities.length > 5 && <span className="text-muted text-xs">+{model.capabilities.length - 5}</span>}
-                        </div>
-                        <div className="registry-card-actions">
-                          {model.external_url && (
-                            <a className="btn" data-size="sm" data-variant="ghost" href={model.external_url} target="_blank" rel="noreferrer noopener">
-                              Open destination <ArrowUpRight aria-hidden="true" />
-                            </a>
-                          )}
-                          <Button size="sm" variant="secondary" onClick={() => setSelected(model)}>
-                            Inspect
-                          </Button>
-                          <Button
-                            size="sm"
-                            variant={isCompared ? 'subtle' : 'ghost'}
-                            disabled={!isCompared && compareIds.length >= MAX_COMPARE}
-                            onClick={() => toggleCompare(model)}
-                            leadingIcon={isCompared ? <Check /> : <GitCompareArrows />}
-                          >
-                            {isCompared ? 'Selected' : 'Compare'}
-                          </Button>
-                        </div>
-                      </article>
-                    );
-                  })}
-                </div>
-              ) : (
-                <EmptyState
-                  icon={<Boxes />}
-                  title="No models match these filters"
-                  description={filtersActive
-                    ? 'Clear the filters to see the whole registry.'
-                    : 'The registry returned no models, so there is nothing for the router to select.'}
-                  action={filtersActive ? <Button variant="secondary" onClick={clearFilters}>Clear filters</Button> : undefined}
-                />
-              )
-            ) : <DataTable
-              flush
-              caption="Models available to the router, with the registry metadata used for scoring"
-              columns={columns}
-              rows={filtered}
-              rowKey={(row) => row.model_id}
-              initialSort={{ columnId: 'quality', direction: 'desc' }}
-              renderCard={(row) => (
-                <div>
-                  <div className="record-head">
-                    <div>
-                      <p className="record-title">{row.model_name}</p>
-                      <p className="record-subtitle">{row.model_id}</p>
-                    </div>
-                    <Status name={row.active ? 'active' : 'inactive'}>{row.active ? 'Active' : 'Inactive'}</Status>
+                <>
+                  <div className="mp-grid" role="list" aria-label="Models">
+                    {visible.map((model) => (
+                      <div role="listitem" key={cardKey(model)} style={{ display: 'contents' }}>
+                        <ModelCard
+                          model={model}
+                          providerLabel={providerLabel(model.provider)}
+                          compared={compareIds.includes(cardKey(model))}
+                          compareDisabled={compareIds.length >= MAX_COMPARE}
+                          onInspect={setSelected}
+                          onToggleCompare={toggleCompare}
+                        />
+                      </div>
+                    ))}
                   </div>
-                  <dl className="record-metrics">
-                    <div className="record-metric">
-                      <dt className="record-metric-label">Type</dt>
-                      <dd className="record-metric-value">{entryTypeLabel(row.entry_type)}</dd>
-                    </div>
-                    <div className="record-metric">
-                      <dt className="record-metric-label">Provider</dt>
-                      <dd className="record-metric-value">{providerLabel(row.provider)}</dd>
-                    </div>
-                    <div className="record-metric">
-                      <dt className="record-metric-label">Quality estimate</dt>
-                      <dd className="record-metric-value">{formatPercent(row.estimated_quality, 0)}</dd>
-                    </div>
-                    <div className="record-metric">
-                      <dt className="record-metric-label">Cost / 1K</dt>
-                      <dd className="record-metric-value">{formatModelCostPerThousand(row)}</dd>
-                    </div>
-                    <div className="record-metric">
-                      <dt className="record-metric-label">Latency estimate</dt>
-                      <dd className="record-metric-value">{formatSeconds(row.avg_latency_seconds)}</dd>
-                    </div>
-                    <div className="record-metric">
-                      <dt className="record-metric-label">Reliability metadata</dt>
-                      <dd className="record-metric-value">{formatPercent(row.reliability, 0)}</dd>
-                    </div>
-                    <div className="record-metric">
-                      <dt className="record-metric-label">Context</dt>
-                      <dd className="record-metric-value">{formatInteger(row.context_window)}</dd>
-                    </div>
-                  </dl>
-                  <div className="registry-row-actions">
-                    <Button size="sm" variant="secondary" onClick={() => setSelected(row)}>
-                      Inspect
-                      <span className="sr-only"> {row.model_name}</span>
-                    </Button>
-                    <Button
-                      size="sm"
-                      variant={compareIds.includes(row.model_id) ? 'subtle' : 'ghost'}
-                      disabled={!compareIds.includes(row.model_id) && compareIds.length >= MAX_COMPARE}
-                      onClick={() => toggleCompare(row)}
-                    >
-                      {compareIds.includes(row.model_id) ? 'Selected' : 'Compare'}
-                    </Button>
-                  </div>
-                </div>
-              )}
-              emptyState={
-                <EmptyState
-                  icon={<Boxes />}
-                  title="No models match these filters"
-                  description={
-                    filtersActive
-                      ? 'Clear the filters to see the whole registry.'
-                      : 'The registry returned no models, so there is nothing for the router to select.'
-                  }
-                  action={
-                    filtersActive ? (
-                      <Button variant="secondary" onClick={clearFilters}>
-                        Clear filters
+                  {visible.length < filtered.length ? (
+                    <div className="mp-more">
+                      <Button variant="secondary" onClick={() => setLimit((n) => n + PAGE_SIZE)}>
+                        Show {formatInteger(Math.min(PAGE_SIZE, filtered.length - visible.length))} more ({formatInteger(filtered.length - visible.length)} not yet shown)
                       </Button>
-                    ) : undefined
-                  }
-                />
-              }
-            />
-            }
+                    </div>
+                  ) : null}
+                </>
+              ) : (
+                <EmptyState icon={<Boxes />} title="No models match these filters"
+                  description={filtersActive ? 'Clear the filters to see the whole active pool.' : 'The registry returned no models, so there is nothing for the router to select.'}
+                  action={filtersActive ? <Button variant="secondary" onClick={clearFilters}>Clear filters</Button> : undefined} />
+              )
+            ) : (
+              <DataTable
+                flush
+                caption="Models available to the router, with the registry metadata used for scoring"
+                columns={columns}
+                rows={filtered}
+                rowKey={(row) => cardKey(row)}
+                initialSort={{ columnId: 'quality', direction: 'desc' }}
+                renderCard={(row) => (
+                  <div>
+                    <div className="record-head">
+                      <div><p className="record-title">{row.model_name}</p><p className="record-subtitle">{row.model_id}</p></div>
+                      <Status name={row.active ? 'active' : 'inactive'}>{row.active ? 'Active' : 'Inactive'}</Status>
+                    </div>
+                    <dl className="record-metrics">
+                      <div className="record-metric"><dt className="record-metric-label">Category</dt><dd className="record-metric-value">{CATEGORY_LABEL[row.primary_category ?? 'unclassified']}</dd></div>
+                      <div className="record-metric"><dt className="record-metric-label">Provider</dt><dd className="record-metric-value">{providerLabel(row.provider)}</dd></div>
+                      <div className="record-metric"><dt className="record-metric-label">Quality estimate</dt><dd className="record-metric-value">{formatPercent(row.estimated_quality, 0)}</dd></div>
+                      <div className="record-metric"><dt className="record-metric-label">Cost / 1K</dt><dd className="record-metric-value">{formatModelCostPerThousand(row)}</dd></div>
+                      <div className="record-metric"><dt className="record-metric-label">Latency estimate</dt><dd className="record-metric-value">{formatSeconds(row.avg_latency_seconds)}</dd></div>
+                      <div className="record-metric"><dt className="record-metric-label">Context</dt><dd className="record-metric-value">{formatInteger(row.context_window)}</dd></div>
+                    </dl>
+                    <div className="registry-row-actions">
+                      <Button size="sm" variant="secondary" onClick={() => setSelected(row)}>Inspect<span className="sr-only"> {row.model_name}</span></Button>
+                      <Button size="sm" variant={compareIds.includes(cardKey(row)) ? 'subtle' : 'ghost'} disabled={!compareIds.includes(cardKey(row)) && compareIds.length >= MAX_COMPARE} onClick={() => toggleCompare(row)}>
+                        {compareIds.includes(cardKey(row)) ? 'Selected' : 'Compare'}
+                      </Button>
+                    </div>
+                  </div>
+                )}
+                emptyState={<EmptyState icon={<Boxes />} title="No models match these filters" description={filtersActive ? 'Clear the filters to see the whole active pool.' : 'The registry returned no models.'}
+                  action={filtersActive ? <Button variant="secondary" onClick={clearFilters}>Clear filters</Button> : undefined} />}
+              />
+            )}
           </div>
 
+          <section className="cx-overview" aria-label="Catalogue distribution">
+            {catalogueSummary ? (
+              <div className="cx-grid cx-grid--2">
+                <ProviderDistribution summary={catalogueSummary} />
+                <CapabilityOverview summary={catalogueSummary} />
+              </div>
+            ) : null}
+          </section>
+          <EcosystemPanel />
+          <LiveRegistryPanel
+            status={registryStatus.data}
+            adminToken={adminToken}
+            onAdminToken={setAdminToken}
+            onChanged={() => { registryStatus.reload(); models.reload(); poolStats.reload(); setCatalogRefresh((value) => value + 1); }}
+          />
           <LiveCatalogBrowser refreshKey={catalogRefresh} onInspect={setSelected} />
 
           <p className="inline-note">
-            Filters apply to this list only. They do not change routing behaviour, which is driven by the live
-            registry at query time.
+            Filters apply to this list only and never change routing, which is driven by the live registry at query time. Cost, latency and quality are registry metadata
+            from the source shown on each model, not benchmarks run here.
           </p>
         </div>
       )}
@@ -740,7 +609,7 @@ function ModelComparison({ models: entries }: { models: ModelInfo[] }) {
         <div className="registry-comparison-row" key={row.label}>
           <strong>{row.label}</strong>
           {entries.map((model) => (
-            <span key={model.model_id} title={row.value(model)}>{row.value(model)}</span>
+            <span key={cardKey(model)} title={row.value(model)}>{row.value(model)}</span>
           ))}
         </div>
       ))}

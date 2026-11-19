@@ -33,7 +33,9 @@ def build(profile: QueryProfileV2, prefs: ResolvedPreferences, rows: List[Candid
     why.append(f"{top.model_name} ranked first of {len(rows)} eligible candidate{'s' if len(rows) != 1 else ''} with a robust score of {top.robust_score:.3f} (utility {top.utility:.3f}).")
     if influential:
         i0 = influential[0]
-        why.append(f"The largest contribution came from {i0['objective']} (weight {_pct(i0['weight'])}, utility {i0['utility']:.2f}).")
+        u = i0["utility"]
+        why.append(f"The largest contribution came from {i0['objective']} (weight {_pct(i0['weight'])}, utility {u:.2f})." if u is not None
+                   else f"The largest contribution came from {i0['objective']} (weight {_pct(i0['weight'])}).")
         facts.append({"type": "top_contribution", **i0})
     why.append(f"Its task fit for a {profile.primary_intent.replace('_', ' ')} request is {top.task_fit:.2f}.")
     if profile.domain != "general":

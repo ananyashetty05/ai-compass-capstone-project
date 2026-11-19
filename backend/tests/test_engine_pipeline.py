@@ -214,7 +214,8 @@ class RouteApiTests(unittest.TestCase):
 
     def test_idempotent_execute(self):
         calls = []
-        with patch("app.services.routing_engine.execution.get_adapter_for", side_effect=lambda m: FakeAdapter([GOOD], calls)):
+        with patch("app.services.routing_engine.execution.get_adapter_for", side_effect=lambda m: FakeAdapter([GOOD], calls)), \
+                patch("app.services.registry_eligibility.provider_configured", return_value=True):
             body = {"query": "Explain what a hash map is in a few sentences.", "mode": "execute", "idempotency_key": "abc-123"}
             a, b = self._post(body), self._post(body)
         self.assertEqual((a.status_code, b.status_code), (200, 200), a.text)

@@ -61,3 +61,11 @@ export function scrollToElement(el: Element, { gap = 16, onDone }: { gap?: numbe
   cancelActive = stop;
   raf = requestAnimationFrame(frame);
 }
+
+/** Cancel any in-flight animated scroll and put the window at the very top. Used on every route change: the
+ *  document is one shared scroll container, so without this a new page inherits the previous page's offset
+ *  (and a running animated scroll from the previous page would carry on into the new one). */
+export function scrollToTop() {
+  cancelActive?.();
+  jump(0);
+}

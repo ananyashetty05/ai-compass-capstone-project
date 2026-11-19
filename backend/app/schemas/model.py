@@ -68,6 +68,32 @@ class ModelMetadata(BaseModel):
     input_price_per_million: Optional[float] = None
     output_price_per_million: Optional[float] = None
 
+    # ── Capability & intended-use taxonomy (see services/model_taxonomy.py) ──
+    # Every value is either curated from published provider/developer documentation or left
+    # "unknown"/empty. Nothing here is inferred from a provider name alone.
+    developer: Optional[str] = Field(default=None, description="Organisation that trained/published the model (not the hosting provider)")
+    provider_role: str = Field(default="unknown", description="model_developer | inference_provider | model_aggregator | model_hub | cloud_platform | application")
+    model_type: str = Field(default="unclassified", description="chat | reasoning_chat | code_chat | embedding | image_generation | consumer_app | unclassified")
+    use_categories: List[str] = Field(default_factory=list, description="Routing audience tags (overlapping): conversational and/or developer; empty = unclassified")
+    primary_category: str = Field(default="unclassified", description="ONE mutually exclusive category: conversational | developer | application | unclassified")
+    category_kind: str = Field(default="unclassified", description="Sub-type inside the primary category (embedding, code, speech, base_model, chat, ...)")
+    classification_basis: str = Field(default="unverified", description="curated | derived | unverified")
+    classification_reason: Optional[str] = Field(default=None, description="Why this primary category was assigned")
+    capability_tags: List[str] = Field(default_factory=list, description="Overlapping capabilities (chat, coding, vision_input, ...); never summed into totals")
+    weights_status: str = Field(default="unknown", description="open_weights | proprietary | unknown (weights availability, not an OSI claim)")
+    license_name: Optional[str] = None
+    free_download: Optional[bool] = Field(default=None, description="Weights can be downloaded without payment (None = unknown)")
+    free_access: str = Field(default="unknown", description="free | limited_free | paid | unknown (hosted inference through the listed provider)")
+    free_access_note: Optional[str] = None
+    deployment_options: List[str] = Field(default_factory=list, description="hosted_api | local_download | consumer_app")
+    api_available: Optional[bool] = None
+    embedding_dimensions: Optional[int] = None
+    taxonomy_status: str = Field(default="unclassified", description="curated | derived | unclassified")
+    # ── Independent state flags (deliberately not collapsed into one 'available') ──
+    comparison_eligible: bool = Field(default=True, description="Can be compared using published metadata; never depends on credentials")
+    execution_available: bool = Field(default=False, description="AI Compass can run it right now (adapter + provider credential on the server)")
+    user_access_configured: bool = Field(default=False, description="A server credential for the model's provider is configured")
+
     # Live-registry bookkeeping (all optional; static catalog rows leave them unset)
     canonical_key: Optional[str] = Field(default=None, description="'<provider-lower>:<provider model id>'")
     first_seen_at: Optional[str] = None
@@ -75,6 +101,7 @@ class ModelMetadata(BaseModel):
     deprecated_at: Optional[str] = Field(default=None, description="Provider-reported deprecation time")
     retires_at: Optional[str] = Field(default=None, description="Provider-reported retirement time")
     consecutive_missing_refreshes: int = Field(default=0, ge=0, description="Successful provider refreshes that did not list this model")
+    catalog: Optional[dict] = Field(default=None, description="Autonomous-catalogue lifecycle/provenance block (see services/catalog/registry.py)")
 
 
 class RegistryEntry(ModelMetadata):

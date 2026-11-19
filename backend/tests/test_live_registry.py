@@ -161,7 +161,7 @@ class TestEligibility:
         assert elig.evaluate(app_entry).reasons == ["not_inference_model"]
 
     def test_static_entries_keep_existing_behaviour(self):
-        static = model_registry._status(next(m for m in model_registry._API_MODELS if m.model_id == "gpt-4.1"))
+        static = model_registry._status(next(m for m in model_registry.api_models() if m.model_id == "gpt-4.1"))
         assert static.adapter_compatible is True
         with patch.object(settings, "OPENAI_API_KEY", "k"):
             assert elig.evaluate(static).eligible
@@ -169,7 +169,7 @@ class TestEligibility:
             assert elig.evaluate(static).reasons == ["provider_not_configured"]
 
     def test_static_entry_excluded_by_failed_verification_or_live_unavailability(self):
-        static = model_registry._status(next(m for m in model_registry._API_MODELS if m.model_id == "gpt-4.1"))
+        static = model_registry._status(next(m for m in model_registry.api_models() if m.model_id == "gpt-4.1"))
         with patch.object(settings, "OPENAI_API_KEY", "k"):
             assert "inference_verification_failed" in elig.evaluate(static, verification=elig.Verification("failed", NOW, "invalid_model")).reasons
             assert elig.evaluate(static, verification=elig.Verification("failed", NOW, "timeout")).eligible  # transient errors do not exclude
@@ -215,7 +215,7 @@ class TestRoutingIntegration:
         assert candidates == [] and "data-handling" in filtered[0]["reason"]   # hard privacy constraint still applies
 
     def test_overlay_fails_open(self):
-        models = [model_registry._status(next(m for m in model_registry._API_MODELS if m.model_id == "gpt-4.1"))]
+        models = [model_registry._status(next(m for m in model_registry.api_models() if m.model_id == "gpt-4.1"))]
         with patch.object(registry_service, "live_state", return_value=registry_service.LiveState()):  # persistence unavailable
             assert registry_service.apply_live_registry(models) == (models, [])
         with patch.object(registry_service, "live_state", return_value=self._state()), \
@@ -226,8 +226,8 @@ class TestRoutingIntegration:
 # ── verification guards ──────────────────────────────────────────────────────
 class TestVerificationGuards:
     def test_refuses_apps_unconfigured_incompatible_and_non_text(self):
-        gpt = model_registry._status(next(m for m in model_registry._API_MODELS if m.model_id == "gpt-4.1"))
-        image = model_registry._status(next(m for m in model_registry._API_MODELS if m.model_id == "gpt-image-1"))
+        gpt = model_registry._status(next(m for m in model_registry.api_models() if m.model_id == "gpt-4.1"))
+        image = model_registry._status(next(m for m in model_registry.api_models() if m.model_id == "gpt-image-1"))
         with patch.object(settings, "OPENAI_API_KEY", ""):
             with pytest.raises(inference_verification.VerificationRefused) as e1:
                 inference_verification._precheck(gpt)

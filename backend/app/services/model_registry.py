@@ -1,6 +1,7 @@
-"""Verified catalog snapshots plus explicit provider discovery.
+"""Model registry facade.
 
-Static rows are documentation snapshots, not claims of live availability.
+API models come from the autonomous catalogue (services/catalog): discovered, verified and generation-managed, with no
+static model list in code. Consumer AI applications are curated below and are always visible.
 Only configured API providers enter the execution candidate pool.
 AI applications (consumer tools) are always visible in the catalog
 regardless of API key configuration — they are opened directly by the user.
@@ -18,49 +19,10 @@ _ADAPTER_PROVIDERS = {"openai", "anthropic", "google", "groq", "openrouter"}
 
 _VERIFIED = "2025-08-01T00:00:00+00:00"
 
-def _model(mid, name, provider, family, caps, tasks, modalities=("text",), *, context=128000,
-           quality=.75, cost=.5, latency=.5, input_price=None, output_price=None, description="", source=""):
-    return ModelMetadata(
-        model_id=mid, model_name=name, provider=provider, model_family=family,
-        capabilities=["general", *caps], supported_domains=["general", "computer_science", "mathematics", "science", "creative"],
-        supported_tasks=[*tasks, "qa"], modality=modalities[0], modalities=list(modalities),
-        estimated_quality=quality, estimated_cost=cost, estimated_latency=latency, reliability=.85, risk_level=.15,
-        context_window=context, cost_per_1k_tokens=(input_price or 0) / 1000, avg_latency_seconds=2.5, fallback_priority=5,
-        active=True, source="static_catalog", entry_type="inference_model", requires_key=True,
-        adapter_compatible=provider.lower() in _ADAPTER_PROVIDERS, canonical_key=f"{provider.lower()}:{mid}",
-        availability="unknown", provider_source=source, authentication_requirement="api_key",
-        data_provenance="provider_documentation_snapshot", last_verified_at=_VERIFIED,
-        metric_provenance={"capabilities": "provider_published", "context_window": "provider_published", "pricing": "provider_published" if input_price is not None else "unavailable", "quality": "estimated", "latency": "estimated", "reliability": "estimated", "risk": "estimated"},
-        metadata_status="stale",
-        input_price_per_million=input_price, output_price_per_million=output_price,
-        external_url=source or None, description=description,
-    )
-
-_API_MODELS: List[ModelMetadata] = [
-    _model("gpt-4.1", "GPT-4.1", "OpenAI", "GPT-4.1", ["reasoning", "coding", "analysis", "writing"], ["reasoning", "coding", "analysis", "summarization", "writing", "math"], context=1_000_000, quality=.86, cost=.72, latency=.58, input_price=2, output_price=8, description="Long-context text and vision API model.", source="https://platform.openai.com/docs/models"),
-    _model("gpt-4.1-mini", "GPT-4.1 mini", "OpenAI", "GPT-4.1", ["coding", "analysis", "writing"], ["coding", "analysis", "summarization", "writing"], context=1_000_000, quality=.74, cost=.2, latency=.2, input_price=.4, output_price=1.6, description="Lower-cost GPT-4.1 API variant.", source="https://platform.openai.com/docs/models"),
-    _model("o3", "o3", "OpenAI", "o-series", ["reasoning", "coding", "math"], ["reasoning", "coding", "math", "analysis"], quality=.9, cost=.88, latency=.75, input_price=2, output_price=8, description="Reasoning-focused API model.", source="https://platform.openai.com/docs/models"),
-    _model("gpt-image-1", "GPT Image 1", "OpenAI", "GPT Image", ["image-generation", "image-editing"], ["image-generation"], ("image",), context=0, quality=.82, cost=.7, latency=.65, description="Image generation and editing API model.", source="https://platform.openai.com/docs/guides/image-generation"),
-    _model("claude-opus-4-20250514", "Claude Opus 4", "Anthropic", "Claude 4", ["reasoning", "coding", "analysis", "writing"], ["reasoning", "coding", "analysis", "summarization", "writing"], context=200000, quality=.9, cost=.9, latency=.75, input_price=15, output_price=75, description="High-capability Claude API model.", source="https://docs.anthropic.com/en/docs/about-claude/models"),
-    _model("claude-sonnet-4-20250514", "Claude Sonnet 4", "Anthropic", "Claude 4", ["reasoning", "coding", "analysis", "writing"], ["reasoning", "coding", "analysis", "summarization", "writing"], context=200000, quality=.84, cost=.55, latency=.55, input_price=3, output_price=15, description="Balanced Claude API model.", source="https://docs.anthropic.com/en/docs/about-claude/models"),
-    _model("claude-3-5-haiku-20241022", "Claude 3.5 Haiku", "Anthropic", "Claude 3.5", ["analysis", "writing"], ["analysis", "summarization", "writing"], context=200000, quality=.7, cost=.15, latency=.18, input_price=.8, output_price=4, description="Fast Claude API model.", source="https://docs.anthropic.com/en/docs/about-claude/models"),
-    _model("gemini-2.5-pro", "Gemini 2.5 Pro", "Google", "Gemini 2.5", ["reasoning", "coding", "analysis", "multimodal"], ["reasoning", "coding", "analysis", "summarization", "math"], ("text", "image", "audio", "video"), context=1_000_000, quality=.87, cost=.7, latency=.6, description="Multimodal Gemini API model.", source="https://ai.google.dev/gemini-api/docs/models"),
-    _model("gemini-2.5-flash", "Gemini 2.5 Flash", "Google", "Gemini 2.5", ["coding", "analysis", "multimodal"], ["coding", "analysis", "summarization"], ("text", "image", "audio", "video"), context=1_000_000, quality=.78, cost=.25, latency=.2, description="Fast multimodal Gemini API model.", source="https://ai.google.dev/gemini-api/docs/models"),
-    _model("gemini-2.5-flash-lite", "Gemini 2.5 Flash-Lite", "Google", "Gemini 2.5", ["analysis", "multimodal"], ["analysis", "summarization"], ("text", "image"), context=1_000_000, quality=.66, cost=.1, latency=.12, description="Low-cost Gemini API model.", source="https://ai.google.dev/gemini-api/docs/models"),
-    _model("llama-3.3-70b-versatile", "Llama 3.3 70B Versatile", "Groq", "Llama 3.3", ["reasoning", "coding", "analysis"], ["reasoning", "coding", "analysis", "summarization"], quality=.76, cost=.2, latency=.1, description="Llama hosted by Groq.", source="https://console.groq.com/docs/models"),
-    _model("deepseek-r1-distill-llama-70b", "DeepSeek R1 Distill Llama 70B", "Groq", "DeepSeek R1", ["reasoning", "math", "coding"], ["reasoning", "math", "coding"], quality=.78, cost=.25, latency=.18, description="Reasoning model hosted by Groq.", source="https://console.groq.com/docs/models"),
-    _model("mistral-large-latest", "Mistral Large", "Mistral", "Mistral Large", ["reasoning", "coding", "analysis"], ["reasoning", "coding", "analysis", "summarization"], quality=.8, cost=.55, latency=.45, description="Mistral API model.", source="https://docs.mistral.ai/getting-started/models/"),
-    _model("deepseek-chat", "DeepSeek-V3", "DeepSeek", "DeepSeek V3", ["reasoning", "coding", "analysis"], ["reasoning", "coding", "analysis", "summarization"], context=64000, quality=.78, cost=.25, latency=.4, description="DeepSeek API chat model.", source="https://api-docs.deepseek.com/"),
-    _model("deepseek-reasoner", "DeepSeek-R1", "DeepSeek", "DeepSeek R1", ["reasoning", "math", "coding"], ["reasoning", "math", "coding", "analysis"], context=64000, quality=.82, cost=.5, latency=.6, description="DeepSeek API reasoning model.", source="https://api-docs.deepseek.com/"),
-    _model("meta-llama/llama-3.3-70b-instruct", "Llama 3.3 70B Instruct", "Together AI", "Llama 3.3", ["reasoning", "coding", "analysis"], ["reasoning", "coding", "analysis", "summarization"], quality=.76, cost=.28, latency=.35, description="Meta Llama hosted inference endpoint.", source="https://docs.together.ai/docs/inference-models"),
-    _model("Qwen/Qwen2.5-72B-Instruct", "Qwen2.5 72B Instruct", "Together AI", "Qwen 2.5", ["reasoning", "coding", "math"], ["reasoning", "coding", "math", "analysis"], quality=.76, cost=.27, latency=.35, description="Qwen hosted inference endpoint.", source="https://docs.together.ai/docs/inference-models"),
-    _model("microsoft/phi-4", "Phi-4", "Hugging Face", "Phi", ["reasoning", "math", "analysis"], ["reasoning", "math", "analysis"], quality=.7, cost=.25, latency=.35, description="Microsoft Phi family via hosted inference.", source="https://huggingface.co/microsoft/phi-4"),
-    _model("command-a-03-2025", "Command A", "Cohere", "Command", ["reasoning", "coding", "retrieval"], ["reasoning", "coding", "analysis", "summarization"], quality=.76, cost=.4, latency=.4, description="Cohere enterprise API model.", source="https://docs.cohere.com/docs/models"),
-    _model("amazon.nova-pro-v1:0", "Amazon Nova Pro", "Amazon Bedrock", "Nova", ["reasoning", "analysis", "multimodal"], ["reasoning", "analysis", "summarization"], ("text", "image", "video"), quality=.77, cost=.45, latency=.45, description="Amazon Bedrock Nova API model.", source="https://docs.aws.amazon.com/bedrock/latest/userguide/models-supported.html"),
-    _model("jamba-1.5-large", "Jamba 1.5 Large", "AI21", "Jamba", ["reasoning", "analysis", "long-context"], ["reasoning", "analysis", "summarization"], context=256000, quality=.73, cost=.45, latency=.45, description="AI21 API model.", source="https://docs.ai21.com/"),
-    _model("accounts/fireworks/models/llama-v3p3-70b-instruct", "Llama 3.3 70B Instruct", "Fireworks AI", "Llama 3.3", ["reasoning", "coding", "analysis"], ["reasoning", "coding", "analysis"], quality=.76, cost=.25, latency=.25, description="Fireworks hosted inference model.", source="https://fireworks.ai/models"),
-    _model("deepseek/deepseek-r1", "DeepSeek R1", "OpenRouter", "DeepSeek R1", ["reasoning", "math", "coding"], ["reasoning", "math", "coding", "analysis"], quality=.82, cost=.5, latency=.55, description="Gateway-hosted DeepSeek reasoning model.", source="https://openrouter.ai/docs/models"),
-]
+def api_models() -> List[ModelMetadata]:
+    """Active API models, derived from the single authoritative catalogue (never a static list)."""
+    from app.services.catalog import registry
+    return registry.published_models()
 
 
 def _app(mid, name, provider, caps, tasks, modality, url, description, *,
@@ -91,19 +53,19 @@ _AI_APPLICATIONS: List[ModelMetadata] = [
          ["reasoning", "coding", "writing", "analysis", "research"],
          ["reasoning", "coding", "writing", "analysis", "summarization", "research", "qa"],
          "text", "https://chatgpt.com/",
-         "OpenAI's consumer chat interface. Supports GPT-4o and o-series models.",
+         "OpenAI's consumer chat interface. Consumer chat interface from OpenAI; the model behind it is chosen by OpenAI.",
          quality=0.88, modalities=["text", "image"]),
     _app("app/claude", "Claude", "Anthropic",
          ["reasoning", "coding", "writing", "analysis"],
          ["reasoning", "coding", "writing", "analysis", "summarization", "qa"],
          "text", "https://claude.ai/",
-         "Anthropic's consumer chat interface. Supports Claude 3.5 and Claude 4 models.",
+         "Anthropic's consumer chat interface. Consumer chat interface from Anthropic; the model behind it is chosen by Anthropic.",
          quality=0.88, modalities=["text", "image"]),
     _app("app/gemini", "Gemini", "Google",
          ["reasoning", "coding", "writing", "analysis", "multimodal", "research"],
          ["reasoning", "coding", "writing", "analysis", "summarization", "research", "qa"],
          "text", "https://gemini.google.com/app",
-         "Google's consumer AI interface. Supports Gemini 2.5 Pro with multimodal input.",
+         "Google's consumer AI interface. Consumer interface from Google with multimodal input; the model behind it is chosen by Google.",
          quality=0.87, modalities=["text", "image", "audio", "video"]),
     _app("app/perplexity", "Perplexity", "Perplexity AI",
          ["research", "reasoning", "analysis"],
@@ -127,7 +89,7 @@ _AI_APPLICATIONS: List[ModelMetadata] = [
          ["reasoning", "writing", "analysis", "coding"],
          ["reasoning", "writing", "analysis", "coding", "qa"],
          "text", "https://copilot.microsoft.com/",
-         "Microsoft's AI assistant powered by GPT-4. Integrated with Microsoft 365.",
+         "Microsoft's AI assistant powered by OpenAI models. Integrated with Microsoft 365.",
          quality=0.83, modalities=["text", "image"]),
     _app("app/meta-ai", "Meta AI", "Meta",
          ["reasoning", "writing", "analysis"],
@@ -316,24 +278,31 @@ def _discovered_model(model_id: str, provider: str, *, source: str, now: str, co
     )
 
 def _status(entry: ModelMetadata) -> ModelMetadata:
-    item = entry.model_copy(deep=True)
-    # Registry presence means the entry can be evaluated and recommended.
-    # API configuration is deliberately separate: no key must never hide a
-    # valid recommendation candidate or make it appear unavailable.
-    item.availability = "api_configured" if _configured(item.provider) else "configuration_required_for_inference"
+    """Attach taxonomy and the *independent* access flags.
+
+    Catalogue visibility, comparison eligibility and routing eligibility never depend on a
+    credential. ``execution_available`` is the only flag that does.
+    """
+    from app.services import model_taxonomy
+    item = model_taxonomy.classify(entry)
+    configured = _configured(item.provider)
+    item.user_access_configured = configured
+    item.execution_available = bool(configured and item.adapter_compatible)
+    item.availability = "api_configured" if configured else "configuration_required_for_inference"
     item.active = True
+    item.comparison_eligible = True
     item.inference_access_status = "unverified"
-    item.routing_eligible = bool(_configured(item.provider) and item.adapter_compatible)
+    item.routing_eligible = item.lifecycle_status not in {"retired", "incompatible"}
     return item
 
 def get_all_models() -> List[ModelMetadata]:
-    """API-callable models only (requires configured provider keys)."""
+    """Models that can be *executed right now* (provider credential configured). Not the comparison pool."""
     disabled = {p.strip().lower() for p in settings.DISABLED_PROVIDERS.split(",") if p.strip()}
-    return [_status(m) for m in _API_MODELS if _configured(m.provider) and m.provider.lower() not in disabled]
+    return [_status(m) for m in api_models() if _configured(m.provider) and m.provider.lower() not in disabled]
 
 def get_all_registry_entries() -> List[ModelMetadata]:
     """Full catalog: API models + AI applications. Applications are always active."""
-    api = [_status(m) for m in _API_MODELS]
+    api = [_status(m) for m in api_models()]
     apps = [m.model_copy(update={"active": True, "availability": "consumer_app"}) for m in _AI_APPLICATIONS]
     for app in apps:
         app.inference_access_status = "not_applicable"
@@ -379,16 +348,15 @@ def get_catalog_for_recommendation(task_type: str = "", modality: str = "text") 
 def get_catalog_with_exclusions(task_type: str = "", modality: str = "text", live: bool = True):
     """Return (catalog, registry_exclusions).
 
-    Catalog = configured static API models + consumer applications, adjusted by live
+    Catalog = ALL static API models (credentials are irrelevant to comparison) + consumer applications, adjusted by live
     registry evidence when LIVE_REGISTRY_ENABLED (never blocks on provider discovery;
     falls back to the static catalog if persistence is unavailable). ``registry_exclusions``
     explains each model the live registry removed, in the candidate filter's format.
     """
-    # Only executable API entries and consumer applications can be selected.
-    # Unconfigured API entries remain visible through /models, but suggesting
-    # one as an actionable destination would be misleading.
     disabled = {p.strip().lower() for p in settings.DISABLED_PROVIDERS.split(",") if p.strip()}
-    api = [m.model_copy(update={"active": True, "availability": "configured"}) for m in _API_MODELS if _configured(m.provider) and m.provider.lower() not in disabled]
+    # The comparison/recommendation pool is the whole catalogue. A missing credential only affects
+    # execution_available (set by _status); it never removes a model from consideration.
+    api = [_status(m) for m in api_models() if m.provider.lower() not in disabled]
     apps = get_all_applications()
     if task_type:
         apps = [a for a in apps if task_type in a.supported_tasks or task_type in a.capabilities]
@@ -396,6 +364,8 @@ def get_catalog_with_exclusions(task_type: str = "", modality: str = "text", liv
     if live:
         from app.services import registry_service
         api, exclusions = registry_service.apply_live_registry(api)
+    from app.services import model_taxonomy
+    apps = [model_taxonomy.classify(a) for a in apps]
     return [*api, *apps], exclusions
 
 def discover_openai_models() -> List[ModelMetadata]:

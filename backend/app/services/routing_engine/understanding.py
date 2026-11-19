@@ -92,7 +92,11 @@ INTENT_PATTERNS: Dict[str, List[Tuple["re.Pattern", float]]] = {
     "reasoning": [(_rx(r"\b(why|explain|reason(?:ing)?|analy[sz]e|compare|evaluate|assess|argue|critique|implications?|pros and cons|trade-?offs?|justify|derive|infer|deduce|puzzle|logic(?:al)?)\b"), 0.8)],
     "education": [(_rx(r"\b(teach|lesson|tutorial|beginner|eli5|walk me through|for a (?:child|student)|quiz me|learn)\b"), 1.2)],
     "image_generation": [(_rx(r"\b" + _GEN_VERB + r"\b[^.?!\n]{0,40}\b(image|picture|illustration|logo|poster|photo|icon|artwork|portrait|wallpaper|banner)s?\b"), 3.0),
-                         (_rx(r"\btext[- ]to[- ]image\b"), 3.0)],
+                         (_rx(r"\btext[- ]to[- ]image\b"), 3.0),
+                         # a noun-phrase request with no verb ("realistic image of a car", "car image, photorealistic")
+                         (_rx(r"\b(?:image|picture|illustration|artwork|render|wallpaper|logo|poster)s?\s+of\b"), 2.2),
+                         (_rx(r"\b(?:realistic|photo-?realistic|cartoon|animated|anime|3d|hd)\s+(?:image|picture|photo|illustration|render)s?\b"), 2.2),
+                         (_rx(r"\b(?:image|picture|photo|illustration)s?\b[^.?!\n]{0,12}\b(?:realistic|photo-?realistic|cartoon|animated|anime)\b"), 2.2)],
     "video_generation": [(_rx(r"\b" + _GEN_VERB + r"\b[^.?!\n]{0,40}\b(video|film|animation|clip|animated)\b"), 3.0)],
     "audio_generation": [(_rx(r"\b" + _GEN_VERB + r"\b[^.?!\n]{0,40}\b(audio|voice-?over|sound effects?|narration|jingle)\b"), 3.0)],
     "music_generation": [(_rx(r"\b" + _GEN_VERB + r"\b[^.?!\n]{0,40}\b(music|song|soundtrack|melody|beat)\b"), 3.0)],
@@ -411,6 +415,8 @@ def analyze(query: str, task_type_hint: Optional[str] = None) -> QueryProfileV2:
     out_tokens, out_basis = _expected_output_tokens(primary, complexity.score, explicit)
     ambiguities = _detect_ambiguities(text, words, has_block, intents, explicit)
     risk = assess_risk(text)
+    from app.services.routing_engine import audience as audience_mod
+    aud = audience_mod.assess(text)
 
     caps: List[str] = []
     modalities = ["text"]
@@ -423,6 +429,10 @@ def analyze(query: str, task_type_hint: Optional[str] = None) -> QueryProfileV2:
             modalities = ["text", "image"]
         elif it.name == "audio_transcription":
             modalities = ["audio"]
+    if "embedding" in aud.required_model_types and "embedding" not in caps:
+        caps.append("embedding")
+    if aud.kind == "developer" and any(i.name in {"coding", "debugging", "architecture"} for i in intents) and "coding" not in caps:
+        caps.append("coding")
     if primary in {"math", "debugging", "architecture"} or complexity.category == "highly_complex":
         reasoning_req = "deep"
     elif complexity.category == "complex" or primary in {"reasoning", "data_analysis", "research"}:
@@ -448,4 +458,4 @@ def analyze(query: str, task_type_hint: Optional[str] = None) -> QueryProfileV2:
         tokens=TokenEstimate(input_tokens=in_tokens, output_tokens=out_tokens, method=tok_method, exact=exact, output_basis=out_basis),
         reasoning_requirement=reasoning_req, structured_output=structured, explicit_requirements=explicit,
         inferred_requirements=inferred, ambiguities=ambiguities, needs_clarification=any(a.severity == "major" for a in ambiguities),
-        risk=risk, confidence={"intent": intent_conf, "domain": dom_conf}, user_hint_applied=hint_applied, notes=notes)
+        risk=risk, audience=aud, confidence={"intent": intent_conf, "domain": dom_conf}, user_hint_applied=hint_applied, notes=notes)

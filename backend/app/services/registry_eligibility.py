@@ -95,6 +95,10 @@ def evaluate(model: ModelMetadata, *, verification: Optional[Verification] = Non
             reasons.append("inference_verification_stale")
         if any(getattr(model, name) is None for name in _SCORING_FIELDS):
             reasons.append("metadata_incomplete")
+    if model.source == "catalog" and model.taxonomy_status == "unclassified" and (model.cost_per_1k_tokens is None or not model.context_window):
+        # Catalogue-discovered models may lack benchmark scores (the router treats unknown pessimistically), but they need
+        # at least a published price and context window to be compared fairly.
+        reasons.append("metadata_incomplete")
     if catalog_stale:
         warnings.append("stale_catalog")
     return Eligibility(not reasons, reasons, warnings)

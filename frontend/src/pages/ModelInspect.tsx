@@ -9,13 +9,15 @@ import { ArrowLeft, ArrowUpRight, Compass, Gauge, Layers, ShieldCheck } from 'lu
 import { Link, useSearchParams } from 'react-router-dom';
 import { providerName } from '../components/dashboard/DistributionCards';
 import { RegistryDetailBlock } from '../components/registry/LiveRegistry';
+import { GenerationPill, LifecycleBlock, VerificationPill } from '../components/registry/Ecosystem';
+import { CATEGORY_LABEL, KIND_LABEL } from '../components/registry/ModelCard';
 import { ProvenanceTag, TagList } from '../components/ui/Badge';
 import { ButtonLink } from '../components/ui/Button';
 import { Grid, Meter, Page, PropertyList, SectionHeader, Stat, StatusPill, Surface } from '../components/ui/ds';
 import { EmptyState, ErrorState, Notice } from '../components/ui/EmptyState';
 import { useAsync } from '../hooks/useAsync';
 import { useDocumentTitle } from '../hooks/useDocumentTitle';
-import { listModels } from '../services/models.service';
+import { getModelDetail, listModels } from '../services/models.service';
 import { formatModelCostPerThousand, hasPublishedPrice, formatInteger, formatNumber, formatPercent, formatSeconds, humanizeToken } from '../utils/format';
 import { UNAVAILABLE } from '../types';
 import type { ModelInfo } from '../types';
@@ -25,6 +27,7 @@ const SOURCE_LABELS: Record<string, string> = {
   static_catalog: 'Bundled provider-documentation snapshot',
   application_catalog: 'Bundled application catalog snapshot',
   live_discovered: 'Live provider catalog discovery',
+  catalog: 'Autonomous catalogue (see provenance per field)',
   routerbench: 'RouterBench import',
   measured: 'Measured in this environment',
 };
@@ -53,9 +56,13 @@ function Inspect({ model }: { model: ModelInfo }) {
             {isApi(model) && eligibility !== undefined ? (
               <StatusPill tone={eligibility ? 'success' : 'warning'}>{eligibility ? 'Routing-eligible' : 'Not routing-eligible'}</StatusPill>
             ) : null}
+            <StatusPill>{CATEGORY_LABEL[model.primary_category ?? 'unclassified']}{model.category_kind && model.category_kind !== 'unclassified' && model.category_kind !== 'consumer_app' ? ` · ${KIND_LABEL[model.category_kind] ?? humanizeToken(model.category_kind)}` : ''}</StatusPill>
+            <GenerationPill catalog={model.catalog} />
+            <VerificationPill catalog={model.catalog} />
             {model.lifecycle_status && model.lifecycle_status.toLowerCase() !== (model.active ? 'active' : 'inactive') ? <StatusPill>{humanizeToken(model.lifecycle_status)}</StatusPill> : null}
           </div>
           {model.description ? <p className="mi-desc">{model.description}</p> : null}
+          {model.classification_reason ? <p className="mi-desc" style={{ fontSize: '0.8125rem', opacity: 0.8 }}>Classified as {CATEGORY_LABEL[model.primary_category ?? 'unclassified']} ({model.classification_basis ?? 'unverified'}): {model.classification_reason}.</p> : null}
         </div>
         <div className="mi-hero-actions">
           <ButtonLink to="/route" variant="primary" leadingIcon={<Compass />}>Route a query</ButtonLink>
@@ -99,6 +106,12 @@ function Inspect({ model }: { model: ModelInfo }) {
         </div>
 
         <div className="mi-col">
+          {model.catalog ? (
+            <Surface className="mi-card" aria-labelledby="mi-life">
+              <SectionHeader id="mi-life" level="h2" kicker="Lifecycle" title="Generation, access and sources" />
+              <LifecycleBlock model={model} />
+            </Surface>
+          ) : null}
           <Surface className="mi-card" aria-labelledby="mi-specs">
             <SectionHeader id="mi-specs" level="h2" kicker="Specifications" title="Registry record" />
             <PropertyList items={[
@@ -125,7 +138,11 @@ export function ModelInspect() {
   const provider = params.get('provider') ?? '';
   const modelId = params.get('model') ?? '';
   const models = useAsync((signal) => listModels(signal), []);
-  const model = (models.data ?? []).find((m) => m.model_id === modelId && (!provider || m.provider === provider)) ?? null;
+  const listed = (models.data ?? []).find((m) => m.model_id === modelId && (!provider || m.provider === provider)) ?? null;
+  // A retired (superseded) model is not in the active list but must stay readable for history and earlier decisions.
+  const historical = useAsync((signal) => getModelDetail(provider, modelId, signal), [provider, modelId],
+    { enabled: !models.isInitialLoad && !listed && Boolean(provider && modelId) });
+  const model = listed ?? historical.data?.entry ?? null;
   useDocumentTitle(model ? `${model.model_name} · Model` : 'Model');
 
   return (
@@ -135,7 +152,7 @@ export function ModelInspect() {
         <span aria-hidden="true">/</span>
         <span>{model?.model_name ?? 'Model'}</span>
       </nav>
-      {models.isInitialLoad ? (
+      {models.isInitialLoad || (!listed && historical.isInitialLoad) ? (
         <div className="mi-loading" role="status" aria-busy="true"><Layers aria-hidden="true" /> Loading model record…</div>
       ) : models.error ? (
         <ErrorState title="Model record unavailable" message={models.error.message} hint={models.error.hint} onRetry={models.reload} />

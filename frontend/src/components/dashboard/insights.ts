@@ -15,6 +15,8 @@ export interface ModelSummary {
   inactive: number;
   /** null when the backend does not report eligibility on any entry. */
   eligible: number | null;
+  /** Models AI Compass can run right now (provider credential + adapter); independent of comparison eligibility. */
+  executable: number;
   stale: number;
   providers: { provider: string; total: number; active: number }[];
   capabilities: { name: string; count: number }[];
@@ -44,6 +46,8 @@ export function summariseModels(models: ModelInfo[]): ModelSummary {
     active: inference.filter((m) => m.active).length,
     inactive: inference.filter((m) => !m.active).length,
     eligible: reported.length > 0 ? reported.filter((m) => m.routing_eligible).length : null,
+    /** Models AI Compass can run right now (provider credential + adapter). Independent of comparison eligibility. */
+    executable: inference.filter((m) => m.execution_available === true).length,
     stale: inference.filter((m) => m.catalog_stale).length,
     providers: [...byProvider.entries()].map(([provider, v]) => ({ provider, ...v })).sort((a, b) => b.total - a.total),
     capabilities: rank(caps),
@@ -76,7 +80,7 @@ export function deriveAttention(input: {
     items.push({
       id: 'degraded', tone: 'warning', title: 'Routing service partially available',
       detail: routable > 0
-        ? `None of the providers in the health check has a server credential, but ${routable} registry model${routable === 1 ? ' is' : 's are'} still routing-eligible.`
+        ? `No provider has a server credential, so AI Compass cannot run models yet. It can still compare and recommend all ${routable} eligible model${routable === 1 ? '' : 's'}.`
         : 'The service responded, but no provider is currently configured and enabled.',
     });
   }
@@ -87,7 +91,7 @@ export function deriveAttention(input: {
       id: 'credentials',
       tone: 'info',
       title: `${missing.length} provider${missing.length === 1 ? '' : 's'} without a server credential`,
-      detail: `${missing.map((p) => p.label).join(', ')} cannot be used for generation until a credential is configured on the server.`,
+      detail: `${missing.map((p) => p.label).join(', ')} cannot be used to run models until a credential is configured on the server. Comparison and recommendation do not need one.`,
     });
   }
   const disabled = providers.filter((p) => p.state === 'offline');

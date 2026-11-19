@@ -142,6 +142,69 @@ export interface ModelInfo {
   retires_at?: string | null;
   consecutive_missing_refreshes?: number;
   metric_provenance?: Record<string, string>;
+  /* Capability & intended-use taxonomy (`backend/app/services/model_taxonomy.py`). Unknown stays unknown. */
+  developer?: string | null;
+  provider_role?: 'model_developer' | 'inference_provider' | 'model_aggregator' | 'model_hub' | 'cloud_platform' | 'application' | 'unknown';
+  model_type?: string;
+  use_categories?: Array<'conversational' | 'developer'>;
+  /** ONE mutually exclusive category; category totals add up to the pool total. `use_categories` above are overlapping routing tags. */
+  primary_category?: PrimaryCategory;
+  category_kind?: string;
+  classification_basis?: 'curated' | 'derived' | 'unverified';
+  classification_reason?: string | null;
+  /** Overlapping capabilities; never summed into a total. */
+  capability_tags?: string[];
+  weights_status?: 'open_weights' | 'proprietary' | 'unknown';
+  license_name?: string | null;
+  free_download?: boolean | null;
+  free_access?: 'free' | 'limited_free' | 'paid' | 'unknown';
+  free_access_note?: string | null;
+  deployment_options?: string[];
+  api_available?: boolean | null;
+  embedding_dimensions?: number | null;
+  taxonomy_status?: 'curated' | 'derived' | 'unclassified';
+  /* Independent state flags — never collapsed into one "available" */
+  comparison_eligible?: boolean;
+  execution_available?: boolean;
+  user_access_configured?: boolean;
+  /** Autonomous-catalogue lifecycle/provenance block. Absent for consumer applications. */
+  catalog?: CatalogBlock | null;
+}
+
+export interface CatalogDestination { kind: string; label: string; url: string; provider: string; verified: boolean }
+export interface CatalogOffering {
+  provider: string; model_id: string; listed: boolean; authority: string;
+  input_per_million: number | null; output_per_million: number | null; pricing_known: boolean;
+  context_window: number | null; deprecated: boolean;
+}
+export type GenerationStatus = 'retained' | 'superseded' | 'unmanaged' | 'pending_review' | 'unverified';
+export type VerificationLevel = 'detected' | 'corroborated' | 'officially_confirmed';
+export interface CatalogBlock {
+  canonical_key: string; developer_slug: string | null; lineage_key: string; generation_label: string | null;
+  generation_status: GenerationStatus; generation_reason: string | null; verification_level: VerificationLevel;
+  lifecycle: string; publication: 'published' | 'retired' | 'unpublished'; availability: string;
+  released_at: string | null; released_at_kind: string; variants: string[]; retired: boolean; superseded_at: string | null;
+  first_seen_at: string | null; last_changed_at: string | null; sources: string[];
+  field_provenance: Record<string, { source: string; authority: string }>; conflicts: Array<{ field: string; chosen: string; others: string[] }>;
+  offerings: CatalogOffering[]; destinations: CatalogDestination[]; primary_provider: string;
+}
+
+export interface CatalogSourceHealth {
+  source_id: string; kind: string; status: 'never_run' | 'ok' | 'partial' | 'failed' | 'rate_limited' | 'timed_out'; last_attempt_at: string | null; last_success_at: string | null;
+  consecutive_failures: number; last_count: number; last_error: string | null; refresh_interval_minutes: number;
+}
+export interface CatalogEventRow { occurred_at: string; event_type: string; entity_type: string; entity_key: string; from_state: string | null; to_state: string | null; reason: string | null; run_id: string | null; name?: string }
+export interface CatalogEcosystem {
+  origin: 'store' | 'offline_seed' | 'seed'; live: boolean; version: number; published_at: string | null; store_error: string | null; note: string | null;
+  totals: { published: number; retired: number; awaiting_verification: number; developers: number; retained_generations: number; lineages_needing_review: number; registered_developers: number };
+  developers: Array<{ developer: string; name: string; models: number }>;
+  recent_events: CatalogEventRow[]; recent_announcements?: CatalogEventRow[]; recent_runs: Array<{ run_id: string; trigger: string; started_at: string; finished_at: string | null; status: string }>;
+  sources: CatalogSourceHealth[]; last_success_at: string | null;
+}
+export interface CatalogFamily {
+  lineage_key: string; developer: string | null; family: string; track: string; review_reason: string | null;
+  generations: Array<{ generation_key: string; label: string; retention: GenerationStatus; reason: string | null; verification: VerificationLevel; first_released_at: string | null; models: Array<{ canonical_key: string; name: string; publication: string }> }>;
+  unmanaged_models: Array<{ canonical_key: string; name: string; publication: string }>;
 }
 
 export interface EligibilityMessage {
@@ -378,7 +441,7 @@ export interface PerformanceMetrics {
   models_filtered?: number;
   escalated?: boolean;
   user_group?: string;
-  total_estimated_cost?: number;
+  total_estimated_cost?: number | null;
 }
 
 export interface RequestUsage {
@@ -503,6 +566,8 @@ export interface EngineProfile {
   confidence: Record<string, number>;
   analysis_method: string;
   notes: string[];
+  /** conversational vs developer intent, with the rules that fired */
+  audience?: { kind: 'conversational' | 'developer'; signals: string[]; required_model_types: string[]; prefers_free: boolean; requires_open_weights: boolean; method: string };
 }
 
 export interface EngineMetricEvidence {
@@ -561,10 +626,14 @@ export interface EngineResult {
     status: string; mode: string; final_model_id?: string | null; final_model_name?: string | null; attempts: EngineAttempt[]; escalated: boolean;
     escalation_reason?: string | null; total_cost_usd?: number | null; total_latency_ms?: number | null; blocked_reason?: string | null;
     prompt_sent_source?: string | null; notes: string[];
+    escalation_events?: { sequence: number; from_model_id: string; to_model_id?: string | null; trigger: string; detail: string; original_response: string; outcome: string }[];
   };
   evaluation: {
     status: string; method: string; accepted?: boolean | null; checks: { name: string; passed: boolean; detail: string }[];
     heuristic_scores: Record<string, number>; judge_model?: string | null; notes: string[];
+    decision?: { action: 'accept' | 'verify' | 'escalate' | 'none'; rule: string; reason: string; failed_checks: string[]; pending_checks: string[] } | null;
+    confidence?: Record<string, unknown>;
+    checks_not_run?: { check: string; reason: string }[];
   };
   stages: EngineStage[];
   candidate_pool: string;
@@ -572,6 +641,22 @@ export interface EngineResult {
   prompt_used: string;
   prompt_used_source: 'original' | 'optimized';
   routing_latency_ms: number;
+  access?: { model_id?: string; execution_available?: boolean; credential_configured?: boolean | null; status?: string; next_step?: string; documentation_url?: string | null };
+  counterfactuals?: EngineCounterfactual[];
+  catalogue_summary?: { catalogue_total: number; considered: number; excluded_by_registry: number; eligible: number; excluded_by_constraints: number; scored: number; selected: number; credentials_used_for_comparison: boolean; audience: string };
+  scoring_config?: { version: string; uncertainty_penalty: number; missing_policy: string; tie_epsilon: number; weight_perturbation: number } | null;
+  trace_available?: boolean;
+  recorded_at?: string;
+}
+
+export interface EngineCounterfactual {
+  kind: 'weight_shift' | 'constraint_relaxed';
+  scenario: string;
+  changed_input: string;
+  changed: boolean;
+  winner: { model_id: string; model_name: string; provider: string; robust_score: number; candidates: number; confidence_level: string };
+  eligible_before?: number;
+  eligible_after?: number;
 }
 
 /** Ranked alternative model from the routing decision */
@@ -806,3 +891,23 @@ export interface RoutingHistoryEntry {
 }
 
 export type RoutingHistoryAvailability = 'available' | 'unsupported' | 'error';
+
+export type PrimaryCategory = 'conversational' | 'developer' | 'application' | 'unclassified';
+
+/** `GET /models/pool-stats` — computed on the server from the same list `/models` returns. */
+export interface PoolStats {
+  scope: string;
+  pool_total: number;
+  canonical_models: number;
+  applications: number;
+  primary: Record<PrimaryCategory, number>;
+  primary_labels: Record<PrimaryCategory, string>;
+  kinds: Record<PrimaryCategory, Array<{ kind: string; label: string; count: number }>>;
+  capabilities: { overlapping: boolean; note: string; counts: Record<string, number> };
+  classification_basis: Record<string, number>;
+  provider_offerings: { count: number; providers: number; note: string };
+  pending_verification: number | null;
+  retired: number | null;
+  lineages_needing_review: number | null;
+  integrity: { ok: boolean; checks: Array<{ check: string; ok: boolean; detail?: unknown }>; problems: unknown[] };
+}

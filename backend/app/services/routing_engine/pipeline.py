@@ -5,7 +5,7 @@ from typing import Any, Callable, Dict, List, Optional
 from pydantic import BaseModel, Field
 
 from app.schemas.model import ModelMetadata
-from app.services.routing_engine import explain, filtering, observed as observed_mod, optimizer, preferences, scoring, understanding
+from app.services.routing_engine import access as access_mod, counterfactual, explain, filtering, observed as observed_mod, optimizer, preferences, scoring, understanding
 from app.services.routing_engine import execution as execution_mod
 from app.services.routing_engine.types import (
     CandidateScore, DecisionExplanation, ENGINE_VERSION, EvaluationOutcome, ExclusionRecord, ExecutionOutcome, ExecutionPolicy,
@@ -54,6 +54,9 @@ class PipelineResult(BaseModel):
     stages: List[StageRecord] = []
     candidate_pool: str = "api_models"
     no_candidate_guidance: Dict[str, Any] = {}
+    access: Dict[str, Any] = Field(default={}, description="Execution access of the recommended model; independent of its suitability")
+    counterfactuals: List[Dict[str, Any]] = Field(default=[], description="Scenarios computed by re-running filtering+scoring with one input changed")
+    catalogue_summary: Dict[str, Any] = {}
     prompt_used: str = ""
     prompt_used_source: str = "original"
     scoring_config: Optional[ScoringConfig] = None
@@ -138,10 +141,11 @@ def run(req: PipelineRequest, *, saved_weights: Optional[Dict[str, float]], user
     obs = (observed_loader or observed_mod.load_observed)([m.model_id for m in catalog])
 
     pool_name = "api_models"
+    obs_latency = {k: v.latency_p50_seconds for k, v in obs.items() if v.latency_p50_seconds}
 
     def do_filter():
         nonlocal pool_name
-        passing, excl = filtering.filter_candidates(api_pool, profile, prefs, mode=req.mode, observed_latency={k: v.latency_p50_seconds for k, v in obs.items() if v.latency_p50_seconds})
+        passing, excl = filtering.filter_candidates(api_pool, profile, prefs, mode=req.mode, observed_latency=obs_latency)
         if not passing and req.mode == "recommend" and app_pool:
             p2, e2 = filtering.filter_candidates(app_pool, profile, prefs, mode="recommend")
             if p2:
@@ -154,11 +158,11 @@ def run(req: PipelineRequest, *, saved_weights: Optional[Dict[str, float]], user
 
     cfg = ScoringConfig()
     rows: List[CandidateScore] = []
+    learn: Dict[str, float] = {}
     norm: Optional[NormalizationDetails] = None
     selection = Selection(status="no_eligible_candidates", caveats=["No candidate satisfied the hard constraints."])
     guidance: Dict[str, Any] = {}
     if passing:
-        learn: Dict[str, float] = {}
         if user_id:
             try:
                 ll = learning_loader
@@ -171,6 +175,10 @@ def run(req: PipelineRequest, *, saved_weights: Optional[Dict[str, float]], user
                             lambda r: f"{len(r[0])} candidates scored")
         selection = tm.run("model_selection", "Model selection", lambda: scoring.select(rows, prefs, profile, cfg),
                            lambda s: f"{s.confidence_level} confidence")
+        import re as _re
+        if "image-generation" in (profile.required_capabilities or []) and _re.search(r"\banimat\w*|\bgif\b|\bmotion\b", req.query, _re.I):
+            selection.caveats.append("The request mentions animation. Image models produce still images, not motion; "
+                                     "for moving output, ask for a video clip instead.")
     else:
         tm.skip("multi_objective_scoring", "Multi-objective scoring", "No eligible candidates")
         tm.skip("model_selection", "Model selection", "No eligible candidates")
@@ -205,6 +213,9 @@ def run(req: PipelineRequest, *, saved_weights: Optional[Dict[str, float]], user
             kwargs = {}
             if adapter_factory:
                 kwargs["adapter_factory"] = adapter_factory
+            else:
+                # Production path: a recommended model without server credentials stays recommended but is skipped for execution.
+                kwargs["access_blocked"] = {mid: access_mod.describe(m)["next_step"] for mid, m in models_by_id.items() if not access_mod.describe(m)["execution_available"]}
             if sleep:
                 kwargs["sleep"] = sleep
             t0 = time.perf_counter()
@@ -217,9 +228,21 @@ def run(req: PipelineRequest, *, saved_weights: Optional[Dict[str, float]], user
         tm.skip("execution", "Execution", "Recommendation mode")
 
     explanation = tm.run("explanation", "Explanation", lambda: explain.build(profile, prefs, rows, exclusions, selection))
+    access = access_mod.describe(selected_model) if selected_model is not None else {}
+    cfs: List[Dict[str, Any]] = []
+    if rows and pool_name == "api_models":
+        try:
+            cfs = tm.run("counterfactuals", "Counterfactual analysis", lambda: counterfactual.compute(
+                api_pool, passing, profile, prefs, base_id=selection.selected_model_id, mode=req.mode, observed=obs, learning=learn, cfg=cfg, observed_latency=obs_latency),
+                lambda r: f"{len(r)} scenario(s) recomputed")
+        except Exception:
+            cfs = []
+    catalogue = {"catalogue_total": len(catalog) + len(reg_excl), "considered": len(catalog), "excluded_by_registry": len(reg_excl), "eligible": len(passing) if pool_name == "api_models" or passing else 0,
+                 "excluded_by_constraints": len(excl), "scored": len(rows), "selected": 1 if selection.selected_model_id else 0,
+                 "credentials_used_for_comparison": False, "audience": profile.audience.kind}
     status = "needs_clarification" if profile.needs_clarification and rows else ("no_eligible_candidates" if not rows else "ok")
     return PipelineResult(
         mode=req.mode, status=status, profile=profile, optimization=optimization, preferences=prefs, candidates=rows, exclusions=exclusions, normalization=norm,
         selection=selection, explanation=explanation, execution=execution, evaluation=evaluation, stages=stages, candidate_pool=pool_name,
-        no_candidate_guidance=guidance, prompt_used=prompt, prompt_used_source=source, scoring_config=cfg,
+        no_candidate_guidance=guidance, access=access, counterfactuals=cfs, catalogue_summary=catalogue, prompt_used=prompt, prompt_used_source=source, scoring_config=cfg,
         routing_latency_ms=round((time.perf_counter() - t_start) * 1000, 2), model_lookup=models_by_id)

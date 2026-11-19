@@ -13,6 +13,7 @@ from app.services.routing_engine.observed import ObservedStats, median
 
 logger = get_logger(__name__)
 _AVAILABLE: Optional[bool] = None
+_TRACE_AVAILABLE: Optional[bool] = None
 
 
 def _conn():
@@ -31,6 +32,44 @@ def table_available(force: bool = False) -> bool:
     except Exception:
         _AVAILABLE = False
     return _AVAILABLE
+
+
+def trace_table_available(force: bool = False) -> bool:
+    global _TRACE_AVAILABLE
+    if _TRACE_AVAILABLE is not None and not force:
+        return _TRACE_AVAILABLE
+    try:
+        with _conn() as c:
+            row = c.execute("SELECT to_regclass('public.routing_decision_trace') AS t").fetchone()
+        _TRACE_AVAILABLE = bool(row and row["t"])
+    except Exception:
+        _TRACE_AVAILABLE = False
+    return _TRACE_AVAILABLE
+
+
+def record_trace(routing_id: str, user_id: str, result: Any) -> bool:
+    """Persist the sanitized decision trace. False when the optional table is not provisioned."""
+    if not trace_table_available():
+        return False
+    try:
+        from app.services.routing_engine import trace as trace_mod
+        with _conn() as c:
+            c.execute("INSERT INTO routing_decision_trace (routing_id, user_id, created_at, engine_version, scoring_version, trace) VALUES (%s,%s,%s,%s,%s,%s) ON CONFLICT (routing_id) DO NOTHING",
+                      (routing_id, user_id, datetime.now(timezone.utc), result.version, result.scoring_version, json.dumps(trace_mod.build(result), default=str)))
+        return True
+    except Exception:
+        logger.exception("Could not persist decision trace")
+        return False
+
+
+def get_trace(user_id: str, routing_id: str) -> Optional[Dict[str, Any]]:
+    with _conn() as c:
+        r = c.execute("SELECT trace, created_at FROM routing_decision_trace WHERE routing_id = %s AND user_id = %s", (routing_id, user_id)).fetchone()
+    if not r:
+        return None
+    tr = r["trace"] if isinstance(r["trace"], dict) else json.loads(r["trace"])
+    tr["recorded_at"] = r["created_at"].isoformat() if hasattr(r["created_at"], "isoformat") else str(r["created_at"])
+    return tr
 
 
 def summarize_query(query: str, sensitivity: str) -> str:

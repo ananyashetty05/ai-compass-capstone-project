@@ -5,7 +5,7 @@ from contextlib import asynccontextmanager
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from app.core.config import settings
-from app.api.routes import health, models, routing, evaluation, auth, feedback
+from app.api.routes import health, models, routing, evaluation, auth, feedback, catalog
 from app.core.logging import get_logger
 
 logger = get_logger(__name__)
@@ -44,6 +44,7 @@ app.add_middleware(
 app.include_router(health.router, prefix="/api/v1", tags=["health"])
 app.include_router(auth.router, prefix="/api/v1", tags=["auth & profile"])
 app.include_router(models.router, prefix="/api/v1", tags=["models"])
+app.include_router(catalog.router, prefix="/api/v1", tags=["catalogue"])
 app.include_router(routing.router, prefix="/api/v1", tags=["routing"])
 app.include_router(evaluation.router, prefix="/api/v1", tags=["evaluation"])
 app.include_router(feedback.router, prefix="/api/v1", tags=["feedback"])

@@ -47,6 +47,14 @@ class Settings(BaseSettings):
     TEST_DATABASE_URL: str = ""
     # Enable only after the approved live-registry migration is applied.
     LIVE_REGISTRY_ENABLED: bool = False
+    # Autonomous model catalogue. Persistence needs the approved migration 20261121_model_catalog.sql; without it
+    # the app serves the offline seed catalogue exactly as before.
+    CATALOG_PERSISTENCE_ENABLED: bool = False
+    # Bearer secret Vercel Cron sends to /api/catalog/cron. Empty = the cron endpoint is disabled.
+    CRON_SECRET: str = ""
+    CATALOG_REFRESH_TIME_BUDGET_SECONDS: float = 45.0
+    # Seconds a process keeps its cached view before checking the store version again.
+    CATALOG_CACHE_SECONDS: int = 30
     # Shared secret for registry refresh/verification endpoints. Empty = disabled.
     REGISTRY_ADMIN_TOKEN: str = ""
     # A provider catalog younger than this is "fresh"; refresh(only_if_stale) skips it.

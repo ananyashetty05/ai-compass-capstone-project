@@ -1,0 +1,1847 @@
+{
+ "_comment": "Curated documentation snapshot (2025-08-01). Feeds the catalog pipeline as ONE source (authority: official documentation, stale). It is not the live inventory: the published catalogue is derived by the pipeline, which these rows can never override with older facts.",
+ "models": [
+  {
+   "adapter_compatible": true,
+   "avg_latency_seconds": 2.5,
+   "canonical_key": "openai:gpt-4.1",
+   "capabilities": [
+    "general",
+    "reasoning",
+    "coding",
+    "analysis",
+    "writing"
+   ],
+   "context_window": 1000000,
+   "cost_per_1k_tokens": 0.002,
+   "data_provenance": "provider_documentation_snapshot",
+   "description": "Long-context text and vision API model.",
+   "developer_slug": "openai",
+   "estimated_cost": 0.72,
+   "estimated_latency": 0.58,
+   "estimated_quality": 0.86,
+   "external_url": "https://platform.openai.com/docs/models",
+   "input_price_per_million": 2.0,
+   "last_verified_at": "2025-08-01T00:00:00+00:00",
+   "metadata_status": "stale",
+   "metric_provenance": {
+    "capabilities": "provider_published",
+    "context_window": "provider_published",
+    "latency": "estimated",
+    "pricing": "provider_published",
+    "quality": "estimated",
+    "reliability": "estimated",
+    "risk": "estimated"
+   },
+   "modalities": [
+    "text"
+   ],
+   "model_family": "GPT-4.1",
+   "model_id": "gpt-4.1",
+   "model_name": "GPT-4.1",
+   "output_price_per_million": 8.0,
+   "provider": "OpenAI",
+   "provider_source": "https://platform.openai.com/docs/models",
+   "reliability": 0.85,
+   "risk_level": 0.15,
+   "source": "static_catalog",
+   "supported_domains": [
+    "general",
+    "computer_science",
+    "mathematics",
+    "science",
+    "creative"
+   ],
+   "supported_tasks": [
+    "reasoning",
+    "coding",
+    "analysis",
+    "summarization",
+    "writing",
+    "math",
+    "qa"
+   ],
+   "model_type": "chat",
+   "use_categories": [
+    "conversational",
+    "developer"
+   ],
+   "weights_status": "proprietary",
+   "deployment_options": [
+    "hosted_api"
+   ],
+   "api_available": true,
+   "taxonomy_status": "curated"
+  },
+  {
+   "adapter_compatible": true,
+   "avg_latency_seconds": 2.5,
+   "canonical_key": "openai:gpt-4.1-mini",
+   "capabilities": [
+    "general",
+    "coding",
+    "analysis",
+    "writing"
+   ],
+   "context_window": 1000000,
+   "cost_per_1k_tokens": 0.0004,
+   "data_provenance": "provider_documentation_snapshot",
+   "description": "Lower-cost GPT-4.1 API variant.",
+   "developer_slug": "openai",
+   "estimated_cost": 0.2,
+   "estimated_latency": 0.2,
+   "estimated_quality": 0.74,
+   "external_url": "https://platform.openai.com/docs/models",
+   "input_price_per_million": 0.4,
+   "last_verified_at": "2025-08-01T00:00:00+00:00",
+   "metadata_status": "stale",
+   "metric_provenance": {
+    "capabilities": "provider_published",
+    "context_window": "provider_published",
+    "latency": "estimated",
+    "pricing": "provider_published",
+    "quality": "estimated",
+    "reliability": "estimated",
+    "risk": "estimated"
+   },
+   "modalities": [
+    "text"
+   ],
+   "model_family": "GPT-4.1",
+   "model_id": "gpt-4.1-mini",
+   "model_name": "GPT-4.1 mini",
+   "output_price_per_million": 1.6,
+   "provider": "OpenAI",
+   "provider_source": "https://platform.openai.com/docs/models",
+   "reliability": 0.85,
+   "risk_level": 0.15,
+   "source": "static_catalog",
+   "supported_domains": [
+    "general",
+    "computer_science",
+    "mathematics",
+    "science",
+    "creative"
+   ],
+   "supported_tasks": [
+    "coding",
+    "analysis",
+    "summarization",
+    "writing",
+    "qa"
+   ],
+   "model_type": "chat",
+   "use_categories": [
+    "conversational",
+    "developer"
+   ],
+   "weights_status": "proprietary",
+   "deployment_options": [
+    "hosted_api"
+   ],
+   "api_available": true,
+   "taxonomy_status": "curated"
+  },
+  {
+   "adapter_compatible": true,
+   "avg_latency_seconds": 2.5,
+   "canonical_key": "openai:o3",
+   "capabilities": [
+    "general",
+    "reasoning",
+    "coding",
+    "math"
+   ],
+   "context_window": 128000,
+   "cost_per_1k_tokens": 0.002,
+   "data_provenance": "provider_documentation_snapshot",
+   "description": "Reasoning-focused API model.",
+   "developer_slug": "openai",
+   "estimated_cost": 0.88,
+   "estimated_latency": 0.75,
+   "estimated_quality": 0.9,
+   "external_url": "https://platform.openai.com/docs/models",
+   "input_price_per_million": 2.0,
+   "last_verified_at": "2025-08-01T00:00:00+00:00",
+   "metadata_status": "stale",
+   "metric_provenance": {
+    "capabilities": "provider_published",
+    "context_window": "provider_published",
+    "latency": "estimated",
+    "pricing": "provider_published",
+    "quality": "estimated",
+    "reliability": "estimated",
+    "risk": "estimated"
+   },
+   "modalities": [
+    "text"
+   ],
+   "model_family": "o-series",
+   "model_id": "o3",
+   "model_name": "o3",
+   "output_price_per_million": 8.0,
+   "provider": "OpenAI",
+   "provider_source": "https://platform.openai.com/docs/models",
+   "reliability": 0.85,
+   "risk_level": 0.15,
+   "source": "static_catalog",
+   "supported_domains": [
+    "general",
+    "computer_science",
+    "mathematics",
+    "science",
+    "creative"
+   ],
+   "supported_tasks": [
+    "reasoning",
+    "coding",
+    "math",
+    "analysis",
+    "qa"
+   ],
+   "model_type": "reasoning_chat",
+   "use_categories": [
+    "conversational",
+    "developer"
+   ],
+   "weights_status": "proprietary",
+   "deployment_options": [
+    "hosted_api"
+   ],
+   "api_available": true,
+   "taxonomy_status": "curated"
+  },
+  {
+   "adapter_compatible": true,
+   "avg_latency_seconds": 2.5,
+   "canonical_key": "openai:gpt-image-1",
+   "capabilities": [
+    "general",
+    "image-generation",
+    "image-editing"
+   ],
+   "context_window": 0,
+   "cost_per_1k_tokens": 0.0,
+   "data_provenance": "provider_documentation_snapshot",
+   "description": "Image generation and editing API model.",
+   "developer_slug": "openai",
+   "estimated_cost": 0.7,
+   "estimated_latency": 0.65,
+   "estimated_quality": 0.82,
+   "external_url": "https://platform.openai.com/docs/guides/image-generation",
+   "last_verified_at": "2025-08-01T00:00:00+00:00",
+   "metadata_status": "stale",
+   "metric_provenance": {
+    "capabilities": "provider_published",
+    "context_window": "provider_published",
+    "latency": "estimated",
+    "pricing": "unavailable",
+    "quality": "estimated",
+    "reliability": "estimated",
+    "risk": "estimated"
+   },
+   "modalities": [
+    "image"
+   ],
+   "modality": "image",
+   "model_family": "GPT Image",
+   "model_id": "gpt-image-1",
+   "model_name": "GPT Image 1",
+   "provider": "OpenAI",
+   "provider_source": "https://platform.openai.com/docs/guides/image-generation",
+   "reliability": 0.85,
+   "risk_level": 0.15,
+   "source": "static_catalog",
+   "supported_domains": [
+    "general",
+    "computer_science",
+    "mathematics",
+    "science",
+    "creative"
+   ],
+   "supported_tasks": [
+    "image-generation",
+    "qa"
+   ],
+   "model_type": "image_generation",
+   "use_categories": [
+    "developer"
+   ],
+   "weights_status": "proprietary",
+   "deployment_options": [
+    "hosted_api"
+   ],
+   "api_available": true,
+   "taxonomy_status": "curated"
+  },
+  {
+   "adapter_compatible": true,
+   "avg_latency_seconds": 2.5,
+   "canonical_key": "anthropic:claude-opus-4-20250514",
+   "capabilities": [
+    "general",
+    "reasoning",
+    "coding",
+    "analysis",
+    "writing"
+   ],
+   "context_window": 200000,
+   "cost_per_1k_tokens": 0.015,
+   "data_provenance": "provider_documentation_snapshot",
+   "description": "High-capability Claude API model.",
+   "developer_slug": "anthropic",
+   "estimated_cost": 0.9,
+   "estimated_latency": 0.75,
+   "estimated_quality": 0.9,
+   "external_url": "https://docs.anthropic.com/en/docs/about-claude/models",
+   "input_price_per_million": 15.0,
+   "last_verified_at": "2025-08-01T00:00:00+00:00",
+   "metadata_status": "stale",
+   "metric_provenance": {
+    "capabilities": "provider_published",
+    "context_window": "provider_published",
+    "latency": "estimated",
+    "pricing": "provider_published",
+    "quality": "estimated",
+    "reliability": "estimated",
+    "risk": "estimated"
+   },
+   "modalities": [
+    "text"
+   ],
+   "model_family": "Claude 4",
+   "model_id": "claude-opus-4-20250514",
+   "model_name": "Claude Opus 4",
+   "output_price_per_million": 75.0,
+   "provider": "Anthropic",
+   "provider_source": "https://docs.anthropic.com/en/docs/about-claude/models",
+   "reliability": 0.85,
+   "risk_level": 0.15,
+   "source": "static_catalog",
+   "supported_domains": [
+    "general",
+    "computer_science",
+    "mathematics",
+    "science",
+    "creative"
+   ],
+   "supported_tasks": [
+    "reasoning",
+    "coding",
+    "analysis",
+    "summarization",
+    "writing",
+    "qa"
+   ],
+   "model_type": "reasoning_chat",
+   "use_categories": [
+    "conversational",
+    "developer"
+   ],
+   "weights_status": "proprietary",
+   "deployment_options": [
+    "hosted_api"
+   ],
+   "api_available": true,
+   "taxonomy_status": "curated"
+  },
+  {
+   "adapter_compatible": true,
+   "avg_latency_seconds": 2.5,
+   "canonical_key": "anthropic:claude-sonnet-4-20250514",
+   "capabilities": [
+    "general",
+    "reasoning",
+    "coding",
+    "analysis",
+    "writing"
+   ],
+   "context_window": 200000,
+   "cost_per_1k_tokens": 0.003,
+   "data_provenance": "provider_documentation_snapshot",
+   "description": "Balanced Claude API model.",
+   "developer_slug": "anthropic",
+   "estimated_cost": 0.55,
+   "estimated_latency": 0.55,
+   "estimated_quality": 0.84,
+   "external_url": "https://docs.anthropic.com/en/docs/about-claude/models",
+   "input_price_per_million": 3.0,
+   "last_verified_at": "2025-08-01T00:00:00+00:00",
+   "metadata_status": "stale",
+   "metric_provenance": {
+    "capabilities": "provider_published",
+    "context_window": "provider_published",
+    "latency": "estimated",
+    "pricing": "provider_published",
+    "quality": "estimated",
+    "reliability": "estimated",
+    "risk": "estimated"
+   },
+   "modalities": [
+    "text"
+   ],
+   "model_family": "Claude 4",
+   "model_id": "claude-sonnet-4-20250514",
+   "model_name": "Claude Sonnet 4",
+   "output_price_per_million": 15.0,
+   "provider": "Anthropic",
+   "provider_source": "https://docs.anthropic.com/en/docs/about-claude/models",
+   "reliability": 0.85,
+   "risk_level": 0.15,
+   "source": "static_catalog",
+   "supported_domains": [
+    "general",
+    "computer_science",
+    "mathematics",
+    "science",
+    "creative"
+   ],
+   "supported_tasks": [
+    "reasoning",
+    "coding",
+    "analysis",
+    "summarization",
+    "writing",
+    "qa"
+   ],
+   "model_type": "chat",
+   "use_categories": [
+    "conversational",
+    "developer"
+   ],
+   "weights_status": "proprietary",
+   "deployment_options": [
+    "hosted_api"
+   ],
+   "api_available": true,
+   "taxonomy_status": "curated"
+  },
+  {
+   "adapter_compatible": true,
+   "avg_latency_seconds": 2.5,
+   "canonical_key": "anthropic:claude-3-5-haiku-20241022",
+   "capabilities": [
+    "general",
+    "analysis",
+    "writing"
+   ],
+   "context_window": 200000,
+   "cost_per_1k_tokens": 0.0008,
+   "data_provenance": "provider_documentation_snapshot",
+   "description": "Fast Claude API model.",
+   "developer_slug": "anthropic",
+   "estimated_cost": 0.15,
+   "estimated_latency": 0.18,
+   "estimated_quality": 0.7,
+   "external_url": "https://docs.anthropic.com/en/docs/about-claude/models",
+   "input_price_per_million": 0.8,
+   "last_verified_at": "2025-08-01T00:00:00+00:00",
+   "metadata_status": "stale",
+   "metric_provenance": {
+    "capabilities": "provider_published",
+    "context_window": "provider_published",
+    "latency": "estimated",
+    "pricing": "provider_published",
+    "quality": "estimated",
+    "reliability": "estimated",
+    "risk": "estimated"
+   },
+   "modalities": [
+    "text"
+   ],
+   "model_family": "Claude 3.5",
+   "model_id": "claude-3-5-haiku-20241022",
+   "model_name": "Claude 3.5 Haiku",
+   "output_price_per_million": 4.0,
+   "provider": "Anthropic",
+   "provider_source": "https://docs.anthropic.com/en/docs/about-claude/models",
+   "reliability": 0.85,
+   "risk_level": 0.15,
+   "source": "static_catalog",
+   "supported_domains": [
+    "general",
+    "computer_science",
+    "mathematics",
+    "science",
+    "creative"
+   ],
+   "supported_tasks": [
+    "analysis",
+    "summarization",
+    "writing",
+    "qa"
+   ],
+   "model_type": "chat",
+   "use_categories": [
+    "conversational",
+    "developer"
+   ],
+   "weights_status": "proprietary",
+   "deployment_options": [
+    "hosted_api"
+   ],
+   "api_available": true,
+   "taxonomy_status": "curated"
+  },
+  {
+   "adapter_compatible": true,
+   "avg_latency_seconds": 2.5,
+   "canonical_key": "google:gemini-2.5-pro",
+   "capabilities": [
+    "general",
+    "reasoning",
+    "coding",
+    "analysis",
+    "multimodal"
+   ],
+   "context_window": 1000000,
+   "cost_per_1k_tokens": 0.0,
+   "data_provenance": "provider_documentation_snapshot",
+   "description": "Multimodal Gemini API model.",
+   "developer_slug": "google",
+   "estimated_cost": 0.7,
+   "estimated_latency": 0.6,
+   "estimated_quality": 0.87,
+   "external_url": "https://ai.google.dev/gemini-api/docs/models",
+   "last_verified_at": "2025-08-01T00:00:00+00:00",
+   "metadata_status": "stale",
+   "metric_provenance": {
+    "capabilities": "provider_published",
+    "context_window": "provider_published",
+    "latency": "estimated",
+    "pricing": "unavailable",
+    "quality": "estimated",
+    "reliability": "estimated",
+    "risk": "estimated"
+   },
+   "modalities": [
+    "text",
+    "image",
+    "audio",
+    "video"
+   ],
+   "model_family": "Gemini 2.5",
+   "model_id": "gemini-2.5-pro",
+   "model_name": "Gemini 2.5 Pro",
+   "provider": "Google",
+   "provider_source": "https://ai.google.dev/gemini-api/docs/models",
+   "reliability": 0.85,
+   "risk_level": 0.15,
+   "source": "static_catalog",
+   "supported_domains": [
+    "general",
+    "computer_science",
+    "mathematics",
+    "science",
+    "creative"
+   ],
+   "supported_tasks": [
+    "reasoning",
+    "coding",
+    "analysis",
+    "summarization",
+    "math",
+    "qa"
+   ],
+   "model_type": "reasoning_chat",
+   "use_categories": [
+    "conversational",
+    "developer"
+   ],
+   "weights_status": "proprietary",
+   "deployment_options": [
+    "hosted_api"
+   ],
+   "api_available": true,
+   "taxonomy_status": "curated"
+  },
+  {
+   "adapter_compatible": true,
+   "avg_latency_seconds": 2.5,
+   "canonical_key": "google:gemini-2.5-flash",
+   "capabilities": [
+    "general",
+    "coding",
+    "analysis",
+    "multimodal"
+   ],
+   "context_window": 1000000,
+   "cost_per_1k_tokens": 0.0,
+   "data_provenance": "provider_documentation_snapshot",
+   "description": "Fast multimodal Gemini API model.",
+   "developer_slug": "google",
+   "estimated_cost": 0.25,
+   "estimated_latency": 0.2,
+   "estimated_quality": 0.78,
+   "external_url": "https://ai.google.dev/gemini-api/docs/models",
+   "last_verified_at": "2025-08-01T00:00:00+00:00",
+   "metadata_status": "stale",
+   "metric_provenance": {
+    "capabilities": "provider_published",
+    "context_window": "provider_published",
+    "latency": "estimated",
+    "pricing": "unavailable",
+    "quality": "estimated",
+    "reliability": "estimated",
+    "risk": "estimated"
+   },
+   "modalities": [
+    "text",
+    "image",
+    "audio",
+    "video"
+   ],
+   "model_family": "Gemini 2.5",
+   "model_id": "gemini-2.5-flash",
+   "model_name": "Gemini 2.5 Flash",
+   "provider": "Google",
+   "provider_source": "https://ai.google.dev/gemini-api/docs/models",
+   "reliability": 0.85,
+   "risk_level": 0.15,
+   "source": "static_catalog",
+   "supported_domains": [
+    "general",
+    "computer_science",
+    "mathematics",
+    "science",
+    "creative"
+   ],
+   "supported_tasks": [
+    "coding",
+    "analysis",
+    "summarization",
+    "qa"
+   ],
+   "model_type": "chat",
+   "use_categories": [
+    "conversational",
+    "developer"
+   ],
+   "weights_status": "proprietary",
+   "deployment_options": [
+    "hosted_api"
+   ],
+   "api_available": true,
+   "taxonomy_status": "curated"
+  },
+  {
+   "adapter_compatible": true,
+   "avg_latency_seconds": 2.5,
+   "canonical_key": "google:gemini-2.5-flash-lite",
+   "capabilities": [
+    "general",
+    "analysis",
+    "multimodal"
+   ],
+   "context_window": 1000000,
+   "cost_per_1k_tokens": 0.0,
+   "data_provenance": "provider_documentation_snapshot",
+   "description": "Low-cost Gemini API model.",
+   "developer_slug": "google",
+   "estimated_cost": 0.1,
+   "estimated_latency": 0.12,
+   "estimated_quality": 0.66,
+   "external_url": "https://ai.google.dev/gemini-api/docs/models",
+   "last_verified_at": "2025-08-01T00:00:00+00:00",
+   "metadata_status": "stale",
+   "metric_provenance": {
+    "capabilities": "provider_published",
+    "context_window": "provider_published",
+    "latency": "estimated",
+    "pricing": "unavailable",
+    "quality": "estimated",
+    "reliability": "estimated",
+    "risk": "estimated"
+   },
+   "modalities": [
+    "text",
+    "image"
+   ],
+   "model_family": "Gemini 2.5",
+   "model_id": "gemini-2.5-flash-lite",
+   "model_name": "Gemini 2.5 Flash-Lite",
+   "provider": "Google",
+   "provider_source": "https://ai.google.dev/gemini-api/docs/models",
+   "reliability": 0.85,
+   "risk_level": 0.15,
+   "source": "static_catalog",
+   "supported_domains": [
+    "general",
+    "computer_science",
+    "mathematics",
+    "science",
+    "creative"
+   ],
+   "supported_tasks": [
+    "analysis",
+    "summarization",
+    "qa"
+   ],
+   "model_type": "chat",
+   "use_categories": [
+    "conversational",
+    "developer"
+   ],
+   "weights_status": "proprietary",
+   "deployment_options": [
+    "hosted_api"
+   ],
+   "api_available": true,
+   "taxonomy_status": "curated"
+  },
+  {
+   "adapter_compatible": true,
+   "avg_latency_seconds": 2.5,
+   "canonical_key": "groq:llama-3.3-70b-versatile",
+   "capabilities": [
+    "general",
+    "reasoning",
+    "coding",
+    "analysis"
+   ],
+   "context_window": 128000,
+   "cost_per_1k_tokens": 0.0,
+   "data_provenance": "provider_documentation_snapshot",
+   "description": "Llama hosted by Groq.",
+   "developer_slug": "meta",
+   "estimated_cost": 0.2,
+   "estimated_latency": 0.1,
+   "estimated_quality": 0.76,
+   "external_url": "https://console.groq.com/docs/models",
+   "last_verified_at": "2025-08-01T00:00:00+00:00",
+   "metadata_status": "stale",
+   "metric_provenance": {
+    "capabilities": "provider_published",
+    "context_window": "provider_published",
+    "latency": "estimated",
+    "pricing": "unavailable",
+    "quality": "estimated",
+    "reliability": "estimated",
+    "risk": "estimated"
+   },
+   "modalities": [
+    "text"
+   ],
+   "model_family": "Llama 3.3",
+   "model_id": "llama-3.3-70b-versatile",
+   "model_name": "Llama 3.3 70B Versatile",
+   "provider": "Groq",
+   "provider_source": "https://console.groq.com/docs/models",
+   "reliability": 0.85,
+   "risk_level": 0.15,
+   "source": "static_catalog",
+   "supported_domains": [
+    "general",
+    "computer_science",
+    "mathematics",
+    "science",
+    "creative"
+   ],
+   "supported_tasks": [
+    "reasoning",
+    "coding",
+    "analysis",
+    "summarization",
+    "qa"
+   ],
+   "model_type": "chat",
+   "use_categories": [
+    "conversational",
+    "developer"
+   ],
+   "weights_status": "open_weights",
+   "license_name": "Llama 3.3 Community License",
+   "free_download": true,
+   "deployment_options": [
+    "hosted_api",
+    "local_download"
+   ],
+   "api_available": true,
+   "taxonomy_status": "curated"
+  },
+  {
+   "adapter_compatible": true,
+   "avg_latency_seconds": 2.5,
+   "canonical_key": "groq:deepseek-r1-distill-llama-70b",
+   "capabilities": [
+    "general",
+    "reasoning",
+    "math",
+    "coding"
+   ],
+   "context_window": 128000,
+   "cost_per_1k_tokens": 0.0,
+   "data_provenance": "provider_documentation_snapshot",
+   "description": "Reasoning model hosted by Groq.",
+   "developer_slug": "deepseek",
+   "estimated_cost": 0.25,
+   "estimated_latency": 0.18,
+   "estimated_quality": 0.78,
+   "external_url": "https://console.groq.com/docs/models",
+   "last_verified_at": "2025-08-01T00:00:00+00:00",
+   "metadata_status": "stale",
+   "metric_provenance": {
+    "capabilities": "provider_published",
+    "context_window": "provider_published",
+    "latency": "estimated",
+    "pricing": "unavailable",
+    "quality": "estimated",
+    "reliability": "estimated",
+    "risk": "estimated"
+   },
+   "modalities": [
+    "text"
+   ],
+   "model_family": "DeepSeek R1",
+   "model_id": "deepseek-r1-distill-llama-70b",
+   "model_name": "DeepSeek R1 Distill Llama 70B",
+   "provider": "Groq",
+   "provider_source": "https://console.groq.com/docs/models",
+   "reliability": 0.85,
+   "risk_level": 0.15,
+   "source": "static_catalog",
+   "supported_domains": [
+    "general",
+    "computer_science",
+    "mathematics",
+    "science",
+    "creative"
+   ],
+   "supported_tasks": [
+    "reasoning",
+    "math",
+    "coding",
+    "qa"
+   ],
+   "model_type": "reasoning_chat",
+   "use_categories": [
+    "conversational",
+    "developer"
+   ],
+   "weights_status": "open_weights",
+   "license_name": "MIT (distilled from Llama; Llama licence terms also apply)",
+   "free_download": true,
+   "deployment_options": [
+    "hosted_api",
+    "local_download"
+   ],
+   "api_available": true,
+   "taxonomy_status": "curated"
+  },
+  {
+   "avg_latency_seconds": 2.5,
+   "canonical_key": "mistral:mistral-large-latest",
+   "capabilities": [
+    "general",
+    "reasoning",
+    "coding",
+    "analysis"
+   ],
+   "context_window": 128000,
+   "cost_per_1k_tokens": 0.0,
+   "data_provenance": "provider_documentation_snapshot",
+   "description": "Mistral API model.",
+   "developer_slug": "mistral",
+   "estimated_cost": 0.55,
+   "estimated_latency": 0.45,
+   "estimated_quality": 0.8,
+   "external_url": "https://docs.mistral.ai/getting-started/models/",
+   "last_verified_at": "2025-08-01T00:00:00+00:00",
+   "metadata_status": "stale",
+   "metric_provenance": {
+    "capabilities": "provider_published",
+    "context_window": "provider_published",
+    "latency": "estimated",
+    "pricing": "unavailable",
+    "quality": "estimated",
+    "reliability": "estimated",
+    "risk": "estimated"
+   },
+   "modalities": [
+    "text"
+   ],
+   "model_family": "Mistral Large",
+   "model_id": "mistral-large-latest",
+   "model_name": "Mistral Large",
+   "provider": "Mistral",
+   "provider_source": "https://docs.mistral.ai/getting-started/models/",
+   "reliability": 0.85,
+   "risk_level": 0.15,
+   "source": "static_catalog",
+   "supported_domains": [
+    "general",
+    "computer_science",
+    "mathematics",
+    "science",
+    "creative"
+   ],
+   "supported_tasks": [
+    "reasoning",
+    "coding",
+    "analysis",
+    "summarization",
+    "qa"
+   ],
+   "model_type": "chat",
+   "use_categories": [
+    "conversational",
+    "developer"
+   ],
+   "weights_status": "unknown",
+   "deployment_options": [
+    "hosted_api"
+   ],
+   "api_available": true,
+   "taxonomy_status": "curated"
+  },
+  {
+   "avg_latency_seconds": 2.5,
+   "canonical_key": "deepseek:deepseek-chat",
+   "capabilities": [
+    "general",
+    "reasoning",
+    "coding",
+    "analysis"
+   ],
+   "context_window": 64000,
+   "cost_per_1k_tokens": 0.0,
+   "data_provenance": "provider_documentation_snapshot",
+   "description": "DeepSeek API chat model.",
+   "developer_slug": "deepseek",
+   "estimated_cost": 0.25,
+   "estimated_latency": 0.4,
+   "estimated_quality": 0.78,
+   "external_url": "https://api-docs.deepseek.com/",
+   "last_verified_at": "2025-08-01T00:00:00+00:00",
+   "metadata_status": "stale",
+   "metric_provenance": {
+    "capabilities": "provider_published",
+    "context_window": "provider_published",
+    "latency": "estimated",
+    "pricing": "unavailable",
+    "quality": "estimated",
+    "reliability": "estimated",
+    "risk": "estimated"
+   },
+   "modalities": [
+    "text"
+   ],
+   "model_family": "DeepSeek V3",
+   "model_id": "deepseek-chat",
+   "model_name": "DeepSeek-V3",
+   "provider": "DeepSeek",
+   "provider_source": "https://api-docs.deepseek.com/",
+   "reliability": 0.85,
+   "risk_level": 0.15,
+   "source": "static_catalog",
+   "supported_domains": [
+    "general",
+    "computer_science",
+    "mathematics",
+    "science",
+    "creative"
+   ],
+   "supported_tasks": [
+    "reasoning",
+    "coding",
+    "analysis",
+    "summarization",
+    "qa"
+   ],
+   "model_type": "chat",
+   "use_categories": [
+    "conversational",
+    "developer"
+   ],
+   "weights_status": "open_weights",
+   "free_download": true,
+   "deployment_options": [
+    "hosted_api",
+    "local_download"
+   ],
+   "api_available": true,
+   "taxonomy_status": "curated"
+  },
+  {
+   "avg_latency_seconds": 2.5,
+   "canonical_key": "deepseek:deepseek-reasoner",
+   "capabilities": [
+    "general",
+    "reasoning",
+    "math",
+    "coding"
+   ],
+   "context_window": 64000,
+   "cost_per_1k_tokens": 0.0,
+   "data_provenance": "provider_documentation_snapshot",
+   "description": "DeepSeek API reasoning model.",
+   "developer_slug": "deepseek",
+   "estimated_cost": 0.5,
+   "estimated_latency": 0.6,
+   "estimated_quality": 0.82,
+   "external_url": "https://api-docs.deepseek.com/",
+   "last_verified_at": "2025-08-01T00:00:00+00:00",
+   "metadata_status": "stale",
+   "metric_provenance": {
+    "capabilities": "provider_published",
+    "context_window": "provider_published",
+    "latency": "estimated",
+    "pricing": "unavailable",
+    "quality": "estimated",
+    "reliability": "estimated",
+    "risk": "estimated"
+   },
+   "modalities": [
+    "text"
+   ],
+   "model_family": "DeepSeek R1",
+   "model_id": "deepseek-reasoner",
+   "model_name": "DeepSeek-R1",
+   "provider": "DeepSeek",
+   "provider_source": "https://api-docs.deepseek.com/",
+   "reliability": 0.85,
+   "risk_level": 0.15,
+   "source": "static_catalog",
+   "supported_domains": [
+    "general",
+    "computer_science",
+    "mathematics",
+    "science",
+    "creative"
+   ],
+   "supported_tasks": [
+    "reasoning",
+    "math",
+    "coding",
+    "analysis",
+    "qa"
+   ],
+   "model_type": "reasoning_chat",
+   "use_categories": [
+    "conversational",
+    "developer"
+   ],
+   "weights_status": "open_weights",
+   "license_name": "MIT",
+   "free_download": true,
+   "deployment_options": [
+    "hosted_api",
+    "local_download"
+   ],
+   "api_available": true,
+   "taxonomy_status": "curated"
+  },
+  {
+   "avg_latency_seconds": 2.5,
+   "canonical_key": "together ai:meta-llama/llama-3.3-70b-instruct",
+   "capabilities": [
+    "general",
+    "reasoning",
+    "coding",
+    "analysis"
+   ],
+   "context_window": 128000,
+   "cost_per_1k_tokens": 0.0,
+   "data_provenance": "provider_documentation_snapshot",
+   "description": "Meta Llama hosted inference endpoint.",
+   "developer_slug": "meta",
+   "estimated_cost": 0.28,
+   "estimated_latency": 0.35,
+   "estimated_quality": 0.76,
+   "external_url": "https://docs.together.ai/docs/inference-models",
+   "last_verified_at": "2025-08-01T00:00:00+00:00",
+   "metadata_status": "stale",
+   "metric_provenance": {
+    "capabilities": "provider_published",
+    "context_window": "provider_published",
+    "latency": "estimated",
+    "pricing": "unavailable",
+    "quality": "estimated",
+    "reliability": "estimated",
+    "risk": "estimated"
+   },
+   "modalities": [
+    "text"
+   ],
+   "model_family": "Llama 3.3",
+   "model_id": "meta-llama/llama-3.3-70b-instruct",
+   "model_name": "Llama 3.3 70B Instruct",
+   "provider": "Together AI",
+   "provider_source": "https://docs.together.ai/docs/inference-models",
+   "reliability": 0.85,
+   "risk_level": 0.15,
+   "source": "static_catalog",
+   "supported_domains": [
+    "general",
+    "computer_science",
+    "mathematics",
+    "science",
+    "creative"
+   ],
+   "supported_tasks": [
+    "reasoning",
+    "coding",
+    "analysis",
+    "summarization",
+    "qa"
+   ],
+   "model_type": "chat",
+   "use_categories": [
+    "conversational",
+    "developer"
+   ],
+   "weights_status": "open_weights",
+   "license_name": "Llama 3.3 Community License",
+   "free_download": true,
+   "deployment_options": [
+    "hosted_api",
+    "local_download"
+   ],
+   "api_available": true,
+   "taxonomy_status": "curated"
+  },
+  {
+   "avg_latency_seconds": 2.5,
+   "canonical_key": "together ai:Qwen/Qwen2.5-72B-Instruct",
+   "capabilities": [
+    "general",
+    "reasoning",
+    "coding",
+    "math"
+   ],
+   "context_window": 128000,
+   "cost_per_1k_tokens": 0.0,
+   "data_provenance": "provider_documentation_snapshot",
+   "description": "Qwen hosted inference endpoint.",
+   "developer_slug": "alibaba",
+   "estimated_cost": 0.27,
+   "estimated_latency": 0.35,
+   "estimated_quality": 0.76,
+   "external_url": "https://docs.together.ai/docs/inference-models",
+   "last_verified_at": "2025-08-01T00:00:00+00:00",
+   "metadata_status": "stale",
+   "metric_provenance": {
+    "capabilities": "provider_published",
+    "context_window": "provider_published",
+    "latency": "estimated",
+    "pricing": "unavailable",
+    "quality": "estimated",
+    "reliability": "estimated",
+    "risk": "estimated"
+   },
+   "modalities": [
+    "text"
+   ],
+   "model_family": "Qwen 2.5",
+   "model_id": "Qwen/Qwen2.5-72B-Instruct",
+   "model_name": "Qwen2.5 72B Instruct",
+   "provider": "Together AI",
+   "provider_source": "https://docs.together.ai/docs/inference-models",
+   "reliability": 0.85,
+   "risk_level": 0.15,
+   "source": "static_catalog",
+   "supported_domains": [
+    "general",
+    "computer_science",
+    "mathematics",
+    "science",
+    "creative"
+   ],
+   "supported_tasks": [
+    "reasoning",
+    "coding",
+    "math",
+    "analysis",
+    "qa"
+   ],
+   "model_type": "chat",
+   "use_categories": [
+    "conversational",
+    "developer"
+   ],
+   "weights_status": "open_weights",
+   "license_name": "Qwen License",
+   "free_download": true,
+   "deployment_options": [
+    "hosted_api",
+    "local_download"
+   ],
+   "api_available": true,
+   "taxonomy_status": "curated"
+  },
+  {
+   "avg_latency_seconds": 2.5,
+   "canonical_key": "hugging face:microsoft/phi-4",
+   "capabilities": [
+    "general",
+    "reasoning",
+    "math",
+    "analysis"
+   ],
+   "context_window": 128000,
+   "cost_per_1k_tokens": 0.0,
+   "data_provenance": "provider_documentation_snapshot",
+   "description": "Microsoft Phi family via hosted inference.",
+   "developer_slug": "microsoft",
+   "estimated_cost": 0.25,
+   "estimated_latency": 0.35,
+   "estimated_quality": 0.7,
+   "external_url": "https://huggingface.co/microsoft/phi-4",
+   "last_verified_at": "2025-08-01T00:00:00+00:00",
+   "metadata_status": "stale",
+   "metric_provenance": {
+    "capabilities": "provider_published",
+    "context_window": "provider_published",
+    "latency": "estimated",
+    "pricing": "unavailable",
+    "quality": "estimated",
+    "reliability": "estimated",
+    "risk": "estimated"
+   },
+   "modalities": [
+    "text"
+   ],
+   "model_family": "Phi",
+   "model_id": "microsoft/phi-4",
+   "model_name": "Phi-4",
+   "provider": "Hugging Face",
+   "provider_source": "https://huggingface.co/microsoft/phi-4",
+   "reliability": 0.85,
+   "risk_level": 0.15,
+   "source": "static_catalog",
+   "supported_domains": [
+    "general",
+    "computer_science",
+    "mathematics",
+    "science",
+    "creative"
+   ],
+   "supported_tasks": [
+    "reasoning",
+    "math",
+    "analysis",
+    "qa"
+   ],
+   "model_type": "chat",
+   "use_categories": [
+    "conversational",
+    "developer"
+   ],
+   "weights_status": "open_weights",
+   "license_name": "MIT",
+   "free_download": true,
+   "deployment_options": [
+    "hosted_api",
+    "local_download"
+   ],
+   "api_available": true,
+   "taxonomy_status": "curated"
+  },
+  {
+   "avg_latency_seconds": 2.5,
+   "canonical_key": "cohere:command-a-03-2025",
+   "capabilities": [
+    "general",
+    "reasoning",
+    "coding",
+    "retrieval"
+   ],
+   "context_window": 128000,
+   "cost_per_1k_tokens": 0.0,
+   "data_provenance": "provider_documentation_snapshot",
+   "description": "Cohere enterprise API model.",
+   "developer_slug": "cohere",
+   "estimated_cost": 0.4,
+   "estimated_latency": 0.4,
+   "estimated_quality": 0.76,
+   "external_url": "https://docs.cohere.com/docs/models",
+   "last_verified_at": "2025-08-01T00:00:00+00:00",
+   "metadata_status": "stale",
+   "metric_provenance": {
+    "capabilities": "provider_published",
+    "context_window": "provider_published",
+    "latency": "estimated",
+    "pricing": "unavailable",
+    "quality": "estimated",
+    "reliability": "estimated",
+    "risk": "estimated"
+   },
+   "modalities": [
+    "text"
+   ],
+   "model_family": "Command",
+   "model_id": "command-a-03-2025",
+   "model_name": "Command A",
+   "provider": "Cohere",
+   "provider_source": "https://docs.cohere.com/docs/models",
+   "reliability": 0.85,
+   "risk_level": 0.15,
+   "source": "static_catalog",
+   "supported_domains": [
+    "general",
+    "computer_science",
+    "mathematics",
+    "science",
+    "creative"
+   ],
+   "supported_tasks": [
+    "reasoning",
+    "coding",
+    "analysis",
+    "summarization",
+    "qa"
+   ],
+   "model_type": "chat",
+   "use_categories": [
+    "conversational",
+    "developer"
+   ],
+   "weights_status": "unknown",
+   "deployment_options": [
+    "hosted_api"
+   ],
+   "api_available": true,
+   "taxonomy_status": "curated"
+  },
+  {
+   "avg_latency_seconds": 2.5,
+   "canonical_key": "amazon bedrock:amazon.nova-pro-v1:0",
+   "capabilities": [
+    "general",
+    "reasoning",
+    "analysis",
+    "multimodal"
+   ],
+   "context_window": 128000,
+   "cost_per_1k_tokens": 0.0,
+   "data_provenance": "provider_documentation_snapshot",
+   "description": "Amazon Bedrock Nova API model.",
+   "developer_slug": "amazon",
+   "estimated_cost": 0.45,
+   "estimated_latency": 0.45,
+   "estimated_quality": 0.77,
+   "external_url": "https://docs.aws.amazon.com/bedrock/latest/userguide/models-supported.html",
+   "last_verified_at": "2025-08-01T00:00:00+00:00",
+   "metadata_status": "stale",
+   "metric_provenance": {
+    "capabilities": "provider_published",
+    "context_window": "provider_published",
+    "latency": "estimated",
+    "pricing": "unavailable",
+    "quality": "estimated",
+    "reliability": "estimated",
+    "risk": "estimated"
+   },
+   "modalities": [
+    "text",
+    "image",
+    "video"
+   ],
+   "model_family": "Nova",
+   "model_id": "amazon.nova-pro-v1:0",
+   "model_name": "Amazon Nova Pro",
+   "provider": "Amazon Bedrock",
+   "provider_source": "https://docs.aws.amazon.com/bedrock/latest/userguide/models-supported.html",
+   "reliability": 0.85,
+   "risk_level": 0.15,
+   "source": "static_catalog",
+   "supported_domains": [
+    "general",
+    "computer_science",
+    "mathematics",
+    "science",
+    "creative"
+   ],
+   "supported_tasks": [
+    "reasoning",
+    "analysis",
+    "summarization",
+    "qa"
+   ],
+   "model_type": "chat",
+   "use_categories": [
+    "conversational",
+    "developer"
+   ],
+   "weights_status": "proprietary",
+   "deployment_options": [
+    "hosted_api"
+   ],
+   "api_available": true,
+   "taxonomy_status": "curated"
+  },
+  {
+   "avg_latency_seconds": 2.5,
+   "canonical_key": "ai21:jamba-1.5-large",
+   "capabilities": [
+    "general",
+    "reasoning",
+    "analysis",
+    "long-context"
+   ],
+   "context_window": 256000,
+   "cost_per_1k_tokens": 0.0,
+   "data_provenance": "provider_documentation_snapshot",
+   "description": "AI21 API model.",
+   "developer_slug": "ai21",
+   "estimated_cost": 0.45,
+   "estimated_latency": 0.45,
+   "estimated_quality": 0.73,
+   "external_url": "https://docs.ai21.com/",
+   "last_verified_at": "2025-08-01T00:00:00+00:00",
+   "metadata_status": "stale",
+   "metric_provenance": {
+    "capabilities": "provider_published",
+    "context_window": "provider_published",
+    "latency": "estimated",
+    "pricing": "unavailable",
+    "quality": "estimated",
+    "reliability": "estimated",
+    "risk": "estimated"
+   },
+   "modalities": [
+    "text"
+   ],
+   "model_family": "Jamba",
+   "model_id": "jamba-1.5-large",
+   "model_name": "Jamba 1.5 Large",
+   "provider": "AI21",
+   "provider_source": "https://docs.ai21.com/",
+   "reliability": 0.85,
+   "risk_level": 0.15,
+   "source": "static_catalog",
+   "supported_domains": [
+    "general",
+    "computer_science",
+    "mathematics",
+    "science",
+    "creative"
+   ],
+   "supported_tasks": [
+    "reasoning",
+    "analysis",
+    "summarization",
+    "qa"
+   ],
+   "model_type": "chat",
+   "use_categories": [
+    "conversational",
+    "developer"
+   ],
+   "weights_status": "open_weights",
+   "license_name": "Jamba Open Model License",
+   "free_download": true,
+   "deployment_options": [
+    "hosted_api",
+    "local_download"
+   ],
+   "api_available": true,
+   "taxonomy_status": "curated"
+  },
+  {
+   "avg_latency_seconds": 2.5,
+   "canonical_key": "fireworks ai:accounts/fireworks/models/llama-v3p3-70b-instruct",
+   "capabilities": [
+    "general",
+    "reasoning",
+    "coding",
+    "analysis"
+   ],
+   "context_window": 128000,
+   "cost_per_1k_tokens": 0.0,
+   "data_provenance": "provider_documentation_snapshot",
+   "description": "Fireworks hosted inference model.",
+   "developer_slug": "meta",
+   "estimated_cost": 0.25,
+   "estimated_latency": 0.25,
+   "estimated_quality": 0.76,
+   "external_url": "https://fireworks.ai/models",
+   "last_verified_at": "2025-08-01T00:00:00+00:00",
+   "metadata_status": "stale",
+   "metric_provenance": {
+    "capabilities": "provider_published",
+    "context_window": "provider_published",
+    "latency": "estimated",
+    "pricing": "unavailable",
+    "quality": "estimated",
+    "reliability": "estimated",
+    "risk": "estimated"
+   },
+   "modalities": [
+    "text"
+   ],
+   "model_family": "Llama 3.3",
+   "model_id": "accounts/fireworks/models/llama-v3p3-70b-instruct",
+   "model_name": "Llama 3.3 70B Instruct",
+   "provider": "Fireworks AI",
+   "provider_source": "https://fireworks.ai/models",
+   "reliability": 0.85,
+   "risk_level": 0.15,
+   "source": "static_catalog",
+   "supported_domains": [
+    "general",
+    "computer_science",
+    "mathematics",
+    "science",
+    "creative"
+   ],
+   "supported_tasks": [
+    "reasoning",
+    "coding",
+    "analysis",
+    "qa"
+   ],
+   "model_type": "chat",
+   "use_categories": [
+    "conversational",
+    "developer"
+   ],
+   "weights_status": "open_weights",
+   "license_name": "Llama 3.3 Community License",
+   "free_download": true,
+   "deployment_options": [
+    "hosted_api",
+    "local_download"
+   ],
+   "api_available": true,
+   "taxonomy_status": "curated"
+  },
+  {
+   "adapter_compatible": true,
+   "avg_latency_seconds": 2.5,
+   "canonical_key": "openrouter:deepseek/deepseek-r1",
+   "capabilities": [
+    "general",
+    "reasoning",
+    "math",
+    "coding"
+   ],
+   "context_window": 128000,
+   "cost_per_1k_tokens": 0.0,
+   "data_provenance": "provider_documentation_snapshot",
+   "description": "Gateway-hosted DeepSeek reasoning model.",
+   "developer_slug": "deepseek",
+   "estimated_cost": 0.5,
+   "estimated_latency": 0.55,
+   "estimated_quality": 0.82,
+   "external_url": "https://openrouter.ai/docs/models",
+   "last_verified_at": "2025-08-01T00:00:00+00:00",
+   "metadata_status": "stale",
+   "metric_provenance": {
+    "capabilities": "provider_published",
+    "context_window": "provider_published",
+    "latency": "estimated",
+    "pricing": "unavailable",
+    "quality": "estimated",
+    "reliability": "estimated",
+    "risk": "estimated"
+   },
+   "modalities": [
+    "text"
+   ],
+   "model_family": "DeepSeek R1",
+   "model_id": "deepseek/deepseek-r1",
+   "model_name": "DeepSeek R1",
+   "provider": "OpenRouter",
+   "provider_source": "https://openrouter.ai/docs/models",
+   "reliability": 0.85,
+   "risk_level": 0.15,
+   "source": "static_catalog",
+   "supported_domains": [
+    "general",
+    "computer_science",
+    "mathematics",
+    "science",
+    "creative"
+   ],
+   "supported_tasks": [
+    "reasoning",
+    "math",
+    "coding",
+    "analysis",
+    "qa"
+   ],
+   "model_type": "reasoning_chat",
+   "use_categories": [
+    "conversational",
+    "developer"
+   ],
+   "weights_status": "open_weights",
+   "license_name": "MIT",
+   "free_download": true,
+   "deployment_options": [
+    "hosted_api",
+    "local_download"
+   ],
+   "api_available": true,
+   "taxonomy_status": "curated"
+  },
+  {
+   "adapter_compatible": true,
+   "canonical_key": "openai:text-embedding-3-small",
+   "capabilities": [
+    "embedding"
+   ],
+   "context_window": 8191,
+   "cost_per_1k_tokens": 2e-05,
+   "data_provenance": "provider_documentation_snapshot",
+   "description": "OpenAI embedding model (1536 dimensions by default) for search, clustering and RAG.",
+   "developer_slug": "openai",
+   "embedding_dimensions": 1536,
+   "external_url": "https://platform.openai.com/docs/guides/embeddings",
+   "fallback_priority": 8,
+   "input_price_per_million": 0.02,
+   "last_verified_at": "2025-08-01T00:00:00+00:00",
+   "metadata_status": "incomplete",
+   "metric_provenance": {
+    "capabilities": "provider_published",
+    "context_window": "provider_published",
+    "latency": "unavailable",
+    "pricing": "provider_published",
+    "quality": "unavailable",
+    "reliability": "unavailable",
+    "risk": "unavailable"
+   },
+   "modalities": [
+    "text"
+   ],
+   "model_family": "text-embedding-3",
+   "model_id": "text-embedding-3-small",
+   "model_name": "text-embedding-3-small",
+   "output_price_per_million": 0.0,
+   "provider": "OpenAI",
+   "provider_source": "https://platform.openai.com/docs/guides/embeddings",
+   "source": "static_catalog",
+   "supported_domains": [
+    "general"
+   ],
+   "supported_tasks": [
+    "embedding",
+    "retrieval"
+   ],
+   "model_type": "embedding",
+   "use_categories": [
+    "developer"
+   ],
+   "weights_status": "proprietary",
+   "deployment_options": [
+    "hosted_api"
+   ],
+   "api_available": true,
+   "taxonomy_status": "curated"
+  },
+  {
+   "adapter_compatible": true,
+   "canonical_key": "openai:text-embedding-3-large",
+   "capabilities": [
+    "embedding"
+   ],
+   "context_window": 8191,
+   "cost_per_1k_tokens": 0.00013000000000000002,
+   "data_provenance": "provider_documentation_snapshot",
+   "description": "Larger OpenAI embedding model (3072 dimensions by default).",
+   "developer_slug": "openai",
+   "embedding_dimensions": 3072,
+   "external_url": "https://platform.openai.com/docs/guides/embeddings",
+   "fallback_priority": 8,
+   "input_price_per_million": 0.13,
+   "last_verified_at": "2025-08-01T00:00:00+00:00",
+   "metadata_status": "incomplete",
+   "metric_provenance": {
+    "capabilities": "provider_published",
+    "context_window": "provider_published",
+    "latency": "unavailable",
+    "pricing": "provider_published",
+    "quality": "unavailable",
+    "reliability": "unavailable",
+    "risk": "unavailable"
+   },
+   "modalities": [
+    "text"
+   ],
+   "model_family": "text-embedding-3",
+   "model_id": "text-embedding-3-large",
+   "model_name": "text-embedding-3-large",
+   "output_price_per_million": 0.0,
+   "provider": "OpenAI",
+   "provider_source": "https://platform.openai.com/docs/guides/embeddings",
+   "source": "static_catalog",
+   "supported_domains": [
+    "general"
+   ],
+   "supported_tasks": [
+    "embedding",
+    "retrieval"
+   ],
+   "model_type": "embedding",
+   "use_categories": [
+    "developer"
+   ],
+   "weights_status": "proprietary",
+   "deployment_options": [
+    "hosted_api"
+   ],
+   "api_available": true,
+   "taxonomy_status": "curated"
+  },
+  {
+   "canonical_key": "hugging face:BAAI/bge-m3",
+   "capabilities": [
+    "embedding",
+    "reranking-support"
+   ],
+   "context_window": 8192,
+   "data_provenance": "provider_documentation_snapshot",
+   "description": "Open-weight multilingual embedding model from BAAI (dense, sparse and multi-vector retrieval).",
+   "developer_slug": "baai",
+   "embedding_dimensions": 1024,
+   "external_url": "https://huggingface.co/BAAI/bge-m3",
+   "fallback_priority": 8,
+   "last_verified_at": "2025-08-01T00:00:00+00:00",
+   "metadata_status": "incomplete",
+   "metric_provenance": {
+    "capabilities": "provider_published",
+    "context_window": "provider_published",
+    "latency": "unavailable",
+    "pricing": "unavailable",
+    "quality": "unavailable",
+    "reliability": "unavailable",
+    "risk": "unavailable"
+   },
+   "modalities": [
+    "text"
+   ],
+   "model_family": "BGE",
+   "model_id": "BAAI/bge-m3",
+   "model_name": "BGE-M3",
+   "provider": "Hugging Face",
+   "provider_source": "https://huggingface.co/BAAI/bge-m3",
+   "source": "static_catalog",
+   "supported_domains": [
+    "general"
+   ],
+   "supported_tasks": [
+    "embedding",
+    "retrieval"
+   ],
+   "model_type": "embedding",
+   "use_categories": [
+    "developer"
+   ],
+   "weights_status": "open_weights",
+   "license_name": "MIT",
+   "free_download": true,
+   "deployment_options": [
+    "hosted_api",
+    "local_download"
+   ],
+   "api_available": true,
+   "taxonomy_status": "curated"
+  },
+  {
+   "canonical_key": "hugging face:nomic-ai/nomic-embed-text-v1.5",
+   "capabilities": [
+    "embedding"
+   ],
+   "context_window": 8192,
+   "data_provenance": "provider_documentation_snapshot",
+   "description": "Open-weight English text embedding model with adjustable (Matryoshka) dimensions.",
+   "developer_slug": "nomic",
+   "embedding_dimensions": 768,
+   "external_url": "https://huggingface.co/nomic-ai/nomic-embed-text-v1.5",
+   "fallback_priority": 8,
+   "last_verified_at": "2025-08-01T00:00:00+00:00",
+   "metadata_status": "incomplete",
+   "metric_provenance": {
+    "capabilities": "provider_published",
+    "context_window": "provider_published",
+    "latency": "unavailable",
+    "pricing": "unavailable",
+    "quality": "unavailable",
+    "reliability": "unavailable",
+    "risk": "unavailable"
+   },
+   "modalities": [
+    "text"
+   ],
+   "model_family": "Nomic Embed",
+   "model_id": "nomic-ai/nomic-embed-text-v1.5",
+   "model_name": "Nomic Embed Text v1.5",
+   "provider": "Hugging Face",
+   "provider_source": "https://huggingface.co/nomic-ai/nomic-embed-text-v1.5",
+   "source": "static_catalog",
+   "supported_domains": [
+    "general"
+   ],
+   "supported_tasks": [
+    "embedding",
+    "retrieval"
+   ],
+   "model_type": "embedding",
+   "use_categories": [
+    "developer"
+   ],
+   "weights_status": "open_weights",
+   "license_name": "Apache-2.0",
+   "free_download": true,
+   "deployment_options": [
+    "hosted_api",
+    "local_download"
+   ],
+   "api_available": true,
+   "taxonomy_status": "curated"
+  },
+  {
+   "canonical_key": "hugging face:Qwen/Qwen2.5-Coder-32B-Instruct",
+   "capabilities": [
+    "coding"
+   ],
+   "context_window": 131072,
+   "data_provenance": "provider_documentation_snapshot",
+   "description": "Open-weight code-specialised instruct model from the Qwen team.",
+   "developer_slug": "alibaba",
+   "external_url": "https://huggingface.co/Qwen/Qwen2.5-Coder-32B-Instruct",
+   "fallback_priority": 8,
+   "last_verified_at": "2025-08-01T00:00:00+00:00",
+   "metadata_status": "incomplete",
+   "metric_provenance": {
+    "capabilities": "provider_published",
+    "context_window": "provider_published",
+    "latency": "unavailable",
+    "pricing": "unavailable",
+    "quality": "unavailable",
+    "reliability": "unavailable",
+    "risk": "unavailable"
+   },
+   "modalities": [
+    "text"
+   ],
+   "model_family": "Qwen 2.5 Coder",
+   "model_id": "Qwen/Qwen2.5-Coder-32B-Instruct",
+   "model_name": "Qwen2.5-Coder 32B Instruct",
+   "provider": "Hugging Face",
+   "provider_source": "https://huggingface.co/Qwen/Qwen2.5-Coder-32B-Instruct",
+   "source": "static_catalog",
+   "supported_domains": [
+    "general"
+   ],
+   "supported_tasks": [
+    "coding"
+   ],
+   "model_type": "code_chat",
+   "use_categories": [
+    "developer"
+   ],
+   "weights_status": "open_weights",
+   "license_name": "Apache-2.0",
+   "free_download": true,
+   "deployment_options": [
+    "hosted_api",
+    "local_download"
+   ],
+   "api_available": true,
+   "taxonomy_status": "curated"
+  }
+ ],
+ "snapshot_date": "2025-08-01"
+}

@@ -138,13 +138,14 @@ def _build_response(req: QueryRequest, user, res: "pipeline.PipelineResult", rou
     engine = res.model_dump()
     engine["profile"]["original_query"] = ""  # the query is already returned as `query`; do not duplicate it in the engine payload
     engine["optimization"]["original_prompt"] = ""
+    engine["trace_available"] = routing_log_store.trace_table_available()
     return RouteAndGenerateResponse(
         routing_system={"name": "AI Compass", "type": "adaptive_llm_router"}, routing_id=routing_id, query=req.query, profile=user.user_group,
         query_analysis=to_legacy_profile(res.profile).model_dump(), candidate_models=[r.model_id for r in rows], filtered_models=_filtered_legacy(res.exclusions), model_scores=legacy_scores,
         selected_model_id=top.model_id, selected_model_name=selected.model_name, routing_explanation=routing_explanation, generated_response=generated,
         response_evaluation=response_eval, escalation_info=escalation, final_model_id=final_id, final_model_name=final_model.model_name,
         performance_metrics={"total_latency_ms": round(total_ms, 1), "routing_latency_ms": res.routing_latency_ms, "candidates_evaluated": len(rows), "models_filtered": len(res.exclusions),
-                             "escalated": ex.escalated, "user_group": user.user_group, "total_estimated_cost": ex.total_cost_usd if ex.total_cost_usd is not None else 0.0},
+                             "escalated": ex.escalated, "user_group": user.user_group, "total_estimated_cost": ex.total_cost_usd},
         request_usage=usage, optimized_prompt=res.prompt_used, learning_active=any(r.learning_adjustment != 0 for r in rows), ranked_alternatives=alternatives,
         tool_recommendations=tools,
         recommended_destination={"provider": final_model.provider, "entry_type": final_model.entry_type, "official_url": final_model.external_url, "availability": final_model.availability,
@@ -177,6 +178,7 @@ def route_and_generate(req: QueryRequest, uid: Optional[str] = Depends(_get_uid)
         logger.exception("Could not persist routing decision for feedback validation")
     try:
         routing_log_store.record(routing_id, uid, res)
+        routing_log_store.record_trace(routing_id, uid, res)
     except Exception:
         logger.exception("Could not persist routing log")
     response = _build_response(req, user, res, routing_id, (time.time() - t0) * 1000)
@@ -196,6 +198,18 @@ def routing_history(limit: int = 50, uid: Optional[str] = Depends(_get_uid)):
     if not routing_log_store.table_available():
         raise HTTPException(404, "Routing history storage has not been provisioned (migration 20261119_route_query_engine.sql).")
     return routing_log_store.history(uid, min(max(limit, 1), 200))
+
+
+@router.get("/routing-history/{routing_id}/trace")
+def routing_trace(routing_id: str, uid: Optional[str] = Depends(_get_uid)):
+    """Full sanitized XAI decision trace (no query, prompt or response text)."""
+    _require_user(uid)
+    if not routing_log_store.trace_table_available():
+        raise HTTPException(404, "Decision trace storage has not been provisioned (migration 20261120_decision_trace.sql).")
+    tr = routing_log_store.get_trace(uid, routing_id)
+    if not tr:
+        raise HTTPException(404, "No stored trace for this routing decision (it may predate trace storage).")
+    return tr
 
 
 @router.get("/routing-history/{routing_id}")

@@ -1,0 +1,10 @@
+{
+  "_comment": "Generic model-naming vocabulary used by the generation classifier. These are naming conventions shared across vendors, not a model inventory. Words in 'variant' describe a member of a generation (size tier, speed tier, mode); words in 'ignored' are packaging/tuning labels that do not change identity; 'stage' words mark a release stage.",
+  "variant": ["opus", "sonnet", "haiku", "pro", "flash", "lite", "mini", "nano", "micro", "max", "plus", "turbo", "ultra", "thinking", "reasoning", "reasoner", "vision", "vl", "omni", "coder", "code", "image", "audio", "video", "embedding", "embed", "small", "medium", "large", "tiny", "nemo", "distill", "online", "search", "deep", "research", "scout", "maverick", "air", "fast", "long", "context"],
+  "ignored": ["versatile", "instruct", "chat", "it", "latest", "base", "hf", "fp8", "fp16", "bf16", "int4", "int8", "awq", "gptq", "gguf", "free", "batch", "extended", "nitro", "floor", "online", "text"],
+  "stage": ["preview", "exp", "experimental", "beta", "alpha", "rc"],
+  "embedding_words": ["embedding", "embed", "embeddings"],
+  "image_words": ["image", "imagen", "dall", "flux", "diffusion"],
+  "audio_words": ["tts", "whisper", "speech", "audio", "voice"],
+  "video_words": ["video", "veo", "sora"]
+}

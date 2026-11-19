@@ -69,6 +69,19 @@ class TokenEstimate(BaseModel):
         return self.input_tokens + self.output_tokens
 
 
+class AudienceAssessment(BaseModel):
+    """Whether the user wants an answer (conversational) or a model to build with (developer).
+
+    Produced by deterministic lexical rules (``audience.py``); ``signals`` lists exactly which rules fired.
+    """
+    kind: str = Field(default="conversational", description="conversational | developer")
+    signals: List[str] = []
+    required_model_types: List[str] = []
+    prefers_free: bool = False
+    requires_open_weights: bool = False
+    method: str = "lexical_rules_v1"
+
+
 class QueryProfileV2(BaseModel):
     """Canonical profile passed through filtering, scoring, execution and explanation.
 
@@ -94,6 +107,7 @@ class QueryProfileV2(BaseModel):
     inferred_requirements: List[Requirement] = []
     ambiguities: List[Ambiguity] = []
     needs_clarification: bool = False
+    audience: AudienceAssessment = Field(default_factory=AudienceAssessment)
     risk: RiskAssessment
     confidence: Dict[str, float] = {}
     user_hint_applied: Optional[str] = None
@@ -303,14 +317,36 @@ class EvaluationCheck(BaseModel):
     detail: str = ""
 
 
+class EvaluationDecision(BaseModel):
+    """Explicit Accept / Verify / Escalate outcome and the rule that produced it."""
+    action: str = Field(description="accept | verify | escalate | none")
+    rule: str = ""
+    reason: str = ""
+    failed_checks: List[str] = []
+    pending_checks: List[str] = []
+
+
 class EvaluationOutcome(BaseModel):
     status: str = Field(description="not_requested | skipped | unavailable | not_configured | completed")
     method: str = "none"
     accepted: Optional[bool] = None
+    decision: Optional[EvaluationDecision] = None
+    confidence: Dict[str, Any] = Field(default_factory=dict, description="model_reported / evaluator_estimated / calibrated, each with its source or 'unavailable'")
+    checks_not_run: List[Dict[str, str]] = Field(default=[], description="Checks that were NOT performed and why; never presented as passed")
     checks: List[EvaluationCheck] = []
     heuristic_scores: Dict[str, float] = {}
     judge_model: Optional[str] = None
     notes: List[str] = []
+
+
+class EscalationEvent(BaseModel):
+    sequence: int
+    from_model_id: str
+    to_model_id: Optional[str] = None
+    trigger: str
+    detail: str = ""
+    original_response: str = Field(default="discarded", description="discarded | retained_as_fallback")
+    outcome: str = ""
 
 
 class ExecutionOutcome(BaseModel):
@@ -322,6 +358,7 @@ class ExecutionOutcome(BaseModel):
     attempts: List[AttemptRecord] = []
     escalated: bool = False
     escalation_reason: Optional[str] = None
+    escalation_events: List[EscalationEvent] = []
     total_cost_usd: Optional[float] = None
     total_latency_ms: Optional[float] = None
     blocked_reason: Optional[str] = None

@@ -1,0 +1,113 @@
+/* ──────────────────────────────────────────────────────────────────────────
+   AI Compass — application motion layer.
+   Scope: the signed-in app only (.app-shell). The landing and sign-in pages do not render .app-shell and are untouched.
+   Rules: opacity/transform only (compositor-friendly), no layout animation, everything gated by reduced motion.
+   ────────────────────────────────────────────────────────────────────────── */
+.app-shell {
+  --mo-ease: cubic-bezier(0.22, 0.8, 0.24, 1);
+  --mo-spring: cubic-bezier(0.34, 1.35, 0.5, 1);
+  --mo-glow: color-mix(in srgb, var(--color-primary) 28%, transparent);
+}
+
+/* ── page transition: soft rise + de-blur; the end state is exactly "none" so it never leaves a containing block behind ── */
+.app-shell .app-page-transition { animation: mo-page 460ms var(--mo-ease) both; }
+@keyframes mo-page { from { opacity: 0; transform: translate3d(0, 12px, 0); filter: blur(3px); } to { opacity: 1; transform: none; filter: none; } }
+
+/* ── reading progress ── */
+.mo-progress { position: fixed; inset: 0 0 auto 0; height: 3px; z-index: 60; transform-origin: 0 50%; transform: scaleX(0); opacity: 0; pointer-events: none;
+  background: linear-gradient(90deg, var(--color-primary), color-mix(in srgb, var(--color-primary) 55%, #5ad1ff)); box-shadow: 0 0 10px var(--mo-glow, rgba(0, 122, 255, .35)); transition: opacity .25s; }
+.mo-progress[data-on='true'] { opacity: 1; }
+
+/* ── back to top ── */
+.mo-top { position: fixed; right: clamp(14px, 2.4vw, 28px); bottom: clamp(14px, 2.4vw, 28px); z-index: 55; width: 2.75rem; height: 2.75rem; display: grid; place-items: center; border-radius: 50%;
+  border: 1px solid var(--color-border); background: var(--color-surface); color: var(--color-text-primary); cursor: pointer;
+  box-shadow: 0 8px 24px -10px rgba(15, 23, 42, .35); opacity: 0; transform: translateY(14px) scale(.9); pointer-events: none;
+  transition: opacity .25s, transform .35s var(--mo-spring, ease), border-color .2s, background-color .2s; }
+.mo-top[data-show='true'] { opacity: 1; transform: none; pointer-events: auto; }
+.mo-top:hover { border-color: var(--color-primary-border); background: var(--color-primary-subtle); color: var(--color-primary-text); transform: translateY(-3px); }
+.mo-top:active { transform: scale(.94); }
+.mo-top svg { width: 18px; height: 18px; }
+
+/* ── navigation: sliding indicator + search trigger ── */
+.topnav-links { position: relative; }
+.topnav-indicator { position: absolute; left: 0; bottom: -7px; height: 2px; border-radius: 2px; pointer-events: none; opacity: 0;
+  background: linear-gradient(90deg, var(--color-primary), color-mix(in srgb, var(--color-primary) 55%, #5ad1ff));
+  transition: transform .45s var(--mo-spring, ease), width .35s var(--mo-ease, ease), opacity .25s; }
+.topnav-link { position: relative; }
+.topnav-link:active { transform: scale(.96); }
+.topnav-search { display: inline-flex; align-items: center; gap: 8px; height: 2.25rem; padding: 0 10px; border-radius: var(--radius-md); border: 1px solid var(--color-border); background: var(--color-surface);
+  color: var(--color-text-muted); font: inherit; font-size: var(--font-size-sm); cursor: pointer; transition: border-color .2s, color .2s, box-shadow .2s, transform .15s; }
+.topnav-search svg { width: 15px; height: 15px; }
+.topnav-search:hover { border-color: var(--color-primary-border); color: var(--color-text-primary); box-shadow: 0 0 0 3px var(--color-primary-subtle); }
+.topnav-search:active { transform: scale(.97); }
+.topnav-search kbd, .cp kbd { font: inherit; font-size: var(--font-size-2xs); padding: 1px 6px; border-radius: 5px; border: 1px solid var(--color-border); background: var(--color-surface-muted); color: var(--color-text-secondary); }
+@media (max-width: 1080px) { .topnav-search span { display: none; } .topnav-search kbd { display: none; } .topnav-search { width: 2.25rem; padding: 0; justify-content: center; } }
+
+/* ── command palette ── */
+.cp-backdrop { position: fixed; inset: 0; z-index: 120; display: grid; align-items: start; justify-items: center; padding: min(14vh, 120px) 16px 16px; background: rgba(10, 14, 22, .45); backdrop-filter: blur(4px); animation: mo-fade .18s ease both; }
+.cp { width: min(100%, 38rem); max-height: min(70vh, 34rem); display: flex; flex-direction: column; border-radius: 14px; border: 1px solid var(--color-border); background: var(--color-surface); color: var(--color-text-primary);
+  box-shadow: 0 30px 80px -20px rgba(8, 12, 22, .55); overflow: hidden; animation: mo-pop .24s var(--mo-spring, ease) both; }
+.cp-search { display: flex; align-items: center; gap: 10px; padding: 12px 16px; border-bottom: 1px solid var(--color-border); }
+.cp-search svg { width: 18px; height: 18px; color: var(--color-text-muted); flex: none; }
+.cp-search input { flex: 1; min-width: 0; border: 0; outline: 0; background: transparent; color: inherit; font: inherit; font-size: var(--font-size-base); }
+.cp-list { list-style: none; margin: 0; padding: 6px; overflow: auto; overscroll-behavior: contain; }
+.cp-group { margin: 8px 10px 4px; font-size: var(--font-size-2xs); text-transform: uppercase; letter-spacing: .06em; color: var(--color-text-muted); }
+.cp-item { width: 100%; display: flex; align-items: center; gap: 12px; padding: 9px 10px; border: 0; border-radius: 9px; background: transparent; color: inherit; font: inherit; text-align: left; cursor: pointer; transition: background-color .12s, transform .12s; }
+.cp-item svg { width: 18px; height: 18px; flex: none; color: var(--color-text-secondary); }
+.cp-item[data-active='true'] { background: var(--color-primary-subtle); }
+.cp-item[data-active='true'] svg { color: var(--color-primary-text); }
+.cp-item:active { transform: scale(.985); }
+.cp-item-text { display: grid; min-width: 0; flex: 1; }
+.cp-item-text strong { font-size: var(--font-size-sm); font-weight: 600; }
+.cp-item-text small { font-size: var(--font-size-xs); color: var(--color-text-muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.cp-enter { opacity: .7; }
+.cp-empty { padding: 22px; text-align: center; color: var(--color-text-muted); font-size: var(--font-size-sm); }
+.cp-foot { display: flex; gap: 16px; margin: 0; padding: 8px 14px; border-top: 1px solid var(--color-border); font-size: var(--font-size-xs); color: var(--color-text-muted); }
+.cp-foot kbd { margin-right: 4px; }
+@keyframes mo-fade { from { opacity: 0; } }
+@keyframes mo-pop { from { opacity: 0; transform: translateY(-10px) scale(.97); } }
+
+/* ── focus: a visible, softly animated ring ── */
+.app-shell :is(a, button, input, select, textarea, summary, [tabindex]):focus-visible { outline: 2px solid var(--color-focus); outline-offset: 2px; transition: outline-offset .15s; }
+.app-shell :is(input, select, textarea):not([type='checkbox'], [type='radio'], [type='range']) { transition: border-color .18s, box-shadow .18s, background-color .18s; }
+.app-shell :is(input, select, textarea):not([type='checkbox'], [type='radio'], [type='range']):focus { box-shadow: 0 0 0 3px var(--color-primary-subtle); border-color: var(--color-primary-border); }
+
+/* ── press + hover feedback (interactive things respond to the pointer) ── */
+.app-shell .btn { transition: transform .15s var(--mo-ease, ease), background-color .15s, border-color .15s, box-shadow .2s, color .15s; }
+.app-shell .btn:hover:not(:disabled, [aria-disabled='true']) { transform: translateY(-1px); }
+.app-shell .btn:active:not(:disabled, [aria-disabled='true']) { transform: translateY(0) scale(.97); }
+.app-shell .btn[data-variant='primary']:hover:not(:disabled) { box-shadow: 0 8px 20px -8px var(--mo-glow, rgba(0, 122, 255, .45)); }
+.app-shell .btn svg { transition: transform .2s var(--mo-ease, ease); }
+.app-shell .btn:hover:not(:disabled) svg:last-child:not(:first-child) { transform: translateX(2px); }
+.app-shell :is(.cx-kpi, .record-card, .mp-cat, .cx-card) { transition: transform .22s var(--mo-ease, ease), box-shadow .25s, border-color .2s, background-color .2s; }
+.app-shell :is(.cx-kpi, .record-card, .cx-card):hover { transform: translateY(-3px); box-shadow: 0 14px 30px -18px var(--mo-glow, rgba(0, 122, 255, .4)); border-color: var(--color-primary-border); }
+.app-shell .mp-cat:hover { transform: translateY(-2px); box-shadow: 0 10px 24px -16px var(--mo-glow, rgba(0, 122, 255, .4)); }
+.app-shell .mp-cat:active, .app-shell .mp-kind:active, .app-shell .mc-btn:active:not(:disabled) { transform: scale(.97); }
+.app-shell .mp-kind, .app-shell .mc-btn { transition: transform .15s var(--mo-ease, ease), background-color .15s, border-color .15s, color .15s; }
+.app-shell .mp-grid > .mc { transition: transform .22s var(--mo-ease, ease), box-shadow .25s, border-color .2s; }
+.app-shell .mp-grid > .mc:hover { transform: translateY(-3px); box-shadow: 0 16px 34px -20px var(--mo-glow, rgba(0, 122, 255, .45)); }
+.app-shell .table-surface tbody tr { transition: background-color .15s; }
+.app-shell .table-surface tbody tr:hover { background: var(--color-surface-hover); }
+.app-shell main a:not(.btn, .mc-btn):hover { text-underline-offset: 3px; }
+.app-shell .mc-btn--icon:hover svg { transform: translate(2px, -2px); }
+.app-shell .mc-btn svg { transition: transform .2s var(--mo-ease, ease); }
+
+/* ── staggered entrance (class is added/removed by useAutoReveal) ── */
+.app-shell .mo { opacity: 0; transform: translate3d(0, 18px, 0) scale(.992);
+  transition: opacity .55s var(--mo-ease, ease) var(--mo-delay, 0ms), transform .65s var(--mo-ease, ease) var(--mo-delay, 0ms); }
+.app-shell .mo.mo-in { opacity: 1; transform: none; }
+
+/* ── bars and meters grow in rather than appearing ── */
+.app-shell :is(.cx-progress span, .satisfaction-bar-fill, .meter-fill, .score-bar-fill) { transform-origin: left center; }
+
+/* ── reduced motion: every effect above is off, content is simply present ── */
+@media (prefers-reduced-motion: reduce) {
+  .app-shell .app-page-transition, .cp-backdrop, .cp { animation: none; }
+  .app-shell .mo { opacity: 1; transform: none; transition: none; }
+  .mo-progress, .mo-top, .topnav-indicator { transition: none; }
+  .app-shell .btn, .app-shell :is(.cx-kpi, .record-card, .cx-card, .mp-cat, .mp-grid > .mc):hover { transform: none; }
+}
+:root[data-reduced-motion='true'] .app-shell .app-page-transition, :root[data-reduced-motion='true'] .cp-backdrop, :root[data-reduced-motion='true'] .cp { animation: none; }
+:root[data-reduced-motion='true'] .app-shell .mo { opacity: 1; transform: none; transition: none; }
+:root[data-reduced-motion='true'] .app-shell :is(.btn, .cx-kpi, .record-card, .cx-card, .mp-cat, .mp-grid > .mc):hover { transform: none; }
+:root[data-reduced-motion='true'] :is(.mo-progress, .mo-top, .topnav-indicator) { transition: none; }

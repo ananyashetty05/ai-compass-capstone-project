@@ -23,5 +23,11 @@
         "service": "frontend"
       }
     }
+  ],
+  "crons": [
+    {
+      "path": "/api/v1/catalog/cron",
+      "schedule": "17 5 * * *"
+    }
   ]
 }

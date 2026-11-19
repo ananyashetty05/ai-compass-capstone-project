@@ -770,7 +770,7 @@ function RecommendationCard({
           </div>
           <div className="rq-rec-meta-item">
             <span className="rq-rec-meta-label">Est. cost</span>
-            <span className="rq-rec-meta-val">{formatUsd(result.performance_metrics.total_estimated_cost)}</span>
+            <span className="rq-rec-meta-val">{result.performance_metrics.total_estimated_cost == null ? 'Not run' : formatUsd(result.performance_metrics.total_estimated_cost)}</span>
           </div>
           <div className="rq-rec-meta-item">
             <span className="rq-rec-meta-label">Candidates</span>

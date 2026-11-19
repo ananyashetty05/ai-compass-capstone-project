@@ -1,0 +1,15 @@
+/* Model pool: use-category navigation, taxonomy facts, and access chips. Page-local; extends existing registry styles. */
+.pool-usecats { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+@media (max-width: 860px) { .pool-usecats { grid-template-columns: 1fr; } }
+.pool-note { margin: var(--space-3, 12px) 0 0; font-size: 0.8125rem; line-height: 1.5; color: var(--color-text-muted, #5b6472); max-width: 78ch; }
+.pool-facts { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px 16px; margin: 12px 0 0; padding: 12px 0 0; border-top: 1px solid var(--color-border, rgba(120, 130, 150, .22)); }
+.pool-facts > div { min-width: 0; }
+.pool-facts dt { font-size: 0.6875rem; letter-spacing: .04em; text-transform: uppercase; color: var(--color-text-muted, #6b7380); }
+.pool-facts dd { margin: 2px 0 0; font-size: 0.8125rem; line-height: 1.35; overflow-wrap: anywhere; }
+.pool-access { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 12px; }
+.pool-access-chip { display: inline-flex; align-items: center; gap: 6px; padding: 3px 10px; border-radius: 999px; font-size: 0.75rem; font-weight: 600; border: 1px solid transparent; }
+.pool-access-chip::before { content: ''; width: 7px; height: 7px; border-radius: 50%; background: currentColor; }
+.pool-access-chip[data-ok='true'] { color: #0f6b43; background: rgba(16, 150, 94, .1); border-color: rgba(16, 150, 94, .28); }
+.pool-access-chip[data-ok='false'] { color: #8a5a00; background: rgba(214, 140, 0, .1); border-color: rgba(214, 140, 0, .3); }
+[data-theme='dark'] .pool-access-chip[data-ok='true'] { color: #5fd7a2; }
+[data-theme='dark'] .pool-access-chip[data-ok='false'] { color: #f0b84f; }

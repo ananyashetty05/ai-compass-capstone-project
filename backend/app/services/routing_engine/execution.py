@@ -21,8 +21,35 @@ from typing import Callable, Dict, List, Optional
 from app.schemas.model import ModelMetadata
 from app.services.routing_engine.filtering import estimate_request_cost
 from app.services.routing_engine.types import (
-    AttemptRecord, CandidateScore, EvaluationCheck, EvaluationOutcome, ExecutionOutcome, ExecutionPolicy, QueryProfileV2,
+    AttemptRecord, CandidateScore, EscalationEvent, EvaluationCheck, EvaluationDecision, EvaluationOutcome, ExecutionOutcome, ExecutionPolicy, QueryProfileV2,
 )
+
+_NOT_RUN = [
+    {"check": "factual_verification", "reason": "No retrieval or fact-checking source is configured, so factual correctness is not established."},
+    {"check": "groundedness_citation_check", "reason": "The request supplied no source documents to check the response against."},
+    {"check": "independent_evaluator_model", "reason": "No separate evaluator model is configured."},
+    {"check": "benchmark_calibration", "reason": "The acceptance rules have not been calibrated against a labelled dataset."},
+]
+
+
+def decide(checks: List[EvaluationCheck], advisory: str = "heuristic_relevance_completeness") -> EvaluationDecision:
+    """Accept / Verify / Escalate from the deterministic checks.
+
+    escalate: a required deterministic check failed (the response is unusable as returned).
+    verify:   all required checks passed but factual/grounding verification is not available, so the
+              response is accepted *unverified*; the advisory heuristic failing also yields verify.
+    accept:   only reported when every required check passed AND the advisory heuristic agrees.
+    """
+    required = [c for c in checks if c.name != advisory]
+    failed = [c.name for c in required if not c.passed]
+    if failed:
+        return EvaluationDecision(action="escalate", rule="required_deterministic_check_failed", reason="Failed: " + ", ".join(failed), failed_checks=failed)
+    adv = next((c for c in checks if c.name == advisory), None)
+    if adv is not None and not adv.passed:
+        return EvaluationDecision(action="verify", rule="advisory_heuristic_disagrees", reason="Required checks passed, but the lexical relevance/completeness heuristic flagged the response; it was not used to reject it.",
+                                  pending_checks=[advisory])
+    return EvaluationDecision(action="accept", rule="all_available_checks_passed",
+                              reason="Every check that was run passed. Factual correctness was not verified (see checks not run).")
 
 
 def get_adapter_for(model: ModelMetadata):
@@ -65,6 +92,11 @@ def evaluate_response(text: str, profile: QueryProfileV2, query: str) -> Evaluat
     # The lexical relevance/completeness heuristic is advisory: it is reported but cannot reject a response.
     accepted = all(c.passed for c in checks if c.name != "heuristic_relevance_completeness")
     return EvaluationOutcome(status="completed", method="deterministic_validation_plus_lexical_heuristic", accepted=accepted, checks=checks, heuristic_scores=scores,
+                             decision=decide(checks), checks_not_run=list(_NOT_RUN),
+                             confidence={"model_reported": {"value": None, "source": "unavailable", "note": "The provider adapters do not return a model-reported confidence."},
+                                         "evaluator_estimated": {"value": None, "source": "unavailable", "note": "No evaluator model is configured; no confidence percentage is shown."},
+                                         "calibrated_probability": False,
+                                         "statement": "No calibrated confidence exists. Only the deterministic check outcomes are reported."},
                              judge_model=None, notes=["No evaluation model is configured; relevance/completeness are advisory lexical heuristics and do not affect acceptance or escalation."])
 
 
@@ -74,7 +106,7 @@ def _legacy(profile: QueryProfileV2):
 
 
 def execute(*, ranked: List[CandidateScore], models: Dict[str, ModelMetadata], prompt: str, query: str, profile: QueryProfileV2, policy: ExecutionPolicy,
-            prompt_source: str, evaluate: bool = True, sleep: Callable[[float], None] = time.sleep, clock: Callable[[], float] = time.monotonic,
+            prompt_source: str, evaluate: bool = True, access_blocked: Optional[Dict[str, str]] = None, sleep: Callable[[float], None] = time.sleep, clock: Callable[[], float] = time.monotonic,
             adapter_factory: Optional[Callable[[ModelMetadata], object]] = None, rng: Optional[random.Random] = None) -> tuple:
     """Returns (ExecutionOutcome, EvaluationOutcome)."""
     rng = rng or random.Random()
@@ -88,12 +120,18 @@ def execute(*, ranked: List[CandidateScore], models: Dict[str, ModelMetadata], p
     accepted_response: Optional[tuple] = None
     quality_fallback: Optional[tuple] = None
     depth = 0
-    first_id = ranked[0].model_id if ranked else None
+    blocked = access_blocked or {}
+    # The first model that can actually be run. A top-ranked model without a credential is a recommendation, not an escalation source.
+    first_id = next((c.model_id for c in ranked if c.model_id not in blocked), ranked[0].model_id if ranked else None)
+    events: List[EscalationEvent] = []
     last_quality = -1.0
 
     for idx, cand in enumerate(ranked):
         model = models.get(cand.model_id)
         if model is None or cand.provider.lower() in skipped_providers:
+            continue
+        if cand.model_id in blocked:
+            attempts.append(AttemptRecord(attempt=len(attempts) + 1, model_id=model.model_id, provider=model.provider, outcome="skipped_no_access", note=blocked[cand.model_id]))
             continue
         if len(attempts) >= policy.max_attempts or clock() - started > policy.deadline_seconds:
             outcome.notes.append("Stopped: attempt or time limit reached.")
@@ -113,6 +151,11 @@ def execute(*, ranked: List[CandidateScore], models: Dict[str, ModelMetadata], p
                 outcome.notes.append("Stopped: maximum escalation depth reached.")
                 break
             depth += 1
+            prev = next((a for a in reversed(attempts) if a.outcome == "success"), None)
+            failed_names = last_eval.decision.failed_checks if last_eval.decision else []
+            events.append(EscalationEvent(sequence=len(events) + 1, from_model_id=prev.model_id if prev else first_id or "", to_model_id=model.model_id,
+                                          trigger="response_failed_acceptance_checks", detail="Failed: " + (", ".join(failed_names) or "acceptance checks") + f"; escalated to a higher-quality candidate (quality {model.estimated_quality} > {last_quality})",
+                                          original_response="retained_as_fallback"))
         try:
             adapter = adapter_factory(model)
         except Exception as exc:
@@ -162,6 +205,9 @@ def execute(*, ranked: List[CandidateScore], models: Dict[str, ModelMetadata], p
             break
 
     outcome.attempts = attempts
+    if events:
+        events[-1].outcome = "accepted" if accepted_response else "not accepted; last response returned and flagged"
+    outcome.escalation_events = events
     ok_attempts = [a for a in attempts if a.outcome == "success"]
     costs = [a.cost_usd for a in attempts if a.cost_usd is not None]
     outcome.total_cost_usd = round(sum(costs), 8) if costs else None
@@ -172,6 +218,8 @@ def execute(*, ranked: List[CandidateScore], models: Dict[str, ModelMetadata], p
         outcome.status = "succeeded"
         outcome.final_model_id, outcome.final_model_name, outcome.response_text = model.model_id, model.model_name, text
         outcome.escalated = model.model_id != first_id
+        if blocked and ranked and ranked[0].model_id in blocked:
+            outcome.notes.append(f"Top-ranked model {ranked[0].model_name} was recommended but could not be run ({blocked[ranked[0].model_id]}); the best runnable candidate was used instead.")
         if outcome.escalated:
             failed_first = [a for a in attempts if a.model_id == first_id and a.outcome == "error"]
             outcome.escalation_reason = "provider_error_fallback" if failed_first else "response_did_not_meet_acceptance_checks"

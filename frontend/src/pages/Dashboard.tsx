@@ -96,9 +96,9 @@ export function Dashboard() {
         : models.error?.message ?? 'Model list unavailable',
     },
     {
-      id: 'eligible', label: 'Routing-eligible', icon: KpiIcons.routing, loading: models.isInitialLoad,
+      id: 'eligible', label: 'Comparison-ready', icon: KpiIcons.routing, loading: models.isInitialLoad,
       value: summary?.eligible ?? null, of: summary && summary.eligible !== null ? summary.inference.length : null,
-      detail: summary?.eligible !== null && summary ? (topBlock ? `${topBlock.count} blocked: ${topBlock.label}` : 'Models the router may currently choose') : 'This registry does not report eligibility per model',
+      detail: summary?.eligible !== null && summary ? (topBlock ? `${topBlock.count} blocked: ${topBlock.label}` : `${summary.executable} can be run with current credentials`) : 'This registry does not report eligibility per model',
     },
     {
       id: 'providers', label: 'Providers ready', icon: KpiIcons.providers, loading: isChecking && !health,

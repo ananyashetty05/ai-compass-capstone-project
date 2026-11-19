@@ -1,0 +1,485 @@
+{
+  "_comment": "Registry of model DEVELOPERS and where they publish. This is configuration data, not model inventory: a new developer is one more entry here (or POST /catalog/developers), no engine change. openrouter_prefixes / huggingface_orgs map a source's namespace to the developer; official_domains are the only hosts a developer's official destinations may point to. family_includes lists tier words that belong to the family name for that developer (e.g. mistral-large and mistral-small are separate lineages).",
+  "developers": [
+    {
+      "slug": "openai",
+      "name": "OpenAI",
+      "aliases": [
+        "openai"
+      ],
+      "openrouter_prefixes": [
+        "openai"
+      ],
+      "huggingface_orgs": [
+        "openai"
+      ],
+      "homepage": "https://openai.com",
+      "official_domains": [
+        "openai.com",
+        "platform.openai.com",
+        "chatgpt.com"
+      ],
+      "release_feeds": [
+        "https://openai.com/news/rss.xml"
+      ]
+    },
+    {
+      "slug": "anthropic",
+      "name": "Anthropic",
+      "aliases": [
+        "anthropic"
+      ],
+      "openrouter_prefixes": [
+        "anthropic"
+      ],
+      "huggingface_orgs": [],
+      "homepage": "https://www.anthropic.com",
+      "official_domains": [
+        "anthropic.com",
+        "docs.anthropic.com",
+        "claude.ai"
+      ]
+    },
+    {
+      "slug": "google",
+      "name": "Google",
+      "aliases": [
+        "google",
+        "google deepmind",
+        "google ai"
+      ],
+      "openrouter_prefixes": [
+        "google"
+      ],
+      "huggingface_orgs": [
+        "google"
+      ],
+      "homepage": "https://deepmind.google",
+      "official_domains": [
+        "deepmind.google",
+        "ai.google.dev",
+        "google.dev",
+        "gemini.google.com",
+        "cloud.google.com",
+        "blog.google"
+      ],
+      "release_feeds": [
+        "https://blog.google/innovation-and-ai/technology/ai/rss/"
+      ]
+    },
+    {
+      "slug": "xai",
+      "name": "xAI",
+      "aliases": [
+        "xai",
+        "x-ai"
+      ],
+      "openrouter_prefixes": [
+        "x-ai"
+      ],
+      "huggingface_orgs": [
+        "xai-org"
+      ],
+      "homepage": "https://x.ai",
+      "official_domains": [
+        "x.ai",
+        "docs.x.ai",
+        "grok.com"
+      ]
+    },
+    {
+      "slug": "meta",
+      "name": "Meta",
+      "aliases": [
+        "meta",
+        "meta ai",
+        "meta-llama"
+      ],
+      "openrouter_prefixes": [
+        "meta-llama",
+        "meta"
+      ],
+      "huggingface_orgs": [
+        "meta-llama",
+        "facebook"
+      ],
+      "homepage": "https://ai.meta.com",
+      "official_domains": [
+        "ai.meta.com",
+        "llama.com",
+        "meta.ai"
+      ]
+    },
+    {
+      "slug": "deepseek",
+      "name": "DeepSeek",
+      "aliases": [
+        "deepseek"
+      ],
+      "openrouter_prefixes": [
+        "deepseek"
+      ],
+      "huggingface_orgs": [
+        "deepseek-ai"
+      ],
+      "homepage": "https://www.deepseek.com",
+      "official_domains": [
+        "deepseek.com",
+        "api-docs.deepseek.com",
+        "chat.deepseek.com"
+      ]
+    },
+    {
+      "slug": "mistral",
+      "name": "Mistral AI",
+      "aliases": [
+        "mistral",
+        "mistral ai",
+        "mistralai"
+      ],
+      "openrouter_prefixes": [
+        "mistralai"
+      ],
+      "huggingface_orgs": [
+        "mistralai"
+      ],
+      "homepage": "https://mistral.ai",
+      "official_domains": [
+        "mistral.ai",
+        "docs.mistral.ai"
+      ],
+      "family_includes": [
+        "small",
+        "medium",
+        "large",
+        "tiny",
+        "nemo"
+      ]
+    },
+    {
+      "slug": "microsoft",
+      "name": "Microsoft",
+      "aliases": [
+        "microsoft",
+        "microsoft ai"
+      ],
+      "openrouter_prefixes": [
+        "microsoft"
+      ],
+      "huggingface_orgs": [
+        "microsoft"
+      ],
+      "homepage": "https://www.microsoft.com/ai",
+      "official_domains": [
+        "microsoft.com",
+        "azure.microsoft.com",
+        "copilot.microsoft.com"
+      ]
+    },
+    {
+      "slug": "amazon",
+      "name": "Amazon",
+      "aliases": [
+        "amazon",
+        "amazon aws",
+        "aws"
+      ],
+      "openrouter_prefixes": [
+        "amazon"
+      ],
+      "huggingface_orgs": [],
+      "homepage": "https://aws.amazon.com/ai",
+      "official_domains": [
+        "aws.amazon.com",
+        "docs.aws.amazon.com",
+        "amazon.com"
+      ]
+    },
+    {
+      "slug": "alibaba",
+      "name": "Alibaba Cloud (Qwen team)",
+      "aliases": [
+        "alibaba",
+        "alibaba cloud",
+        "alibaba cloud (qwen team)",
+        "qwen"
+      ],
+      "openrouter_prefixes": [
+        "qwen"
+      ],
+      "huggingface_orgs": [
+        "Qwen"
+      ],
+      "homepage": "https://qwenlm.ai",
+      "official_domains": [
+        "qwenlm.ai",
+        "qwen.ai",
+        "alibabacloud.com"
+      ]
+    },
+    {
+      "slug": "cohere",
+      "name": "Cohere",
+      "aliases": [
+        "cohere",
+        "cohere labs"
+      ],
+      "openrouter_prefixes": [
+        "cohere"
+      ],
+      "huggingface_orgs": [
+        "CohereLabs",
+        "CohereForAI"
+      ],
+      "homepage": "https://cohere.com",
+      "official_domains": [
+        "cohere.com",
+        "docs.cohere.com"
+      ]
+    },
+    {
+      "slug": "nvidia",
+      "name": "NVIDIA",
+      "aliases": [
+        "nvidia"
+      ],
+      "openrouter_prefixes": [
+        "nvidia"
+      ],
+      "huggingface_orgs": [
+        "nvidia"
+      ],
+      "homepage": "https://www.nvidia.com/ai",
+      "official_domains": [
+        "nvidia.com",
+        "build.nvidia.com"
+      ]
+    },
+    {
+      "slug": "perplexity",
+      "name": "Perplexity",
+      "aliases": [
+        "perplexity",
+        "perplexity ai"
+      ],
+      "openrouter_prefixes": [
+        "perplexity"
+      ],
+      "huggingface_orgs": [
+        "perplexity-ai"
+      ],
+      "homepage": "https://www.perplexity.ai",
+      "official_domains": [
+        "perplexity.ai",
+        "docs.perplexity.ai"
+      ]
+    },
+    {
+      "slug": "ai21",
+      "name": "AI21 Labs",
+      "aliases": [
+        "ai21",
+        "ai21 labs"
+      ],
+      "openrouter_prefixes": [
+        "ai21"
+      ],
+      "huggingface_orgs": [
+        "ai21labs"
+      ],
+      "homepage": "https://www.ai21.com",
+      "official_domains": [
+        "ai21.com",
+        "docs.ai21.com"
+      ]
+    },
+    {
+      "slug": "zhipu",
+      "name": "Zhipu AI (GLM)",
+      "aliases": [
+        "zhipu",
+        "zhipu ai",
+        "z-ai",
+        "z.ai"
+      ],
+      "openrouter_prefixes": [
+        "z-ai",
+        "thudm"
+      ],
+      "huggingface_orgs": [
+        "zai-org",
+        "THUDM"
+      ],
+      "homepage": "https://z.ai",
+      "official_domains": [
+        "z.ai",
+        "zhipuai.cn",
+        "bigmodel.cn"
+      ]
+    },
+    {
+      "slug": "moonshot",
+      "name": "Moonshot AI (Kimi)",
+      "aliases": [
+        "moonshot",
+        "moonshot ai",
+        "moonshotai"
+      ],
+      "openrouter_prefixes": [
+        "moonshotai"
+      ],
+      "huggingface_orgs": [
+        "moonshotai"
+      ],
+      "homepage": "https://www.moonshot.ai",
+      "official_domains": [
+        "moonshot.ai",
+        "moonshot.cn",
+        "kimi.com"
+      ]
+    },
+    {
+      "slug": "minimax",
+      "name": "MiniMax",
+      "aliases": [
+        "minimax"
+      ],
+      "openrouter_prefixes": [
+        "minimax"
+      ],
+      "huggingface_orgs": [
+        "MiniMaxAI"
+      ],
+      "homepage": "https://www.minimax.io",
+      "official_domains": [
+        "minimax.io",
+        "minimaxi.com"
+      ]
+    },
+    {
+      "slug": "baai",
+      "name": "BAAI",
+      "aliases": [
+        "baai"
+      ],
+      "openrouter_prefixes": [],
+      "huggingface_orgs": [
+        "BAAI"
+      ],
+      "homepage": "https://www.baai.ac.cn",
+      "official_domains": [
+        "baai.ac.cn",
+        "huggingface.co"
+      ]
+    },
+    {
+      "slug": "nomic",
+      "name": "Nomic AI",
+      "aliases": [
+        "nomic ai",
+        "nomic"
+      ],
+      "openrouter_prefixes": [],
+      "huggingface_orgs": [
+        "nomic-ai"
+      ],
+      "homepage": "https://www.nomic.ai",
+      "official_domains": [
+        "nomic.ai",
+        "huggingface.co"
+      ]
+    }
+  ],
+  "providers": [
+    {
+      "name": "OpenAI",
+      "domains": [
+        "openai.com",
+        "platform.openai.com"
+      ]
+    },
+    {
+      "name": "Anthropic",
+      "domains": [
+        "anthropic.com",
+        "docs.anthropic.com"
+      ]
+    },
+    {
+      "name": "Google",
+      "domains": [
+        "ai.google.dev",
+        "cloud.google.com",
+        "google.com"
+      ]
+    },
+    {
+      "name": "Groq",
+      "domains": [
+        "groq.com",
+        "console.groq.com"
+      ]
+    },
+    {
+      "name": "Together AI",
+      "domains": [
+        "together.ai",
+        "docs.together.ai"
+      ]
+    },
+    {
+      "name": "Fireworks AI",
+      "domains": [
+        "fireworks.ai"
+      ]
+    },
+    {
+      "name": "Hugging Face",
+      "domains": [
+        "huggingface.co"
+      ]
+    },
+    {
+      "name": "OpenRouter",
+      "domains": [
+        "openrouter.ai"
+      ]
+    },
+    {
+      "name": "Amazon Bedrock",
+      "domains": [
+        "aws.amazon.com",
+        "docs.aws.amazon.com"
+      ]
+    },
+    {
+      "name": "Mistral",
+      "domains": [
+        "mistral.ai",
+        "docs.mistral.ai"
+      ]
+    },
+    {
+      "name": "DeepSeek",
+      "domains": [
+        "deepseek.com",
+        "api-docs.deepseek.com"
+      ]
+    },
+    {
+      "name": "Cohere",
+      "domains": [
+        "cohere.com",
+        "docs.cohere.com"
+      ]
+    },
+    {
+      "name": "AI21",
+      "domains": [
+        "ai21.com",
+        "docs.ai21.com"
+      ]
+    }
+  ],
+  "_providers_comment": "Hosting providers and the only domains their destinations may point to. A provider is a distributor, not necessarily the model's developer."
+}

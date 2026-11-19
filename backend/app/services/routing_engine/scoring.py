@@ -57,6 +57,10 @@ def _tags(model: ModelMetadata) -> set:
 
 
 def task_fit(model: ModelMetadata, profile: QueryProfileV2) -> Optional[float]:
+    # An explicitly requested specialised model type (e.g. embedding) that the model *is* fits exactly;
+    # generic intent tags such as "qa" say nothing about embedding models.
+    if model.model_type in profile.audience.required_model_types:
+        return 1.0
     tags = _tags(model) - {"unknown"}
     if not tags:
         return None
@@ -223,6 +227,14 @@ def _tie_key(r: CandidateScore):
     return (not r.preferred_provider, -r.confidence, r.estimated_cost_usd if r.estimated_cost_usd is not None else float("inf"), r.model_id)
 
 
+def _winner(rows: List[CandidateScore], scores: Dict[str, float], eps: float) -> CandidateScore:
+    """Best by score; candidates within `eps` of the best are a near-tie and are resolved by the same deterministic
+    tie rules as the real selection, so the stability figure measures what selection actually does."""
+    best = max(scores[r.model_id] for r in rows)
+    tied = [r for r in rows if best - scores[r.model_id] < eps]
+    return min(tied, key=_tie_key)
+
+
 def select(rows: List[CandidateScore], prefs: ResolvedPreferences, profile: QueryProfileV2, config: Optional[ScoringConfig] = None) -> Selection:
     cfg = config or ScoringConfig()
     if not rows:
@@ -250,7 +262,7 @@ def select(rows: List[CandidateScore], prefs: ResolvedPreferences, profile: Quer
                 tot = sum(pert.values())
                 pert = {k: v / tot for k, v in pert.items()}
                 scores = _robust(ordered, pert, cfg.uncertainty_penalty)
-                winner = sorted(ordered, key=lambda r: (-scores[r.model_id], _tie_key(r)))[0].model_id
+                winner = _winner(ordered, scores, cfg.tie_epsilon).model_id
                 trials += 1
                 wins += winner == top.model_id
         stability = wins / trials

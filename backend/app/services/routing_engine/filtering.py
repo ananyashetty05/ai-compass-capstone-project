@@ -37,6 +37,49 @@ def _tags(model: ModelMetadata) -> set:
     return {t.lower() for t in [*model.capabilities, *model.supported_tasks]}
 
 
+def _audience_checks(model: ModelMetadata, profile: QueryProfileV2, fail) -> None:
+    """Conversational-vs-developer gate. Applies only to models with a curated taxonomy; an unclassified
+    entry keeps legacy behaviour (and is reported as unclassified in the registry, never guessed)."""
+    if model.taxonomy_status == "unclassified":
+        return
+    aud = profile.audience
+    cats = set(model.use_categories or [])
+    # A generation request (image / video / audio) asks for the artefact itself. A model that declares the
+    # required generation capability is the thing being asked for, whatever its integration route; the
+    # capability and modality checks already exclude everything that cannot produce it.
+    generation = {"image-generation", "video-generation", "audio-generation"} & set(profile.required_capabilities or [])
+    if generation and generation & set(model.capabilities or []):
+        return
+    if aud.kind == "conversational":
+        if "conversational" not in cats:
+            fail("developer_only_model", "ordinary questions need a model that supports direct conversation",
+                 f"{model.model_name} is a {model.model_type.replace('_', ' ')} model intended for development use, so it is not recommended for a general question",
+                 "permanent", model_type=model.model_type, use_categories=sorted(cats))
+    else:
+        if "developer" not in cats:
+            fail("no_integration_path", "a developer request needs a model with a documented integration route (API or local weights)",
+                 f"{model.model_name} is a consumer application with no developer integration route", "permanent", use_categories=sorted(cats))
+        if aud.requires_open_weights and model.weights_status != "open_weights":
+            fail("open_weights_required", "open-weight model requested",
+                 "Weights are not documented as openly available" if model.weights_status == "unknown" else "Proprietary model; weights are not available",
+                 "permanent" if model.weights_status == "proprietary" else "unknown", weights_status=model.weights_status)
+        if aud.prefers_free and not (model.free_download or model.free_access in {"free", "limited_free"}):
+            fail("free_access_unverified" if model.free_access == "unknown" else "not_free",
+                 "free access requested (documented free download, free tier or free inference)",
+                 "No documented free access" if model.free_access == "unknown" else "Documented as paid; no free tier or free download",
+                 "unknown" if model.free_access == "unknown" else "permanent", free_access=model.free_access, free_download=model.free_download)
+    types = set(aud.required_model_types)
+    if types:
+        want = {"embedding": "embedding", "reranker": "reranker"}
+        needed = {want[t] for t in types if t in want}
+        if needed and model.model_type not in needed:
+            fail("model_type_mismatch", "required model type: " + ", ".join(sorted(needed)),
+                 f"{model.model_name} is a {model.model_type.replace('_', ' ')} model, not a {', '.join(sorted(needed))} model", "permanent", model_type=model.model_type)
+    elif model.model_type == "embedding":
+        fail("specialised_model_not_requested", "embedding models only serve embedding/retrieval requests",
+             f"{model.model_name} is an embedding model; it cannot generate answers", "permanent", model_type=model.model_type)
+
+
 def check_model(model: ModelMetadata, profile: QueryProfileV2, prefs: ResolvedPreferences, *, mode: str = "recommend",
                 observed_latency: Optional[Dict[str, float]] = None) -> List[ExclusionRecord]:
     fails: List[ExclusionRecord] = []
@@ -60,6 +103,8 @@ def check_model(model: ModelMetadata, profile: QueryProfileV2, prefs: ResolvedPr
         fail("not_executable", "execution needs an API model with a compatible adapter",
              "Consumer applications and entries without a compatible adapter cannot be executed by AI Compass", "permanent",
              entry_type=model.entry_type, adapter_compatible=model.adapter_compatible)
+
+    _audience_checks(model, profile, fail)
 
     have_mod = set(model.modalities or [model.modality])
     need_mod = set(profile.required_modalities or ["text"])
@@ -135,6 +180,10 @@ def no_candidate_guidance(excluded: List[ExclusionRecord]) -> Dict[str, object]:
         "privacy_unverified": "Turn off strict privacy, or add models with documented data handling.",
         "capability_missing": "Remove a required capability or add a model that declares it.", "modality_unsupported": "Choose a task a configured model supports, or configure a provider that does.",
         "context_insufficient": "Shorten the input or use a larger-context model.", "not_executable": "Run in recommendation mode, or configure an API provider for this task.",
+        "developer_only_model": "Say you are building something (e.g. \"for my app\") to include developer models.",
+        "no_integration_path": "Consumer applications cannot be integrated into a project.", "free_access_unverified": "Free access could not be verified for these models; relax the 'free' requirement to see them.",
+        "not_free": "Relax the 'free' requirement to include paid models.", "open_weights_required": "Relax the open-weights requirement.",
+        "model_type_mismatch": "No catalogue model of the required type matched the other constraints.",
         "not_in_selected_pool": "Widen the selected model pool.", "provider_excluded_by_user": "Remove a provider exclusion.", "model_excluded_by_user": "Remove a model exclusion.",
     }
     return {"unsatisfied": by_code, "suggestions": sorted({suggestions[c] for c in by_code if c in suggestions})}

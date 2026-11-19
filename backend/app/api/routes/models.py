@@ -56,6 +56,15 @@ def list_models(routable_only: bool = Query(False, description="Only configured,
     return registry_service.build_registry(include_live=include_live)
 
 
+@router.get("/models/pool-stats")
+def pool_stats():
+    """Model Pool statistics from the same dataset `/models` lists. Primary categories are exclusive and reconcile with the total."""
+    from app.services import pool_stats as ps
+    from app.services.catalog import registry as catalog_registry
+    totals = (catalog_registry.summary() or {}).get("totals", {})
+    return ps.compute(registry_service.build_registry(include_live=False), totals)
+
+
 _SORTS = {
     "name": lambda e: (e.model_name or "").lower(),
     "provider": lambda e: (e.provider.lower(), (e.model_name or "").lower()),
@@ -142,7 +151,7 @@ def routing_eligibility(provider: Optional[str] = None):
 
 @router.get("/models/detail")
 def model_detail(provider: str, model_id: str, history_limit: int = Query(25, ge=1, le=100)):
-    entry = next((e for e in registry_service.build_registry(include_live=True)
+    entry = next((e for e in registry_service.build_registry(include_live=True, include_retired=True)
                   if e.provider.lower() == provider.lower() and e.model_id == model_id), None)
     if not entry:
         raise HTTPException(404, "Model not found in the registry.")

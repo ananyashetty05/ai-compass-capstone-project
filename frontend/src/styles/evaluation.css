@@ -419,3 +419,7 @@
   .ev-select { flex: 1 1 100%; }
   .ev-select select { width: 100%; }
 }
+
+/* Page-level controls must not stretch across the grid. */
+.ev > .ds-seg { justify-self: start; width: fit-content; max-width: 100%; }
+.ev { grid-template-columns: minmax(0, 1fr); }
