@@ -33,12 +33,14 @@ import {
   Video,
 } from 'lucide-react';
 import { ButtonLink } from '../components/ui/Button';
+import { Radar } from '../components/ui/Radar';
 import { RoutingInsights } from '../components/result/RoutingInsights';
 import { EngineInsights } from '../components/route/EngineInsights';
 import { PromptOptimizerPanel } from '../components/route/PromptOptimizerPanel';
 import { ConstraintsPanel } from '../components/route/ConstraintsPanel';
 import type { PrivacyLevel } from '../components/route/ConstraintsPanel';
 import { useToast } from '../context/toastContext';
+import { copyText } from '../utils/clipboard';
 import { useAuth } from '../context/authContext';
 import { useRouteResult } from '../context/routeResultContext';
 import { routeAndGenerate } from '../services/routing.service';
@@ -284,21 +286,24 @@ export function RouteQuery() {
     if (e.key === 'Enter' && (e.metaKey || e.ctrlKey)) { e.preventDefault(); void run(); }
   }, [run]);
 
+  const copyTimer = useRef<number | undefined>(undefined);
   const copyResult = useCallback(async (value?: string) => {
     const text = value ?? optimizedPrompt ?? result?.optimized_prompt ?? result?.query ?? '';
     if (!text.trim()) {
       setOptimizerError('There is no prompt to copy yet.');
       return;
     }
-    try {
-      await navigator.clipboard.writeText(text);
+    if (await copyText(text)) {
       setOptimizerError(null);
       setCopied(true);
-      setTimeout(() => setCopied(false), 1500);
-    } catch {
+      push({ tone: 'success', title: 'Prompt copied', description: 'The prompt is on your clipboard, ready to paste.', durationMs: 2600 });
+      window.clearTimeout(copyTimer.current);
+      copyTimer.current = window.setTimeout(() => setCopied(false), 2200);
+    } else {
       setOptimizerError('Clipboard access was denied. Select and copy the prompt text manually.');
+      push({ tone: 'danger', title: 'Could not copy', description: 'Your browser blocked clipboard access. Select the text and copy it manually.' });
     }
-  }, [result, optimizedPrompt]);
+  }, [result, optimizedPrompt, push]);
 
   const originalPrompt = query.trim() || result?.query || '';
   const selectedTaskForTools = taskTypeHint
@@ -504,6 +509,8 @@ export function RouteQuery() {
 
               {result.ranked_alternatives.length > 0 && (
                 <AlternativesCard
+                  selectedName={result.final_model_name}
+                  selectedScore={selectedScore}
                   alternatives={result.ranked_alternatives}
                   compareWith={compareWith}
                   onCompare={id => setCompareWith(prev => prev === id ? null : id)}
@@ -635,24 +642,44 @@ export function RouteQuery() {
 
 /* ------------------------------------------------------------------ */
 
+const LOADER_STEPS = [
+  'Query understanding', 'Intent & task', 'Requirements', 'Preference analysis', 'Candidate filtering',
+  'Multi-objective scoring', 'Model selection', 'Model execution', 'Response evaluation', 'Accept or escalate',
+] as const;
+
+/**
+ * The routing service answers in a single response and does not stream stage events, so this state never
+ * marks a stage as done. It shows the stages the router will report, animated only to signal that the
+ * request is in flight. Real per-stage status and timings appear in the result.
+ */
 function RoutingLoader() {
+  const [elapsed, setElapsed] = useState(0);
+  useEffect(() => {
+    const clock = window.setInterval(() => setElapsed((n) => n + 1), 1000);
+    return () => window.clearInterval(clock);
+  }, []);
   return (
-    <div className="rq-loading-card">
-      <div className="rq-loading-orb">
-        <Compass className="rq-loading-compass" aria-hidden="true" />
+    <div className="rl-card" role="status" aria-live="polite" aria-busy="true">
+      <span className="rl-aurora" aria-hidden="true" />
+      <div className="rl-visual" aria-hidden="true">
+        <span className="rl-ring rl-ring--1" /><span className="rl-ring rl-ring--2" /><span className="rl-ring rl-ring--3" />
+        <span className="rl-sweep" />
+        <span className="rl-orbit rl-orbit--a"><i /></span>
+        <span className="rl-orbit rl-orbit--b"><i /></span>
+        <span className="rl-orbit rl-orbit--c"><i /></span>
+        <div className="rl-core"><Compass className="rl-needle" /></div>
       </div>
-      <p className="rq-loading-title">Routing your request…</p>
-      <p className="rq-loading-sub">
-        Waiting for the routing service. Progress is not streamed; the exact stages and their timings appear with the result.
+      <h3 className="rl-title">Routing your request<span className="rl-dots" aria-hidden="true"><i>.</i><i>.</i><i>.</i></span></h3>
+      <p className="rl-sub">
+        Waiting for the routing service. Stage results and timings appear only when the backend reports them, so nothing below is marked complete yet.
       </p>
-      <div className="rq-loading-stages">
-        {['Query Analysis', 'Candidate Filter', 'Multi-Objective Score', 'Select & Generate'].map((s, i) => (
-          <div key={s} className="rq-loading-stage" style={{ animationDelay: `${i * 0.18}s` }}>
-            <div className="rq-loading-stage-dot" />
-            <span>{s}</span>
-          </div>
+      <div className="rl-bar" aria-hidden="true"><i /></div>
+      <ol className="rl-wait" aria-label="Stages the router will report">
+        {LOADER_STEPS.map((label, i) => (
+          <li key={label} style={{ ['--i' as string]: i }}><span className="rl-wait-dot" aria-hidden="true" />{label}</li>
         ))}
-      </div>
+      </ol>
+      <p className="rl-elapsed">{elapsed}s elapsed</p>
     </div>
   );
 }
@@ -742,6 +769,11 @@ function RecommendationCard({
           <p className="rq-rec-narrative">{result.routing_explanation.narrative}</p>
         )}
 
+        <div className="rq-rec-profile">
+          {selectedScore ? (
+            <Radar label={`${result.final_model_name} objective scores`} size={250}
+              axes={OBJECTIVES.map(obj => { const v = selectedScore[obj.scoreField] as number | null; return { label: obj.shortLabel, value: typeof v === 'number' ? v : null, display: typeof v === 'number' ? formatPercent(v, 0) : 'n/a' }; })} />
+          ) : null}
         <div className="rq-rec-scores">
           {OBJECTIVES.map(obj => {
             const val = selectedScore ? selectedScore[obj.scoreField] as number : null;
@@ -759,6 +791,8 @@ function RecommendationCard({
           })}
         </div>
 
+        </div>
+
         <div className="rq-rec-meta-row">
           <div className="rq-rec-meta-item">
             <span className="rq-rec-meta-label">Routing time</span>
@@ -774,7 +808,11 @@ function RecommendationCard({
           </div>
           <div className="rq-rec-meta-item">
             <span className="rq-rec-meta-label">Candidates</span>
-            <span className="rq-rec-meta-val">{result.performance_metrics.candidates_evaluated}</span>
+            <span className="rq-rec-meta-val" title="Candidates with real quality, cost, latency, reliability or risk data. The rest are in the pool but have no metadata, so they cannot be compared.">
+              {result.performance_metrics.candidates_scored ?? result.performance_metrics.candidates_evaluated}
+              {result.performance_metrics.candidates_scored != null && result.performance_metrics.candidates_evaluated != null && result.performance_metrics.candidates_evaluated > result.performance_metrics.candidates_scored
+                ? <small> scored · {result.performance_metrics.candidates_evaluated} in pool</small> : null}
+            </span>
           </div>
         </div>
 
@@ -872,8 +910,10 @@ function ScoreBreakdownCard({
 }
 
 function AlternativesCard({
-  alternatives, compareWith, onCompare,
+  alternatives, compareWith, onCompare, selectedName, selectedScore,
 }: {
+  selectedName: string;
+  selectedScore: RouteResponse['model_scores'][0] | null | undefined;
   alternatives: RankedAlternative[];
   compareWith: string | null;
   onCompare: (id: string) => void;
@@ -883,7 +923,7 @@ function AlternativesCard({
       <div className="rq-alts-header">
         <Layers aria-hidden="true" />
         <span>Ranked alternatives</span>
-        <span className="rq-alts-hint">Click to compare scores</span>
+        <span className="rq-alts-hint">Bars: {OBJECTIVES.slice(0, 3).map(o => o.shortLabel).join(' · ')}. Click a row for the full comparison.</span>
       </div>
       <div className="rq-alts-list">
         {alternatives.map((alt, i) => (
@@ -903,7 +943,7 @@ function AlternativesCard({
             </div>
             <div className="rq-alt-scores">
               {OBJECTIVES.slice(0, 3).map(o => (
-                <div key={o.key} className="rq-alt-score-mini">
+                <div key={o.key} className="rq-alt-score-mini" title={`${o.shortLabel}: ${formatPercent(alt[`${o.key}_score` as keyof RankedAlternative] as number, 0)}`}>
                   <div className="rq-alt-score-bar">
                     <div className="rq-alt-score-fill"
                       style={{ width: `${toPercent(alt[`${o.key}_score` as keyof RankedAlternative] as number)}%` }} />
@@ -916,6 +956,33 @@ function AlternativesCard({
           </button>
         ))}
       </div>
+      {(() => {
+        const alt = alternatives.find(a => a.model_id === compareWith);
+        if (!alt || !selectedScore) return null;
+        const altVal = (k: string) => { const v = alt[`${k}_score` as keyof RankedAlternative]; return typeof v === 'number' ? v : null; };
+        const selVal = (f: (typeof OBJECTIVES)[number]['scoreField']) => { const v = selectedScore[f] as number | null; return typeof v === 'number' ? v : null; };
+        return (
+          <div className="rq-alt-compare" aria-live="polite">
+            <Radar label={`${selectedName} compared with ${alt.model_name}`} size={250} name={selectedName}
+              compare={{ name: alt.model_name, values: OBJECTIVES.map(o => altVal(o.key)) }}
+              axes={OBJECTIVES.map(o => { const v = selVal(o.scoreField); return { label: o.shortLabel, value: v, display: v === null ? 'n/a' : formatPercent(v, 0) }; })} />
+            <table className="rq-alt-delta">
+              <caption>{alt.model_name} vs {selectedName} (percentage points)</caption>
+              <thead><tr><th scope="col">Objective</th><th scope="col">Selected</th><th scope="col">Alternative</th><th scope="col">Δ</th></tr></thead>
+              <tbody>
+                {OBJECTIVES.map(o => {
+                  const a = selVal(o.scoreField); const b = altVal(o.key);
+                  const d = a !== null && b !== null ? Math.round((b - a) * 100) : null;
+                  return (
+                    <tr key={o.key}><th scope="row">{o.shortLabel}</th><td>{a === null ? 'n/a' : formatPercent(a, 0)}</td><td>{b === null ? 'n/a' : formatPercent(b, 0)}</td>
+                      <td data-sign={d === null ? undefined : d > 0 ? 'up' : d < 0 ? 'down' : 'flat'}>{d === null ? 'n/a' : d > 0 ? `+${d}` : d}</td></tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
+        );
+      })()}
     </div>
   );
 }

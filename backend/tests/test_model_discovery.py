@@ -70,6 +70,6 @@ def test_discovered_entry_with_unknown_latency_cannot_meet_latency_constraint():
     entry = model_registry._discovered_model(
         "provider/new-model", "OpenRouter", source="https://example.invalid/models", now="2026-01-01T00:00:00+00:00"
     ).model_copy(update={"active": True, "capabilities": ["general", "coding"]})
-    candidates, filtered = filter_candidates([entry], analyze("Explain recursion"), max_latency=1.0)
+    candidates, filtered = filter_candidates([entry], analyze("Explain recursion"), max_latency=1.0, audience_kind="developer")
     assert candidates == []
     assert "latency metadata is unavailable" in filtered[0]["reason"]

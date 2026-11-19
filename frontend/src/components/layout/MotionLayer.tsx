@@ -133,3 +133,37 @@ export function BackToTop() {
     </button>
   );
 }
+
+/**
+ * Cursor-lit cards: while the pointer is over a card, two CSS variables carry its position inside the card so the
+ * stylesheet can paint a soft highlight that follows it. One passive listener, rAF-throttled, no React state, and
+ * nothing runs for touch/coarse pointers or reduced-motion users. Cards that already have a background image keep it.
+ */
+const SPOT = ':is([class*="card"], .cx-path, .cx-kpi, .po-box, .rj-node, .registry-card, .settings-block > *):not(button, input, select, textarea, label)';
+export function useCardSpotlight(): void {
+  useEffect(() => {
+    if (reduced() || !window.matchMedia('(hover: hover) and (pointer: fine)').matches) return;
+    let raf = 0;
+    let active: HTMLElement | null = null;
+    let ev: PointerEvent | null = null;
+    const clear = () => { if (active) { active.removeAttribute('data-spot'); active = null; } };
+    const frame = () => {
+      raf = 0;
+      if (!ev) return;
+      const card = (ev.target as Element | null)?.closest?.(SPOT) as HTMLElement | null;
+      if (card !== active) {
+        clear();
+        if (card && getComputedStyle(card).backgroundImage === 'none') { active = card; card.setAttribute('data-spot', ''); }
+      }
+      if (active) {
+        const r = active.getBoundingClientRect();
+        active.style.setProperty('--mx', `${ev.clientX - r.left}px`);
+        active.style.setProperty('--my', `${ev.clientY - r.top}px`);
+      }
+    };
+    const move = (e: PointerEvent) => { ev = e; if (!raf) raf = requestAnimationFrame(frame); };
+    document.addEventListener('pointermove', move, { passive: true });
+    document.addEventListener('pointerleave', clear);
+    return () => { document.removeEventListener('pointermove', move); document.removeEventListener('pointerleave', clear); if (raf) cancelAnimationFrame(raf); clear(); };
+  }, []);
+}

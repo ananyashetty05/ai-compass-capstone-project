@@ -55,6 +55,7 @@ class ComplexityAssessment(BaseModel):
     components: Dict[str, float] = {}
     weights: Dict[str, float] = {}
     methodology: str = ""
+    adjustments: List[str] = Field(default=[], description="Explicit floor rules that raised the band above the weighted score, with their evidence")
 
 
 class TokenEstimate(BaseModel):
@@ -75,6 +76,9 @@ class AudienceAssessment(BaseModel):
     Produced by deterministic lexical rules (``audience.py``); ``signals`` lists exactly which rules fired.
     """
     kind: str = Field(default="conversational", description="conversational | developer")
+    category: str = Field(default="conversational", description="Recommendation pool selected before ranking: conversational | developer_api")
+    ambiguous: bool = Field(default=False, description="True when the query could mean either audience; the conversational pool is used and one clarification is offered")
+    clarifying_question: Optional[str] = None
     signals: List[str] = []
     required_model_types: List[str] = []
     prefers_free: bool = False
@@ -157,6 +161,7 @@ class WeightAdjustment(BaseModel):
     dimension: str
     factor: float
     reason: str
+    origin: str = Field(default="explicit", description="explicit (the user asked) | inferred (derived from the query's difficulty or sensitivity)")
 
 
 class HardConstraint(BaseModel):
@@ -232,6 +237,16 @@ class CandidateScore(BaseModel):
     task_fit: float = 0.0
     preferred_provider: bool = False
     metadata_status: str = "unknown"
+    # Execution access is reported beside suitability and never feeds the score. A candidate is always recommendation-eligible
+    # (it passed the hard constraints); whether it can run right now is a separate fact set after ranking.
+    recommendation_eligible: bool = True
+    execution_ready: bool = False
+    execution_status: Optional[str] = Field(default=None, description="ready | credential_not_configured | no_adapter | provider_disabled | open_at_destination")
+    # Category and access route (derived from verified catalogue fields; shown beside suitability, never part of the score).
+    model_category: Optional[str] = Field(default=None, description="conversational | developer_api | unclassified")
+    access_type: Optional[str] = None
+    pricing_category: Optional[str] = Field(default=None, description="completely_free | free_tier_limited | pay_as_you_go | paid_subscription | self_hosted_open_weight | unknown")
+    free_tier_available: Optional[bool] = None
 
 
 class NormalizationDetails(BaseModel):
@@ -262,6 +277,22 @@ class Selection(BaseModel):
     confidence_level: str = "low"
     confidence_value: float = 0.0
     caveats: List[str] = []
+
+
+class ConfidenceComponent(BaseModel):
+    name: str
+    value: Optional[float] = Field(default=None, description="0-1 where applicable; None when it does not exist (never a made-up number)")
+    kind: str = Field(description="heuristic_estimate | deterministic | not_applicable")
+    calibrated: bool = False
+    basis: str = ""
+    detail: Dict[str, Any] = {}
+
+
+class ConfidenceReport(BaseModel):
+    components: List[ConfidenceComponent] = []
+    combined: Optional[float] = None
+    combined_note: str = ""
+    calibration: Dict[str, Any] = {}
 
 
 class StageRecord(BaseModel):

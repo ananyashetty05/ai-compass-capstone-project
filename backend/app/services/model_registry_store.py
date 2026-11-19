@@ -43,7 +43,8 @@ def is_enabled() -> bool:
 def _conn():
     if not is_enabled():
         raise RegistryPersistenceUnavailable("Live registry persistence is not configured.")
-    return psycopg.connect(settings.DATABASE_URL, row_factory=dict_row, connect_timeout=5)
+    from app.core import db
+    return db.connect(settings.DATABASE_URL, row_factory=dict_row, connect_timeout=5)
 
 
 def _now() -> datetime:

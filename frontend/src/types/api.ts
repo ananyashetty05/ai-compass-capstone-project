@@ -149,6 +149,14 @@ export interface ModelInfo {
   use_categories?: Array<'conversational' | 'developer'>;
   /** ONE mutually exclusive category; category totals add up to the pool total. `use_categories` above are overlapping routing tags. */
   primary_category?: PrimaryCategory;
+  /** Recommendation group, derived from verified fields (never from a provider name in a query). */
+  model_category?: ModelGroup;
+  access_type?: 'consumer_chat' | 'provider_api' | 'hosted_inference' | 'aggregator_api' | 'self_hosted' | 'unknown';
+  intended_use?: string[];
+  integration_supported?: boolean | null;
+  pricing_category?: PricingCategory;
+  free_tier_available?: boolean | null;
+  category_basis?: string | null;
   category_kind?: string;
   classification_basis?: 'curated' | 'derived' | 'unverified';
   classification_reason?: string | null;
@@ -438,6 +446,8 @@ export interface PerformanceMetrics {
   total_latency_ms?: number;
   routing_latency_ms?: number;
   candidates_evaluated?: number;
+  /** Candidates with at least one real objective value; the rest are in the pool but cannot be compared. */
+  candidates_scored?: number;
   models_filtered?: number;
   escalated?: boolean;
   user_group?: string;
@@ -567,7 +577,7 @@ export interface EngineProfile {
   analysis_method: string;
   notes: string[];
   /** conversational vs developer intent, with the rules that fired */
-  audience?: { kind: 'conversational' | 'developer'; signals: string[]; required_model_types: string[]; prefers_free: boolean; requires_open_weights: boolean; method: string };
+  audience?: { kind: 'conversational' | 'developer'; category?: 'conversational' | 'developer_api'; ambiguous?: boolean; clarifying_question?: string | null; signals: string[]; required_model_types: string[]; prefers_free: boolean; requires_open_weights: boolean; method: string };
 }
 
 export interface EngineMetricEvidence {
@@ -584,6 +594,15 @@ export interface EngineCandidate {
   pareto_optimal: boolean; dominated_by: string[];
   estimated_cost_usd: number | null;
   learning_adjustment: number; task_fit: number; preferred_provider: boolean; metadata_status: string;
+  /** Always true for a ranked candidate: it passed the hard constraints. Never depends on a credential. */
+  recommendation_eligible?: boolean;
+  /** Adapter and server credential both present right now. Reported beside the score; never part of it. */
+  execution_ready?: boolean;
+  execution_status?: string | null;
+  model_category?: ModelGroup | null;
+  access_type?: string | null;
+  pricing_category?: PricingCategory | null;
+  free_tier_available?: boolean | null;
 }
 
 export interface EngineExclusion {
@@ -607,11 +626,14 @@ export interface EngineResult {
   optimization: OptimizePromptResponse & { original_prompt: string; optimized_prompt: string };
   preferences: {
     weights: Record<string, number>; base_weights: Record<string, number>; weight_source: string;
-    adjustments: { dimension: string; factor: number; reason: string }[];
+    adjustments: { dimension: string; factor: number; reason: string; origin?: 'explicit' | 'inferred' }[];
     hard_constraints: { kind: string; value: unknown; source: string }[];
     defaults_applied: string[]; warnings: string[]; precedence: string[];
   };
   candidates: EngineCandidate[];
+  /** Pool members with no objective data: listed so the whole pool stays visible, but there is nothing to compare. */
+  unscored_candidates?: Array<{ model_id: string; model_name: string; provider: string; metadata_status: string; recommendation_eligible?: boolean; execution_ready?: boolean; execution_status?: string | null }>;
+  pool_summary?: { eligible: number; scored: number; unscored: number };
   exclusions: EngineExclusion[];
   normalization: { cost_basis: string; cost_method: string; latency_basis: string; uncertainty_penalty: number; missing_policy: string; notes: string[] } | null;
   selection: {
@@ -643,10 +665,27 @@ export interface EngineResult {
   routing_latency_ms: number;
   access?: { model_id?: string; execution_available?: boolean; credential_configured?: boolean | null; status?: string; next_step?: string; documentation_url?: string | null };
   counterfactuals?: EngineCounterfactual[];
-  catalogue_summary?: { catalogue_total: number; considered: number; excluded_by_registry: number; eligible: number; excluded_by_constraints: number; scored: number; selected: number; credentials_used_for_comparison: boolean; audience: string };
+  provenance?: EngineProvenance;
+  confidence_report?: EngineConfidenceReport;
+  executable_alternative?: { model_id: string | null; model_name?: string; provider?: string; rank?: number; score_gap_to_best_match?: number | null; statement: string; substituted: boolean } | null;
+  catalogue_summary?: { catalogue_total: number; considered: number; excluded_by_registry: number; eligible: number; excluded_by_constraints: number; scored: number; selected: number; credentials_used_for_comparison: boolean; audience: string; category?: 'conversational' | 'developer_api'; intent_ambiguous?: boolean };
   scoring_config?: { version: string; uncertainty_penalty: number; missing_policy: string; tie_epsilon: number; weight_perturbation: number } | null;
   trace_available?: boolean;
   recorded_at?: string;
+}
+
+export interface EngineProvenance {
+  fingerprint: string; engine_version: string; scoring_version: string; reproducibility: string; inputs_hashed: string[];
+  catalogue: { candidates: number; content_sha256: string; version: number | null; origin: string; published_at: string | null };
+}
+
+export interface EngineConfidenceComponent {
+  name: string; value: number | null; kind: 'heuristic_estimate' | 'deterministic' | 'not_applicable'; calibrated: boolean; basis: string; detail: Record<string, unknown>;
+}
+
+export interface EngineConfidenceReport {
+  components: EngineConfidenceComponent[]; combined: number | null; combined_note: string;
+  calibration: { validated: boolean; labelled_outcomes: number; minimum_for_validation: number; can_validate: boolean; statement: string };
 }
 
 export interface EngineCounterfactual {
@@ -825,6 +864,21 @@ export interface OfflineEvaluationResponse {
   candidate_count: number;
   filtered_models: FilteredModel[];
   strategy_results: OfflineStrategyResult[];
+  catalog_coverage?: CatalogCoverage | null;
+}
+
+/** Metadata-only coverage of the evaluated pool; nothing here was measured by running a model. */
+export interface CatalogCoverage {
+  metadata_only: boolean;
+  evaluated_models: number;
+  providers: number;
+  recommendation_only_models: number;
+  execution_ready_models: number;
+  recommendation_only_share: number | null;
+  models_with_missing_metadata: number;
+  missing_metadata_share: number | null;
+  selection_by_strategy: Array<{ strategy: string; selected_model_id: string | null; provider: string | null; execution_ready: boolean | null }>;
+  note: string;
 }
 
 /**
@@ -892,6 +946,9 @@ export interface RoutingHistoryEntry {
 
 export type RoutingHistoryAvailability = 'available' | 'unsupported' | 'error';
 
+export type ModelGroup = 'conversational' | 'developer_api' | 'unclassified';
+export type PricingCategory = 'completely_free' | 'free_tier_limited' | 'pay_as_you_go' | 'paid_subscription' | 'self_hosted_open_weight' | 'unknown';
+
 export type PrimaryCategory = 'conversational' | 'developer' | 'application' | 'unclassified';
 
 /** `GET /models/pool-stats` — computed on the server from the same list `/models` returns. */
@@ -901,6 +958,8 @@ export interface PoolStats {
   canonical_models: number;
   applications: number;
   primary: Record<PrimaryCategory, number>;
+  /** Recommendation groups; mutually exclusive, add up to the pool total. */
+  categories?: { counts: Record<ModelGroup, number>; pricing: Record<string, number>; access: Record<string, number>; note: string };
   primary_labels: Record<PrimaryCategory, string>;
   kinds: Record<PrimaryCategory, Array<{ kind: string; label: string; count: number }>>;
   capabilities: { overlapping: boolean; note: string; counts: Record<string, number> };
@@ -910,4 +969,20 @@ export interface PoolStats {
   retired: number | null;
   lineages_needing_review: number | null;
   integrity: { ok: boolean; checks: Array<{ check: string; ok: boolean; detail?: unknown }>; problems: unknown[] };
+  /** Recommendation and execution counted separately, over inference models. The groups overlap. */
+  access?: PoolAccess;
+}
+
+export interface PoolAccess {
+  scope: string;
+  catalog_models: number;
+  recommendation_eligible: number;
+  execution_ready: number;
+  recommendation_only: number;
+  provider_not_configured: number;
+  adapter_unavailable: number;
+  metadata_incomplete: number;
+  metadata_stale: number;
+  metadata_status: Record<string, number>;
+  note: string;
 }

@@ -27,7 +27,8 @@ from app.services.catalog.store import MemoryStore, PgStore, StoreUnavailable
 logger = get_logger(__name__)
 _DATA = Path(__file__).resolve().parents[2] / "data"
 _lock = threading.RLock()
-_cache: dict = {"at": 0.0, "state": None, "origin": "seed", "version": -1, "models": None, "error": None}
+_EXPIRED = float("-inf")     # not 0.0: time.monotonic() can be < CATALOG_CACHE_SECONDS shortly after boot, which made 0.0 look "fresh"
+_cache: dict = {"at": _EXPIRED, "state": None, "origin": "seed", "version": -1, "models": None, "error": None}
 _stores: dict = {}
 ADAPTER_PROVIDERS = {"openai", "anthropic", "google", "groq", "openrouter"}
 
@@ -53,12 +54,12 @@ def get_store():
 def reset_for_tests() -> None:
     with _lock:
         _stores.clear()
-        _cache.update(at=0.0, state=None, origin="seed", version=-1, models=None, error=None)
+        _cache.update(at=_EXPIRED, state=None, origin="seed", version=-1, models=None, error=None)
 
 
 def invalidate() -> None:
     with _lock:
-        _cache.update(at=0.0)
+        _cache.update(at=_EXPIRED)
 
 
 def _seed_state() -> CatalogState:
@@ -70,32 +71,86 @@ def _seed_state() -> CatalogState:
         return _stores["seed"].load()
 
 
-def state() -> CatalogState:
-    """Current catalogue view. Never raises: database failure degrades to the last good view, then to the seed."""
-    with _lock:
-        fresh = _cache["state"] is not None and time.monotonic() - _cache["at"] < settings.CATALOG_CACHE_SECONDS
-        if fresh:
-            return _cache["state"]
-        store = None
-        try:
-            store = get_store()
-            version = store.version()
+STALE_SERVE_SECONDS = 600.0      # an expired view this young is served immediately while a background refresh runs
+_refresh_lock = threading.Lock()  # one revalidation at a time, held across the database round trips (never `_lock`)
+_refresh_running = threading.Event()
+
+
+def _fresh() -> bool:
+    return _cache["state"] is not None and time.monotonic() - _cache["at"] < settings.CATALOG_CACHE_SECONDS
+
+
+def _revalidate() -> None:
+    """Re-check the persisted catalogue and update the cached view. Database I/O happens outside ``_lock``."""
+    try:
+        store = get_store()
+        version = store.version()
+        with _lock:
             if _cache["state"] is not None and version == _cache["version"] and _cache["origin"] == "store":
                 _cache["at"] = time.monotonic()
-                return _cache["state"]
-            loaded = store.load()
+                return
+        loaded = store.load()
+        with _lock:
             if any(m.publication == "published" for m in loaded.models.values()):
                 _set(loaded, "store" if persistence_enabled() else "offline_seed", loaded.version)
             else:
                 _set(_seed_state(), "seed", -1)          # migration applied but nothing published yet
             _cache["error"] = None
-        except Exception as exc:                         # noqa: BLE001 - registry must keep serving
+    except Exception as exc:                             # noqa: BLE001 - registry must keep serving
+        with _lock:
             logger.warning("catalogue store unavailable (%s); serving %s", type(exc).__name__, "last good view" if _cache["state"] else "seed")
             _cache["error"] = type(exc).__name__
             if _cache["state"] is None:
                 _set(_seed_state(), "seed", -1)
             _cache["at"] = time.monotonic()
+
+
+def _refresh_in_background() -> None:
+    if _refresh_running.is_set():
+        return
+    _refresh_running.set()
+
+    def work():
+        try:
+            with _refresh_lock:
+                if not _fresh():
+                    _revalidate()
+        finally:
+            _refresh_running.clear()
+    threading.Thread(target=work, name="catalogue-refresh", daemon=True).start()
+
+
+def state() -> CatalogState:
+    """Current catalogue view. Never raises: database failure degrades to the last good view, then to the seed.
+
+    Stale-while-revalidate: once the cached view passes ``CATALOG_CACHE_SECONDS`` it is still served at once (up to
+    ``STALE_SERVE_SECONDS`` old) and refreshed in the background, so a request never waits on the database just because a cache
+    interval elapsed. ``invalidate()`` and a first call (nothing cached) still revalidate before returning.
+    """
+    with _lock:
+        if _fresh():
+            return _cache["state"]
+        age = time.monotonic() - _cache["at"]
+        serve_stale = _cache["state"] is not None and _cache["origin"] == "store" and age < STALE_SERVE_SECONDS
+        cached = _cache["state"]
+    if serve_stale:
+        _refresh_in_background()
+        return cached
+    with _refresh_lock:
+        with _lock:
+            if _fresh():
+                return _cache["state"]
+        _revalidate()
+    with _lock:
         return _cache["state"]
+
+
+def warm() -> None:
+    """Load the catalogue ahead of the first request. Best effort."""
+    try:
+        state()
+    except Exception:
+        pass
 
 
 def _set(st: CatalogState, origin: str, version: int) -> None:

@@ -40,6 +40,20 @@ class OfflineStrategyResult(BaseModel):
     data_sources: dict[str, Optional[str]] = Field(default_factory=dict)
 
 
+class CatalogCoverage(BaseModel):
+    """How much of the catalogue the comparison covered. Metadata-only: nothing here was measured by running a model."""
+    metadata_only: bool = True
+    evaluated_models: int
+    providers: int
+    recommendation_only_models: int = Field(description="Evaluated models that cannot run with the current server configuration")
+    execution_ready_models: int
+    recommendation_only_share: Optional[float] = None
+    models_with_missing_metadata: int = Field(description="Models lacking a quality score, a price or verified metadata")
+    missing_metadata_share: Optional[float] = None
+    selection_by_strategy: list[dict] = Field(default_factory=list)
+    note: str = ""
+
+
 class OfflineEvaluationResponse(BaseModel):
     evaluation_method: str = "offline_registry_metadata"
     data_disclosure: str
@@ -47,3 +61,4 @@ class OfflineEvaluationResponse(BaseModel):
     candidate_count: int
     filtered_models: list[dict[str, str]]
     strategy_results: list[OfflineStrategyResult]
+    catalog_coverage: Optional[CatalogCoverage] = None

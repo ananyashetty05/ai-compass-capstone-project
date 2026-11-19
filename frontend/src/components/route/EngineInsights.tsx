@@ -6,8 +6,13 @@
  */
 import { AlertTriangle, Ban, CheckCircle2, CircleDashed, Gauge, ListChecks, Network, ScanSearch, Scale, Siren, XCircle } from 'lucide-react';
 import { Reveal } from '../ui/Reveal';
+import { RoutingJourney } from './RoutingJourney';
+import { StageTimeline } from './StageTimeline';
 import { humanizeToken, formatPercent, formatInteger, formatDuration, formatUsd } from '../../utils/format';
 import type { EngineCandidate, EngineResult, EngineStage } from '../../types';
+
+const GROUP_TEXT: Record<string, string> = { conversational: 'Conversational AI', developer_api: 'Developer & API', unclassified: 'Unclassified' };
+const PRICE_TEXT: Record<string, string> = { completely_free: 'Free', free_tier_limited: 'Free tier with limits', pay_as_you_go: 'Pay-as-you-go', paid_subscription: 'Paid subscription', self_hosted_open_weight: 'Self-hosted (open weights)', unknown: 'Pricing not verified' };
 
 const pct = (v: number | null | undefined) => (v === null || v === undefined ? '—' : formatPercent(v, 0));
 const w = (v: number | null | undefined) => `${Math.max(0, Math.min(100, Math.round((v ?? 0) * 100)))}%`;
@@ -28,7 +33,8 @@ export function PipelineTrace({ engine }: { engine: EngineResult }) {
     <Reveal as="section" className="cx-card" ariaLabelledBy="eng-pipe-title">
       <header className="cx-card-head">
         <div><p className="cx-kicker">Decision pipeline</p><h2 id="eng-pipe-title">What actually ran</h2></div>
-        <span className="cx-note-inline">{formatDuration(engine.routing_latency_ms)} total · engine {engine.version}</span>
+        <span className="cx-note-inline">
+          {engine.catalogue_summary?.category ? <>Pool: <strong>{engine.catalogue_summary.category === 'developer_api' ? 'Developer & API Models' : 'Conversational AI Models'}</strong>{engine.catalogue_summary.intent_ambiguous ? ' (intent unclear; not mixed)' : ''} · </> : null}{formatDuration(engine.routing_latency_ms)} total · engine {engine.version}</span>
       </header>
       <ol className="eng-stages">
         {engine.stages.map((s, i) => (
@@ -106,7 +112,7 @@ export function PreferencesPanel({ engine }: { engine: EngineResult }) {
         <div><p className="cx-kicker">Preferences</p><h2 id="eng-pref-title">Weights and hard constraints</h2></div>
         <Scale aria-hidden="true" />
       </header>
-      <p className="cx-muted">Weights from {humanizeToken(pr.weight_source)}{pr.adjustments.length ? `, adjusted by ${pr.adjustments.length} query-derived factor(s) (capped at 1.5×)` : ''}.</p>
+      <p className="cx-muted">Weights from {humanizeToken(pr.weight_source)}{pr.adjustments.length ? `, adjusted by ${pr.adjustments.length} factor(s): inferred ones are capped at 1.5×, ones you asked for at 2.5×` : ''}.</p>
       <ul className="cx-bars">
         {DIMS.map((d) => (
           <li className="cx-bar" key={d}>
@@ -116,7 +122,7 @@ export function PreferencesPanel({ engine }: { engine: EngineResult }) {
           </li>
         ))}
       </ul>
-      {pr.adjustments.length > 0 && <ul className="cx-notes">{pr.adjustments.map((a, i) => <li key={i}>{DIM_LABEL[a.dimension] ?? a.dimension} ×{a.factor.toFixed(2)} — {a.reason}</li>)}</ul>}
+      {pr.adjustments.length > 0 && <ul className="cx-notes">{pr.adjustments.map((a, i) => <li key={i}>{DIM_LABEL[a.dimension] ?? a.dimension} ×{a.factor.toFixed(2)} — {a.reason} <small>({a.origin === 'inferred' ? 'inferred from the query' : 'you asked for this'})</small></li>)}</ul>}
       {pr.hard_constraints.length === 0
         ? <p className="cx-muted">No explicit hard constraints were set.</p>
         : <dl className="cx-kv">{pr.hard_constraints.map((c, i) => <div key={i}><dt>{humanizeToken(c.kind)}</dt><dd>{Array.isArray(c.value) ? c.value.join(', ') : String(c.value)} <small>({humanizeToken(c.source)})</small></dd></div>)}</dl>}
@@ -125,27 +131,60 @@ export function PreferencesPanel({ engine }: { engine: EngineResult }) {
   );
 }
 
+const ACCESS_LABEL: Record<string, string> = {
+  ready: 'Execution ready',
+  credential_not_configured: 'API key not configured',
+  no_adapter: 'Adapter unavailable',
+  provider_disabled: 'Provider disabled',
+  inference_not_verified: 'Not verified',
+  open_at_destination: 'Open at provider',
+};
+
+/** Suitability and executability are different facts: a ranked model is always recommendable, and this says whether it can also be run. */
+function AccessTag({ c }: { c: EngineCandidate }) {
+  if (c.execution_status === undefined || c.execution_status === null) return <span className="eng-tag eng-tag--dim">Unknown</span>;
+  const ready = c.execution_ready === true;
+  const label = ACCESS_LABEL[c.execution_status] ?? humanizeToken(c.execution_status);
+  const extra = [!ready ? label : null, c.metadata_status === 'incomplete' ? 'Metadata incomplete' : null].filter(Boolean).join(' · ');
+  return (
+    <span className="cmp-access" title={ready ? 'AI Compass can run this model with the current server configuration.' : 'Recommendation only: this model is still ranked on its merits; it cannot be run from AI Compass right now.'}>
+      <span className={`cmp-status${ready ? ' cmp-status--ready' : ''}`}>{ready ? 'Execution ready' : 'Recommendation only'}</span>
+      {extra ? <small>{extra}</small> : null}
+    </span>
+  );
+}
+
 function CandidateRow({ c, top }: { c: EngineCandidate; top: boolean }) {
   return (
-    <tr className={top ? 'eng-row-top' : undefined}>
-      <th scope="row">
-        <span className="eng-rank">#{c.rank}</span>
-        <span className="eng-model"><strong>{c.model_name}</strong><small>{c.provider}</small></span>
+    <tr className={top ? 'cmp-row cmp-row--top' : 'cmp-row'}>
+      <th scope="row" className="cmp-model">
+        <span className="cmp-rank" aria-label={`Rank ${c.rank}`}>{c.rank}</span>
+        <span className="cmp-name">
+          <strong>{c.model_name}</strong>
+          <small>{c.provider}{c.pareto_optimal
+            ? <span className="cmp-pareto" title="Not dominated by any other candidate"> · Pareto</span>
+            : <span title={`Dominated by ${c.dominated_by.join(', ')}`}> · Dominated</span>}</small>
+          {c.model_category ? <small className="cmp-sub" title="Recommendation group and verified pricing; neither affects the score">{GROUP_TEXT[c.model_category] ?? c.model_category} · {PRICE_TEXT[c.pricing_category ?? 'unknown']}</small> : null}
+        </span>
       </th>
-      <td className="eng-num" title="Robust score: weighted utility with a penalty for low-confidence inputs">{c.robust_score.toFixed(3)}</td>
+      <td className="cmp-score" title="Robust score: weighted utility with a penalty for low-confidence inputs">
+        <span className="cmp-score-val">{c.robust_score.toFixed(3)}</span>
+        <span className="cmp-score-bar" aria-hidden="true"><span style={{ width: `${Math.max(0, Math.min(1, c.robust_score)) * 100}%` }} /></span>
+      </td>
       {DIMS.map((d) => {
         const v = c.utilities[d];
         const ev = c.evidence[d];
+        const missing = v === null || v === undefined;
         return (
-          <td key={d} className={`eng-num${v === null || v === undefined ? ' eng-missing' : ''}`}
+          <td key={d} className={`cmp-num${missing ? ' cmp-na' : ''}`}
             title={ev ? `${humanizeToken(ev.provenance)} · confidence ${pct(ev.confidence)}${ev.note ? ` · ${ev.note}` : ''}` : undefined}>
-            {v === null || v === undefined ? 'n/a' : pct(v)}
+            {missing ? '–' : pct(v)}
           </td>
         );
       })}
-      <td className="eng-num">{pct(c.confidence)}</td>
-      <td className="eng-num">{c.estimated_cost_usd === null ? 'unknown' : formatUsd(c.estimated_cost_usd)}</td>
-      <td>{c.pareto_optimal ? <span className="eng-tag">Pareto</span> : <span className="eng-tag eng-tag--dim" title={`Dominated by ${c.dominated_by.join(', ')}`}>dominated</span>}</td>
+      <td className="cmp-num">{pct(c.confidence)}</td>
+      <td className="cmp-num">{c.estimated_cost_usd === null ? <span className="cmp-na">unknown</span> : formatUsd(c.estimated_cost_usd)}</td>
+      <td className="cmp-cell"><AccessTag c={c} /></td>
     </tr>
   );
 }
@@ -158,18 +197,22 @@ export function CandidateComparison({ engine }: { engine: EngineResult }) {
     <Reveal as="section" className="cx-card" delay={2} ariaLabelledBy="eng-cand-title">
       <header className="cx-card-head">
         <div><p className="cx-kicker">Candidates</p><h2 id="eng-cand-title">Scored comparison</h2></div>
-        <span className="cx-note-inline">{engine.candidates.length} eligible · pool: {humanizeToken(engine.candidate_pool)}</span>
+        <span className="cx-note-inline">
+          {engine.pool_summary && engine.pool_summary.unscored > 0
+            ? `${engine.pool_summary.scored} scored · ${engine.pool_summary.unscored} more in the pool have no metadata to compare`
+            : `${engine.candidates.length} eligible`} · pool: {humanizeToken(engine.candidate_pool)}
+        </span>
       </header>
-      <div className="eng-table-wrap" role="region" aria-label="Candidate comparison" tabIndex={0}>
-        <table className="eng-table">
+      <div className="cmp-wrap" role="region" aria-label="Candidate comparison" tabIndex={0}>
+        <table className="cmp-table">
           <thead>
-            <tr><th scope="col">Model</th><th scope="col">Score</th>{DIMS.map((d) => <th key={d} scope="col">{DIM_LABEL[d]}</th>)}<th scope="col">Data conf.</th><th scope="col">Est. $/req</th><th scope="col">Frontier</th></tr>
+            <tr><th scope="col">Model</th><th scope="col">Score</th>{DIMS.map((d) => <th key={d} scope="col" className="cmp-h-num">{DIM_LABEL[d]}</th>)}<th scope="col" className="cmp-h-num">Confidence</th><th scope="col" className="cmp-h-num">$ / req</th><th scope="col">Access</th></tr>
           </thead>
           <tbody>{rows.map((c, i) => <CandidateRow key={c.model_id} c={c} top={i === 0} />)}</tbody>
         </table>
       </div>
       <p className="cx-note">
-        “n/a” means the registry has no value; it is never treated as zero or as best, and it lowers confidence. Hover a cell for its provenance.
+        Access shows whether a model can be run with the current configuration; it never affects rank. “n/a” means the registry has no value; it is never treated as zero or as best, and it lowers confidence. Hover a cell for its provenance.
         {n ? ` Cost: ${humanizeToken(n.cost_basis)}; latency: ${humanizeToken(n.latency_basis)}.` : ''}
       </p>
     </Reveal>
@@ -225,7 +268,28 @@ export function DecisionExplanation({ engine }: { engine: EngineResult }) {
           <ul className="cx-notes">{[...s.caveats, ...e.unavailable_data].map((x, i) => <li key={i}>{x}</li>)}</ul></>
       )}
       <p className="cx-note">{e.confidence_statement}</p>
+      {engine.executable_alternative && <p className="cx-note" role="note"><strong>Best match vs best runnable.</strong> {engine.executable_alternative.statement}</p>}
+      <ConfidenceBreakdown engine={engine} />
     </Reveal>
+  );
+}
+
+function ConfidenceBreakdown({ engine }: { engine: EngineResult }) {
+  const cr = engine.confidence_report;
+  if (!cr) return null;
+  return (
+    <details className="cx-details">
+      <summary>Confidence, by component</summary>
+      <ul className="cx-notes">
+        {cr.components.map((c) => (
+          <li key={c.name}>
+            <strong>{humanizeToken(c.name)}</strong>: {c.value === null ? (c.kind === 'not_applicable' ? 'not applicable' : 'not a number') : pct(c.value)}
+            {' '}<small>({c.kind === 'heuristic_estimate' ? 'heuristic estimate, not a probability' : c.kind === 'deterministic' ? 'deterministic fact' : 'n/a'})</small> — {c.basis}
+          </li>
+        ))}
+      </ul>
+      <p className="cx-note">{cr.combined_note} {cr.calibration.statement}</p>
+    </details>
   );
 }
 
@@ -283,6 +347,10 @@ export function EngineDetails({ engine }: { engine: EngineResult }) {
       <dl className="cx-kv">
         <div><dt>Engine / scoring version</dt><dd>{engine.version} / {engine.scoring_version}</dd></div>
         <div><dt>Prompt submitted</dt><dd>{humanizeToken(engine.prompt_used_source)}</dd></div>
+        {engine.provenance && <>
+          <div><dt>Decision fingerprint</dt><dd title={engine.provenance.fingerprint}><code>{engine.provenance.fingerprint.slice(0, 16)}</code></dd></div>
+          <div><dt>Catalogue snapshot</dt><dd>{engine.provenance.catalogue.candidates} models · {humanizeToken(engine.provenance.catalogue.origin)}{engine.provenance.catalogue.version !== null ? ` · v${engine.provenance.catalogue.version}` : ''} · <code>{engine.provenance.catalogue.content_sha256.slice(0, 10)}</code></dd></div>
+        </>}
         {n && <><div><dt>Missing-data policy</dt><dd>{humanizeToken(n.missing_policy)}</dd></div>
           <div><dt>Uncertainty penalty</dt><dd>{n.uncertainty_penalty}</dd></div>
           <div><dt>Cost normalisation</dt><dd>{n.cost_method}</dd></div></>}
@@ -296,6 +364,8 @@ export function EngineDetails({ engine }: { engine: EngineResult }) {
 export function EngineInsights({ engine }: { engine: EngineResult }) {
   return (
     <div className="cx-insights eng-insights">
+      <RoutingJourney engine={engine} />
+      <StageTimeline engine={engine} />
       <PipelineTrace engine={engine} />
       <QueryUnderstanding engine={engine} />
       <PreferencesPanel engine={engine} />

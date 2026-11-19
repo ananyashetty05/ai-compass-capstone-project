@@ -11,6 +11,25 @@ from app.core.logging import get_logger
 logger = get_logger(__name__)
 
 
+def _warm_in_background() -> None:
+    """Open database connections and load the catalogue and live registry ahead of the first request (non-blocking, best effort)."""
+    import threading
+
+    def work():
+        try:
+            if settings.DATABASE_URL:
+                from psycopg.rows import dict_row
+                from app.core import db
+                db.prewarm(settings.DATABASE_URL, 3, row_factory=dict_row)
+            from app.services.catalog import registry as catalog_registry
+            catalog_registry.warm()
+            from app.services import registry_service
+            registry_service.live_state()
+        except Exception:
+            logger.warning("Warm-up skipped; the first request will load these instead.")
+    threading.Thread(target=work, name="startup-warm", daemon=True).start()
+
+
 @asynccontextmanager
 async def lifespan(_: FastAPI):
     """Initialise persistence once, without making docs/health import-dependent."""
@@ -23,6 +42,7 @@ async def lifespan(_: FastAPI):
             logger.exception("Database initialisation failed; database-backed endpoints are unavailable.")
     else:
         logger.warning("DATABASE_URL is not configured; database-backed endpoints are unavailable.")
+    _warm_in_background()
     yield
 
 app = FastAPI(

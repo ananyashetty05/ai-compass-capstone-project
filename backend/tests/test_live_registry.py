@@ -211,7 +211,7 @@ class TestRoutingIntegration:
         with patch.object(settings, "OPENROUTER_API_KEY", "k"), patch.object(registry_service, "live_state", return_value=self._state([entry], verifs)):
             models, _ = registry_service.apply_live_registry([])
         assert [m.model_id for m in models] == ["acme/new"] and models[0].active
-        candidates, filtered = filter_candidates(models, analyze("Explain recursion"), privacy_requirement="strict")
+        candidates, filtered = filter_candidates(models, analyze("Explain recursion"), privacy_requirement="strict", audience_kind="developer")
         assert candidates == [] and "data-handling" in filtered[0]["reason"]   # hard privacy constraint still applies
 
     def test_overlay_fails_open(self):

@@ -206,7 +206,7 @@ def test_E_superseded_model_is_retired_not_deleted(monkeypatch):
     run(s, FakeSource(batches=[[G2, G3, G4]]), minutes=1)
     monkeypatch.setitem(registry._stores, "mem", s)
     monkeypatch.setattr(registry.settings, "CATALOG_PERSISTENCE_ENABLED", False)
-    registry._cache.update(at=0.0, state=None, models=None)
+    registry._cache.update(at=registry._EXPIRED, state=None, models=None)
     monkeypatch.setattr(registry, "get_store", lambda: s)
     ids = {m.model_id for m in registry.published_models()}
     assert "acme/nova-4" in ids and "acme/nova-2" not in ids
@@ -328,7 +328,7 @@ def test_registry_reflects_a_published_change_after_invalidation(monkeypatch):
     s = store_with()
     run(s, FakeSource(batches=[[G3]]))
     monkeypatch.setattr(registry, "get_store", lambda: s)
-    registry._cache.update(at=0.0, state=None, models=None, origin="seed", version=-1)
+    registry._cache.update(at=registry._EXPIRED, state=None, models=None, origin="seed", version=-1)
     assert {m.model_id for m in registry.published_models()} == {"acme/nova-3"}
     run(s, FakeSource(batches=[[G3, G4]]), minutes=1)
     registry.invalidate()
@@ -341,7 +341,7 @@ def test_registry_survives_store_outage_and_serves_seed(monkeypatch):
     def boom():
         raise StoreUnavailable("down")
     monkeypatch.setattr(registry, "get_store", boom)
-    registry._cache.update(at=0.0, state=None, models=None)
+    registry._cache.update(at=registry._EXPIRED, state=None, models=None)
     assert len(registry.published_models()) >= 20 and registry.freshness()["store_error"] == "StoreUnavailable"
     registry.reset_for_tests()
 

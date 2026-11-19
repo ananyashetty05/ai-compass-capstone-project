@@ -716,7 +716,7 @@
   }
 
   .routing-node-detail {
-    font-size: 0.625rem;
+    font-size: calc(0.625rem * var(--font-scale, 1));
   }
 
   .dashboard-lower-grid {

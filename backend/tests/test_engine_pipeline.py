@@ -203,6 +203,35 @@ class RouteApiTests(unittest.TestCase):
         self.assertEqual(d["response_evaluation"]["evaluation_method"], "not_applicable_recommendation_only")
         self.assertNotIn("Write a Python function", d["engine"]["profile"]["original_query"])
 
+    def test_response_carries_provenance_confidence_and_persistence_timing(self):
+        d = self._post({"query": "Write a Python function that sorts a list of records."}).json()
+        self.assertIn("persistence_ms", d["performance_metrics"])
+        self.assertEqual(len(d["engine"]["provenance"]["fingerprint"]), 64)
+        self.assertIsNone(d["engine"]["confidence_report"]["combined"])
+        self.assertEqual([c["name"] for c in d["engine"]["confidence_report"]["components"]][0], "query_understanding")
+
+    def test_unscorable_models_are_sent_compactly_not_as_full_evidence_blocks(self):
+        from tests.engine_helpers import mk
+        ghosts = [mk(f"ghost-{i}", q=None, cost=None, latency=None, rel=None, risk=None, inp=None, out=None, caps=[], tasks=[]) for i in range(20)]
+        base, _ = loader("coding", "text")
+        with patch("app.services.model_registry.get_catalog_with_exclusions", side_effect=lambda t, m, *a, **k: ([*base, *ghosts], [])):
+            d = self._post({"query": "Write a Python function that sorts a list of records."}).json()
+        e = d["engine"]
+        self.assertEqual(e["pool_summary"]["unscored"], 20)
+        self.assertEqual(len(e["unscored_candidates"]), 20)
+        self.assertEqual(len(e["candidates"]), e["pool_summary"]["scored"])
+        self.assertTrue(all("evidence" not in c for c in e["unscored_candidates"]))
+        self.assertEqual(d["performance_metrics"]["candidates_scored"], e["pool_summary"]["scored"])
+        self.assertEqual(d["performance_metrics"]["candidates_evaluated"], e["pool_summary"]["eligible"])
+        self.assertTrue(all(not x["model_id"].startswith("ghost-") for x in d["model_scores"]))
+        self.assertTrue(all(any(g.model_id == m for m in d["candidate_models"]) for g in ghosts), "every pool member stays listed")
+
+    def test_a_storage_failure_never_fails_the_routing_request(self):
+        with patch("app.api.routes.routing.feedback_store.record_routing_decision", side_effect=RuntimeError("db down")), \
+                patch("app.api.routes.routing.routing_log_store.record", side_effect=RuntimeError("db down")):
+            r = self._post({"query": "Explain recursion"})
+        self.assertEqual(r.status_code, 200, r.text)
+
     def test_no_eligible_candidate_is_422_with_string_detail(self):
         r = self._post({"query": "Write a Python function", "excluded_providers": ["Test"]})
         self.assertEqual(r.status_code, 422)

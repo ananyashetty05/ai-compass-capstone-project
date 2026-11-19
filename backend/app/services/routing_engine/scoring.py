@@ -72,6 +72,14 @@ def task_fit(model: ModelMetadata, profile: QueryProfileV2) -> Optional[float]:
     return round(0.7 * primary + 0.3 * covered, 4)
 
 
+OBJECTIVES = ("quality", "cost", "latency", "reliability", "risk")
+
+
+def is_scored(row: CandidateScore) -> bool:
+    """True when at least one objective has real evidence. A listed model with none of them is in the pool but cannot be compared."""
+    return any(row.utilities.get(d) is not None for d in OBJECTIVES)
+
+
 def _log_minmax_utility(values: Dict[str, float]) -> Dict[str, float]:
     floor = 1e-6
     logs = {k: math.log(max(v, floor)) for k, v in values.items()}
@@ -201,13 +209,34 @@ def score_candidates(models: List[ModelMetadata], profile: QueryProfileV2, prefs
     return results, norm
 
 
+MAX_LISTED_DOMINATORS = 5
+
+
 def _mark_pareto(rows: List[CandidateScore]) -> None:
-    def vec(r: CandidateScore) -> List[float]:
-        return [(r.utilities.get(d) if r.utilities.get(d) is not None else -1.0) for d in _PARETO_DIMS]
-    vs = {r.model_id: vec(r) for r in rows}
+    """Pareto dominance over the objective utilities.
+
+    A candidate is dominated only by one that is *comparable*: both have known values for exactly the same objectives.
+    Candidates with different missing data are incomparable and are never marked dominated because of what is unknown.
+    Candidates are bucketed by their known-objective signature and each bucket is scanned in descending order of summed
+    utility (a dominator always has a strictly larger sum), so the cost is near-linear for realistic catalogues.
+    At most MAX_LISTED_DOMINATORS dominators are named per candidate (so the list is a sample, not a count)."""
+    buckets: Dict[tuple, List[tuple]] = {}
     for r in rows:
-        dom = [o.model_id for o in rows if o.model_id != r.model_id and all(a >= b for a, b in zip(vs[o.model_id], vs[r.model_id])) and any(a > b for a, b in zip(vs[o.model_id], vs[r.model_id]))]
-        r.dominated_by, r.pareto_optimal = dom, not dom
+        sig = tuple(d for d in _PARETO_DIMS if r.utilities.get(d) is not None)
+        vec = tuple(r.utilities[d] for d in sig)
+        buckets.setdefault(sig, []).append((sum(vec), r.model_id, vec, r))
+    for sig, items in buckets.items():
+        items.sort(key=lambda t: (-t[0], t[1]))
+        for i, (tot, _mid, vec, r) in enumerate(items):
+            dom: List[str] = []
+            for tot2, mid2, vec2, _r2 in items[:i]:
+                if tot2 <= tot:                       # equal sums cannot strictly dominate; later items are no larger
+                    break
+                if all(a >= b for a, b in zip(vec2, vec)):
+                    dom.append(mid2)
+                    if len(dom) >= MAX_LISTED_DOMINATORS:
+                        break
+            r.dominated_by, r.pareto_optimal = dom, not dom
 
 
 def _robust(rows: List[CandidateScore], weights: Dict[str, float], rho: float) -> Dict[str, float]:

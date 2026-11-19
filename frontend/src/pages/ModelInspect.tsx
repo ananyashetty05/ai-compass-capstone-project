@@ -15,6 +15,7 @@ import { ProvenanceTag, TagList } from '../components/ui/Badge';
 import { ButtonLink } from '../components/ui/Button';
 import { Grid, Meter, Page, PropertyList, SectionHeader, Stat, StatusPill, Surface } from '../components/ui/ds';
 import { EmptyState, ErrorState, Notice } from '../components/ui/EmptyState';
+import { Radar } from '../components/ui/Radar';
 import { useAsync } from '../hooks/useAsync';
 import { useDocumentTitle } from '../hooks/useDocumentTitle';
 import { getModelDetail, listModels } from '../services/models.service';
@@ -84,12 +85,21 @@ function Inspect({ model }: { model: ModelInfo }) {
           <Surface className="mi-card" aria-labelledby="mi-perf">
             <SectionHeader id="mi-perf" level="h2" kicker="Performance" title="Scoring inputs"
               description="Higher is better. These are registry values used by the router, not benchmark results." actions={<ProvenanceTag kind={provenanceKind} label={sourceLabel} />} />
+            <div className="mi-perf-grid">
+            <Radar label="Registry scoring inputs" axes={[
+              { label: 'Quality', value: model.estimated_quality, display: formatPercent(model.estimated_quality, 0) },
+              { label: 'Reliability', value: model.reliability, display: formatPercent(model.reliability, 0) },
+              { label: 'Safety', value: model.risk_level === null ? null : 1 - model.risk_level, display: model.risk_level === null ? UNAVAILABLE : formatPercent(1 - model.risk_level, 0) },
+              { label: 'Cost', value: model.estimated_cost === null ? null : 1 - model.estimated_cost, display: model.estimated_cost === null ? UNAVAILABLE : formatPercent(1 - model.estimated_cost, 0) },
+              { label: 'Speed', value: model.estimated_latency === null ? null : 1 - model.estimated_latency, display: model.estimated_latency === null ? UNAVAILABLE : formatPercent(1 - model.estimated_latency, 0) },
+            ]} />
             <div className="mi-meters">
               <Meter label="Estimated quality" value={model.estimated_quality} display={formatPercent(model.estimated_quality, 0)} />
               <Meter label="Reliability (metadata)" value={model.reliability} display={formatPercent(model.reliability, 0)} />
               <Meter label="Risk suitability" value={model.risk_level === null ? null : 1 - model.risk_level} display={model.risk_level === null ? UNAVAILABLE : formatPercent(1 - model.risk_level, 0)} />
               <Meter label="Cost efficiency" value={model.estimated_cost === null ? null : 1 - model.estimated_cost} display={model.estimated_cost === null ? UNAVAILABLE : formatPercent(1 - model.estimated_cost, 0)} />
               <Meter label="Speed" value={model.estimated_latency === null ? null : 1 - model.estimated_latency} display={model.estimated_latency === null ? UNAVAILABLE : formatPercent(1 - model.estimated_latency, 0)} />
+            </div>
             </div>
             <p className="ds-section-desc">Cost efficiency and speed are the inverted configured cost and latency, matching the routing score convention.</p>
           </Surface>

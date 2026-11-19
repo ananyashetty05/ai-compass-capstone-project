@@ -9,13 +9,21 @@ import { memo } from 'react';
 import { ArrowUpRight, Check, GitCompareArrows } from 'lucide-react';
 import { GenerationPill } from './Ecosystem';
 import { formatModelCostPerThousand, formatPercent, formatSeconds, humanizeToken } from '../../utils/format';
-import type { ModelInfo, PrimaryCategory } from '../../types';
+import type { ModelGroup, ModelInfo, PricingCategory, PrimaryCategory } from '../../types';
 
 export const CATEGORY_LABEL: Record<PrimaryCategory, string> = {
   conversational: 'Conversational AI',
   developer: 'Developer & Project',
   application: 'AI application',
   unclassified: 'Unclassified',
+};
+export const GROUP_LABEL: Record<ModelGroup, string> = { conversational: 'Conversational AI', developer_api: 'Developer & API', unclassified: 'Unclassified' };
+export const ACCESS_LABEL: Record<string, string> = {
+  consumer_chat: 'Consumer chat', provider_api: 'Provider API', hosted_inference: 'Hosted inference', aggregator_api: 'Aggregator API', self_hosted: 'Self-hosted', unknown: 'Access route not verified',
+};
+export const PRICING_LABEL: Record<PricingCategory, string> = {
+  completely_free: 'Free', free_tier_limited: 'Free tier with limits', pay_as_you_go: 'Pay-as-you-go', paid_subscription: 'Paid subscription',
+  self_hosted_open_weight: 'Self-hosted (open weights)', unknown: 'Pricing not verified',
 };
 export const KIND_LABEL: Record<string, string> = {
   chat: 'Chat', reasoning_chat: 'Reasoning chat', multimodal_chat: 'Multimodal chat', code_chat: 'Code chat', embedding: 'Embedding', reranker: 'Reranker',
@@ -72,12 +80,21 @@ function ModelCardBase({ model, providerLabel, compared, compareDisabled, onInsp
       </header>
 
       <div className="mc-chips" aria-label="Classification">
-        <span className="mc-chip mc-chip--category" data-category={category}>{CATEGORY_LABEL[category]}</span>
+        <span className="mc-chip mc-chip--category" data-category={category} title={model.category_basis ?? undefined}>{GROUP_LABEL[model.model_category ?? 'unclassified']}</span>
         {kind !== 'unclassified' && kind !== 'consumer_app' ? <span className="mc-chip" title={model.classification_reason ?? undefined}>{KIND_LABEL[kind] ?? humanizeToken(kind)}</span> : null}
         {showGeneration && model.catalog ? <GenerationPill catalog={model.catalog} /> : null}
       </div>
 
       <p className="mc-desc" title={description}>{description}</p>
+
+      {!isApp ? (
+        <p className="mc-facts" aria-label="Access and pricing">
+          <span title="How the model is reached">{ACCESS_LABEL[model.access_type ?? 'unknown']}</span>
+          <span aria-hidden="true">·</span>
+          <span title={model.free_access_note ?? 'Only documented pricing is shown; unknown is never presented as free.'} data-free={model.free_tier_available === true}>{PRICING_LABEL[model.pricing_category ?? 'unknown']}</span>
+          {model.api_available === true ? <><span aria-hidden="true">·</span><span>API available</span></> : null}
+        </p>
+      ) : null}
 
       <dl className="mc-metrics">
         <div><dt>Context</dt><dd>{isApp ? '—' : formatContext(model.context_window)}</dd></div>

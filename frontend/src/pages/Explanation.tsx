@@ -182,7 +182,7 @@ export function Explanation() {
           <Panel>
             <PanelHeader eyebrow="Summary" title="Why this model was selected" />
             <PanelBody>
-              <p className="response-text">{explanation.narrative}</p>
+              <p className="response-text explanation-narrative">{explanation.narrative}</p>
             </PanelBody>
           </Panel>
         ) : null}
@@ -211,7 +211,7 @@ export function Explanation() {
           />
           <Stat
             label="Scored"
-            value={formatNumber(result.performance_metrics.candidates_evaluated ?? ranked.length, 0)}
+            value={formatNumber(result.performance_metrics.candidates_scored ?? result.performance_metrics.candidates_evaluated ?? ranked.length, 0)}
             source="candidates"
           />
           <Stat

@@ -90,6 +90,9 @@ class PgStore:
 
     def _conn(self, autocommit: bool = False):
         # prepare_threshold=None: safe behind a transaction-pooling endpoint (Neon pooler) as well as a direct one.
+        if not autocommit:
+            from app.core import db      # reused connections; commit/rollback semantics identical to `with psycopg.connect(...)`
+            return db.connect(self._dsn, row_factory=dict_row, connect_timeout=5)
         return psycopg.connect(self._dsn, row_factory=dict_row, connect_timeout=5, prepare_threshold=None, autocommit=autocommit)
 
     def version(self) -> int:

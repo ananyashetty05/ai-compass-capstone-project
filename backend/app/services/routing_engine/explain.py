@@ -5,6 +5,7 @@ Each sentence is rendered from a fact record that is returned alongside the text
 """
 from typing import Any, Dict, List
 
+from app.services.routing_engine import scoring as scoring_mod
 from app.services.routing_engine.preferences import DIMENSIONS
 from app.services.routing_engine.types import CandidateScore, DecisionExplanation, ExclusionRecord, QueryProfileV2, ResolvedPreferences, Selection
 
@@ -30,7 +31,20 @@ def build(profile: QueryProfileV2, prefs: ResolvedPreferences, rows: List[Candid
     contribs = sorted(((d, top.contributions[d]) for d in DIMENSIONS if prefs.weights[d] > 0), key=lambda kv: -kv[1])
     influential = [{"objective": LABEL[d], "weight": round(prefs.weights[d], 3), "utility": top.utilities[d], "contribution": round(c, 4)} for d, c in contribs[:3]]
     facts.append({"type": "selected", "model_id": top.model_id, "robust_score": top.robust_score, "utility": top.utility, "rank": 1, "candidates": len(rows)})
-    why.append(f"{top.model_name} ranked first of {len(rows)} eligible candidate{'s' if len(rows) != 1 else ''} with a robust score of {top.robust_score:.3f} (utility {top.utility:.3f}).")
+    scored = sum(1 for r in rows if scoring_mod.is_scored(r))
+    pool = (f"{scored} scored candidate{'s' if scored != 1 else ''} ({len(rows) - scored} more are in the pool but have no quality, cost, latency, reliability or risk "
+            f"metadata, so they cannot be compared and rank below every scored model)") if scored != len(rows) else f"{len(rows)} eligible candidate{'s' if len(rows) != 1 else ''}"
+    facts.append({"type": "pool", "eligible": len(rows), "scored": scored, "unscored": len(rows) - scored})
+    aud = profile.audience
+    if aud.category == "developer_api":
+        facts.append({"type": "category", "category": "developer_api", "signals": list(aud.signals)})
+        why.append("Your request reads as building or integrating AI into a project, so Developer & API models (provider APIs, hosted inference, aggregators and model hubs) were considered. "
+                   "Whether a model can be run from AI Compass is shown separately and did not affect the ranking.")
+    else:
+        facts.append({"type": "category", "category": "conversational", "ambiguous": aud.ambiguous})
+        why.append("Your request reads as asking for an AI assistant, so only Conversational AI models were considered; Developer & API offerings were not mixed in."
+                   + (" The request could also mean finding a model to build with: " + (aud.clarifying_question or "") if aud.ambiguous else ""))
+    why.append(f"{top.model_name} ranked first of {pool} with a robust score of {top.robust_score:.3f} (utility {top.utility:.3f}).")
     if influential:
         i0 = influential[0]
         u = i0["utility"]
@@ -81,7 +95,7 @@ def build(profile: QueryProfileV2, prefs: ResolvedPreferences, rows: List[Candid
     n_hc = len(_constraints(prefs))
     hc = f"{n_hc} explicit hard constraint(s) were satisfied" if n_hc else "no explicit hard constraints were set"
     summary = (f"AI Compass recommends {top.model_name} ({top.provider}): {hc}"
-               f"{'; ' + str(len(excluded)) + ' candidate(s) were excluded' if excluded else ''}, and it ranked first under your {prefs.weight_source.replace('_', ' ')} objective weights.")
+               f"{'; ' + str(len(excluded)) + ' candidate(s) were excluded' if excluded else ''}, and it ranked first of {scored} scored model{'s' if scored != 1 else ''} under your {prefs.weight_source.replace('_', ' ')} objective weights.")
     return DecisionExplanation(summary=summary, why_selected=why, why_alternatives_ranked_lower=lower, hard_constraints_applied=_constraints(prefs),
                                influential_objectives=influential, unavailable_data=unavailable, tradeoffs=tradeoffs, confidence_statement=conf, facts=facts)
 

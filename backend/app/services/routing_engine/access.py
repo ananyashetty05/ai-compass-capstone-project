@@ -10,7 +10,10 @@ def describe(model: ModelMetadata) -> Dict[str, Any]:
         return {"model_id": model.model_id, "execution_available": False, "credential_configured": None, "status": "open_at_destination",
                 "next_step": f"Open {model.model_name} directly at {model.external_url or 'its website'}; AI Compass does not run consumer applications."}
     configured = provider_configured(model.provider)
-    if provider_disabled(model.provider):
+    if model.source == "live_discovered" and model.inference_access_status != "validated":
+        # A discovered model is never executed on the strength of a provider listing alone.
+        status, step = "inference_not_verified", f"{model.model_name} was discovered but its inference access has not been verified, so AI Compass will not run it."
+    elif provider_disabled(model.provider):
         status, step = "provider_disabled", f"{model.provider} is disabled by this deployment's configuration."
     elif not model.adapter_compatible:
         status, step = "no_adapter", f"AI Compass has no inference adapter for {model.provider}. Use the provider's own API or an available alternative."

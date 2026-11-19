@@ -3,6 +3,7 @@ inference verifications + eligibility. Never calls providers; all failures degra
 the static catalog so routing is never blocked by registry persistence."""
 from __future__ import annotations
 
+import threading
 import time
 from datetime import datetime, timedelta, timezone
 from typing import Any, Optional
@@ -16,7 +17,10 @@ from app.services.provider_discovery import PROVIDERS, canonical_key
 
 logger = get_logger(__name__)
 _CACHE_TTL_SECONDS = 30
-_cache: dict[str, Any] = {"at": 0.0, "value": None}
+_STALE_SERVE_SECONDS = 600       # an expired live view this young is served at once while a background refresh runs
+_EXPIRED = float("-inf")         # not 0.0: time.monotonic() can be small shortly after boot, making 0.0 look fresh
+_cache: dict[str, Any] = {"at": _EXPIRED, "value": None}
+_refreshing = threading.Event()
 _ROUTING_EVIDENCE_REASONS = {"lifecycle_excluded", "inference_verification_failed"}
 _LIVE_OVERRIDE_STATES = {"deprecated", "unavailable", "retired"}
 
@@ -30,19 +34,42 @@ class LiveState:
 
 
 def invalidate_cache() -> None:
-    _cache.update(at=0.0, value=None)
+    _cache.update(at=_EXPIRED, value=None)
+
+
+def _load_live_state() -> LiveState:
+    try:
+        return LiveState(store.get_current_snapshots(), store.get_current_verifications(), store.get_refresh_status(), True)
+    except Exception:  # migration not applied, DB down, ...: static catalog keeps working
+        logger.warning("Live registry unavailable; using static catalog only.")
+        return LiveState()
+
+
+def _refresh_live_in_background() -> None:
+    if _refreshing.is_set():
+        return
+    _refreshing.set()
+
+    def work():
+        try:
+            _cache.update(at=time.monotonic(), value=_load_live_state())
+        finally:
+            _refreshing.clear()
+    threading.Thread(target=work, name="live-registry-refresh", daemon=True).start()
 
 
 def live_state(use_cache: bool = True) -> LiveState:
+    """Live registry view. Stale-while-revalidate: an expired but recent view is served immediately and refreshed in the background."""
     if not store.is_enabled():
         return LiveState()
-    if use_cache and _cache["value"] is not None and time.monotonic() - _cache["at"] < _CACHE_TTL_SECONDS:
-        return _cache["value"]
-    try:
-        state = LiveState(store.get_current_snapshots(), store.get_current_verifications(), store.get_refresh_status(), True)
-    except Exception:  # migration not applied, DB down, ...: static catalog keeps working
-        logger.warning("Live registry unavailable; using static catalog only.")
-        state = LiveState()
+    if use_cache:
+        cached, age = _cache["value"], time.monotonic() - _cache["at"]
+        if cached is not None and age < _CACHE_TTL_SECONDS:
+            return cached
+        if cached is not None and cached.available and age < _STALE_SERVE_SECONDS:
+            _refresh_live_in_background()
+            return cached
+    state = _load_live_state()
     _cache.update(at=time.monotonic(), value=state)
     return state
 
@@ -79,15 +106,29 @@ def _overlay_static(model: ModelMetadata, live: Optional[ModelMetadata]) -> Mode
 # Reasons that remove a model from comparison/routing. Credentials and adapters are deliberately absent:
 # they only decide whether AI Compass can *execute* the model.
 _KEYLESS_BLOCKERS = {"provider_disabled", "lifecycle_excluded", "inference_verification_failed", "metadata_incomplete"}
+# A live-discovered model has no curated metadata, so verified inference evidence is part of *recommending* it (its identifier
+# and metadata are unreliable until then). That is evidence about the model, not a credential: a missing key or adapter still
+# only affects execution.
+_LIVE_ONLY_BLOCKERS = _KEYLESS_BLOCKERS | {"inference_not_verified", "inference_verification_stale"}
+
+
+def routing_blockers(model: ModelMetadata, reasons: list[str]) -> list[str]:
+    """Eligibility reasons that remove a model from the recommendation pool. Credentials and adapters are never among them."""
+    # Catalogue models with unknown price or context stay recommendable: the engine scores unknown values as unknown (lower
+    # confidence, never a perfect score) and strict budget/privacy constraints still exclude them. Live-discovered models have
+    # no curated metadata at all, so for them incomplete metadata does block.
+    wanted = _LIVE_ONLY_BLOCKERS if eligibility.is_live_only(model) else _KEYLESS_BLOCKERS - {"metadata_incomplete"}
+    return [r for r in reasons if r in wanted]
 
 
 def _entry(model: ModelMetadata, origin: str, state: LiveState, evaluate: bool = True) -> RegistryEntry:
-    from app.services import model_taxonomy
+    from app.services import access_category, model_taxonomy
     if model.taxonomy_status == "unclassified":
         model = model_taxonomy.classify(model)
     verification = _verification_for(state, model)
     confirmed, stale = _freshness(state, model.provider) if model.entry_type == "inference_model" else (None, False)
     data = model.model_dump()
+    data.update(access_category.profile_of(model).as_dict())
     data.update(catalog_origin=origin, catalog_last_confirmed_at=confirmed, catalog_stale=stale)
     if verification is not None:
         data["verification"] = {"status": verification.status, "error_code": verification.error_code,
@@ -99,7 +140,7 @@ def _entry(model: ModelMetadata, origin: str, state: LiveState, evaluate: bool =
             "eligible": result.eligible, "reasons": result.explain(),
             "warnings": [{"code": w, "message": eligibility.WARNINGS.get(w, w)} for w in result.warnings],
         }
-        blockers = [r for r in result.reasons if r in _KEYLESS_BLOCKERS]
+        blockers = routing_blockers(model, result.reasons)
         routable = model.entry_type == "inference_model" and not blockers
         entry.routing_eligible = routable
         entry.comparison_eligible = routable
@@ -108,7 +149,7 @@ def _entry(model: ModelMetadata, origin: str, state: LiveState, evaluate: bool =
             "routing_eligible": routable,
             "routing_blockers": [{"code": r, "message": eligibility.REASONS.get(r, r)} for r in blockers],
             "execution_available": result.eligible,
-            "execution_requirements": [{"code": r, "message": eligibility.REASONS.get(r, r)} for r in result.reasons if r not in _KEYLESS_BLOCKERS],
+            "execution_requirements": [{"code": r, "message": eligibility.REASONS.get(r, r)} for r in result.reasons if r not in blockers],
         })
     return entry
 
@@ -162,8 +203,11 @@ def apply_live_registry(models: list[ModelMetadata]) -> tuple[list[ModelMetadata
             if key in seen:
                 continue
             result = eligibility.evaluate(snap, verification=state.verifications.get((snap.provider.lower(), snap.model_id)))
-            if result.eligible:
-                kept.append(snap.model_copy(update={"active": True, "routing_eligible": True, "availability": "configured",
+            if not routing_blockers(snap, result.reasons):
+                # Recommendation-eligible once verified with complete metadata. `result.eligible` additionally needs a credential
+                # and an adapter, so it only decides whether the model can be executed.
+                kept.append(snap.model_copy(update={"active": True, "routing_eligible": True,
+                                                    "availability": "configured" if result.eligible else "configuration_required_for_inference",
                                                     "inference_access_status": "validated"}))
     except Exception:
         logger.exception("Live registry overlay failed; using static catalog.")

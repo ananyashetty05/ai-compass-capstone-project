@@ -4,7 +4,7 @@ from __future__ import annotations
 import math
 from typing import Optional
 
-from app.schemas.evaluation import OfflineStrategyResult
+from app.schemas.evaluation import CatalogCoverage, OfflineStrategyResult
 from app.schemas.model import ModelMetadata
 from app.schemas.query import QueryProfile
 from app.services import multi_objective_router
@@ -244,3 +244,24 @@ def evaluate(
         ),
     ))
     return results
+
+
+def catalog_coverage(models: list[ModelMetadata], results: list[OfflineStrategyResult]) -> CatalogCoverage:
+    """Coverage of the evaluated pool. Counts only; no quality, latency or cost is measured or invented."""
+    n = len(models)
+    ready = sum(1 for m in models if m.execution_available)
+    missing = sum(1 for m in models if _quality(m) is None or _price_per_million(m) is None or m.metadata_status in ("incomplete", "stale"))
+    by_id = {m.model_id: m for m in models}
+    selection = []
+    for r in results:
+        m = by_id.get(r.selected_model_id) if r.selected_model_id else None
+        selection.append({"strategy": r.strategy, "selected_model_id": r.selected_model_id, "provider": r.provider,
+                          "execution_ready": (bool(m.execution_available) if m is not None else None)})
+    return CatalogCoverage(
+        evaluated_models=n, providers=len({m.provider for m in models}),
+        recommendation_only_models=n - ready, execution_ready_models=ready,
+        recommendation_only_share=round((n - ready) / n, 4) if n else None,
+        models_with_missing_metadata=missing, missing_metadata_share=round(missing / n, 4) if n else None,
+        selection_by_strategy=selection,
+        note="Metadata-only. The pool is the whole filtered catalogue, whether or not a provider credential is configured. "
+             "Escalation rate, response quality, latency and spend need executed requests and are not measured here.")

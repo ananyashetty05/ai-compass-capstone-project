@@ -1,7 +1,6 @@
 import { ArrowRight, Clock3, Database, GitCommitHorizontal, Sparkles } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import { HeroOrbit, RouteFlow } from '../components/dashboard/HeroOrbit';
-import { AttentionCard } from '../components/dashboard/AttentionCard';
 import { CapabilityOverview, ProviderDistribution, providerName } from '../components/dashboard/DistributionCards';
 import { KpiIcons, KpiRow } from '../components/dashboard/KpiRow';
 import type { Kpi } from '../components/dashboard/KpiRow';
@@ -9,7 +8,7 @@ import { ReadinessBar } from '../components/dashboard/ReadinessBar';
 import { HistoryInsights } from '../components/dashboard/HistoryInsights';
 import { PathsCard } from '../components/dashboard/PathsCard';
 import { RegistryCard } from '../components/dashboard/RegistryCard';
-import { deriveAttention, summariseModels, timeAgo, topBlockReason } from '../components/dashboard/insights';
+import { summariseModels, timeAgo, topBlockReason } from '../components/dashboard/insights';
 import { ButtonLink } from '../components/ui/Button';
 import { Status } from '../components/ui/Badge';
 import { EmptyState, ErrorState } from '../components/ui/EmptyState';
@@ -67,7 +66,7 @@ export function Dashboard() {
   const { user } = useAuth();
   const firstName = user?.name?.trim().split(/\s+/)[0] ?? '';
   const { result } = useRouteResult();
-  const { state: healthState, health, providers, isChecking } = useSystemStatus();
+  const { state: healthState, health, isChecking } = useSystemStatus();
   const models = useAsync((signal) => listModels(signal), []);
   const registry = useAsync((signal) => getRegistryStatus(signal), []);
   const activity = useAsync((signal) => getRegistryActivity(signal), []);
@@ -115,8 +114,6 @@ export function Dashboard() {
     },
   ];
 
-  const attention = deriveAttention({ health: healthState, providers, summary, registry: registry.data });
-
   return (
     <div className="dashboard-redesign">
       <div className="dash-top">
@@ -146,8 +143,7 @@ export function Dashboard() {
 
       <HistoryInsights entries={historyEntries} />
 
-      <div className="cx-grid cx-grid--2">
-        <AttentionCard items={attention} loading={(isChecking && !health) || models.isInitialLoad} />
+      <div className="cx-grid cx-grid--2 dash-pair">
         <Reveal as="section" className="cx-card" delay={1} ariaLabelledBy="recent-routing-title">
           <header className="cx-card-head">
             <div><p className="cx-kicker">Your workspace</p><h2 id="recent-routing-title">Recent routing activity</h2></div>
@@ -172,7 +168,7 @@ export function Dashboard() {
             </Link>
           ) : null}
 
-          {visibleHistory.map((entry) => (
+          {visibleHistory.slice(0, 5).map((entry) => (
             <article key={entry.id} className="dashboard-activity-row">
               <span className="dashboard-activity-icon"><Clock3 aria-hidden="true" /></span>
               <span className="dashboard-activity-main">
@@ -197,44 +193,6 @@ export function Dashboard() {
             />
           ) : null}
         </Reveal>
-      </div>
-
-      {summary ? (
-        <div className="cx-grid cx-grid--3">
-          <ProviderDistribution summary={summary} />
-          <CapabilityOverview summary={summary} />
-          <RegistryCard status={registry.data} error={registry.error?.message ?? null} loading={registry.isInitialLoad} onRetry={registry.reload} />
-        </div>
-      ) : models.error ? (
-        <ErrorState title="Model ecosystem unavailable" message={models.error.message} hint={models.error.hint} compact onRetry={models.reload} />
-      ) : (
-        <div className="cx-grid cx-grid--3" aria-busy="true">{[0, 1, 2].map((i) => <div key={i} className="cx-card cx-card--loading" />)}</div>
-      )}
-
-      <div className="cx-grid cx-grid--2">
-        <Reveal as="section" className="cx-card" ariaLabelledBy="model-highlights-title">
-          <header className="cx-card-head">
-            <div><p className="cx-kicker">Registry</p><h2 id="model-highlights-title">Model pool highlights</h2></div>
-            <Link to="/models" className="cx-link">View model pool <ArrowRight aria-hidden="true" /></Link>
-          </header>
-          {models.isInitialLoad ? (
-            <div className="dashboard-activity-state" role="status">Loading registered models…</div>
-          ) : models.error ? (
-            <ErrorState title="Model highlights unavailable" message={models.error.message} hint={models.error.hint} compact onRetry={models.reload} />
-          ) : highlights.length === 0 ? (
-            <EmptyState
-              icon={<Database />}
-              title="No inference models registered"
-              description="The registry returned no API models to highlight."
-              align="start"
-              action={<ButtonLink to="/models" variant="secondary" size="sm">Open model pool</ButtonLink>}
-            />
-          ) : (
-            <div className="dashboard-model-grid">{highlights.map((model) => <ModelHighlight key={model.model_id} model={model} />)}</div>
-          )}
-          <p className="cx-note">Ordered by fallback priority — the order models are tried if the first choice fails.</p>
-        </Reveal>
-
         <Reveal as="section" className="cx-card" delay={1} ariaLabelledBy="reg-activity-title">
           <header className="cx-card-head">
             <div><p className="cx-kicker">Registry</p><h2 id="reg-activity-title">Recent registry changes</h2></div>
@@ -262,6 +220,42 @@ export function Dashboard() {
         </Reveal>
       </div>
 
+      {summary ? (
+        <div className="cx-grid cx-grid--3">
+          <ProviderDistribution summary={summary} />
+          <CapabilityOverview summary={summary} />
+          <RegistryCard status={registry.data} error={registry.error?.message ?? null} loading={registry.isInitialLoad} onRetry={registry.reload} />
+        </div>
+      ) : models.error ? (
+        <ErrorState title="Model ecosystem unavailable" message={models.error.message} hint={models.error.hint} compact onRetry={models.reload} />
+      ) : (
+        <div className="cx-grid cx-grid--3" aria-busy="true">{[0, 1, 2].map((i) => <div key={i} className="cx-card cx-card--loading" />)}</div>
+      )}
+
+      <div className="cx-grid">
+        <Reveal as="section" className="cx-card dash-highlights" ariaLabelledBy="model-highlights-title">
+        <header className="cx-card-head">
+          <div><p className="cx-kicker">Registry</p><h2 id="model-highlights-title">Model pool highlights</h2></div>
+          <Link to="/models" className="cx-link">View model pool <ArrowRight aria-hidden="true" /></Link>
+        </header>
+        {models.isInitialLoad ? (
+          <div className="dashboard-activity-state" role="status">Loading registered models…</div>
+        ) : models.error ? (
+          <ErrorState title="Model highlights unavailable" message={models.error.message} hint={models.error.hint} compact onRetry={models.reload} />
+        ) : highlights.length === 0 ? (
+          <EmptyState
+            icon={<Database />}
+            title="No inference models registered"
+            description="The registry returned no API models to highlight."
+            align="start"
+            action={<ButtonLink to="/models" variant="secondary" size="sm">Open model pool</ButtonLink>}
+          />
+        ) : (
+          <div className="dashboard-model-grid">{highlights.map((model) => <ModelHighlight key={model.model_id} model={model} />)}</div>
+        )}
+        <p className="cx-note">Ordered by fallback priority — the order models are tried if the first choice fails.</p>
+      </Reveal>
+      </div>
     </div>
   );
 }

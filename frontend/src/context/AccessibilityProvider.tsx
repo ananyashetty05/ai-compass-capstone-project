@@ -6,7 +6,7 @@
  * Reduced motion is also honoured from the OS media query, and the OS
  * setting is overridden while the user preference is enabled.
  */
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import type { ReactNode } from 'react';
 import { AccessibilityContext, DEFAULT_ACCESSIBILITY } from './accessibilityContext';
 import type { AccessibilityContextValue } from './accessibilityContext';
@@ -50,12 +50,16 @@ export function AccessibilityProvider({ children }: { children: ReactNode }) {
   const { push } = useToast();
   const [preferences, setPreferences] = useState<AccessibilityPreferences>(readCached);
   const [systemReducedMotion, setSystemReducedMotion] = useState(systemPrefersReducedMotion);
+  // Saves still in flight. While any are pending the local choice is the
+  // source of truth, so a slower, older response cannot revert a newer click.
+  const pendingSaves = useRef(0);
 
   // Adopt the server-side preferences whenever the profile changes. This
   // is synchronising with an external system (the account), which is
   // exactly what an effect is for.
   useEffect(() => {
     if (!isAuthenticated || !user?.accessibility_preferences) return;
+    if (pendingSaves.current > 0) return;
     const next: AccessibilityPreferences = {
       font_size: user.accessibility_preferences.font_size ?? 'default',
       reduced_motion: user.accessibility_preferences.reduced_motion === true,
@@ -87,7 +91,9 @@ export function AccessibilityProvider({ children }: { children: ReactNode }) {
       setPreferences(next);
       writeCached(next);
       if (!isAuthenticated) return;
+      pendingSaves.current += 1;
       void patchProfile({ accessibility_preferences: next }).then((result) => {
+        pendingSaves.current -= 1;
         if (result.ok === false) {
           push({ tone: 'danger', title: 'Accessibility setting not saved', description: result.message });
         }

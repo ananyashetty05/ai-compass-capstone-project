@@ -2127,7 +2127,7 @@
   background: none;
   border: none;
   cursor: pointer;
-  font-size: 1.5rem;
+  font-size: calc(1.5rem * var(--font-scale, 1));
   color: var(--color-border);
   padding: 0 2px;
   line-height: 1;

@@ -116,20 +116,20 @@ def record(routing_id: str, user_id: str, result: Any) -> bool:
 
 
 def observed_stats(model_ids: List[str], window_days: int = 30) -> Dict[str, ObservedStats]:
+    """Per-model sample count, successes and median successful latency, aggregated in the database.
+
+    Returns one row per model rather than every execution in the window (the old query transferred and aggregated
+    all rows in Python, so its cost grew with usage). Median uses percentile_cont, equal to the previous Python median."""
     if not model_ids or not table_available():
         return {}
     since = datetime.now(timezone.utc) - timedelta(days=window_days)
     with _conn() as c:
-        rows = c.execute("SELECT model_id, outcome, latency_ms FROM routing_execution_log WHERE model_id = ANY(%s) AND created_at >= %s", (list(model_ids), since)).fetchall()
-    buckets: Dict[str, List[Dict[str, Any]]] = {}
-    for r in rows:
-        buckets.setdefault(r["model_id"], []).append(r)
-    out: Dict[str, ObservedStats] = {}
-    for mid, items in buckets.items():
-        ok = [i for i in items if i["outcome"] == "success"]
-        lat = [i["latency_ms"] / 1000.0 for i in ok if i["latency_ms"] is not None]
-        out[mid] = ObservedStats(model_id=mid, samples=len(items), successes=len(ok), latency_p50_seconds=median(lat), window_days=window_days)
-    return out
+        rows = c.execute(
+            """SELECT model_id, COUNT(*) AS samples, COUNT(*) FILTER (WHERE outcome = 'success') AS successes,
+                      percentile_cont(0.5) WITHIN GROUP (ORDER BY latency_ms) FILTER (WHERE outcome = 'success' AND latency_ms IS NOT NULL) AS p50_ms
+               FROM routing_execution_log WHERE model_id = ANY(%s) AND created_at >= %s GROUP BY model_id""", (list(model_ids), since)).fetchall()
+    return {r["model_id"]: ObservedStats(model_id=r["model_id"], samples=int(r["samples"]), successes=int(r["successes"]),
+                                         latency_p50_seconds=(float(r["p50_ms"]) / 1000.0 if r["p50_ms"] is not None else None), window_days=window_days) for r in rows}
 
 
 def history(user_id: str, limit: int = 50) -> List[Dict[str, Any]]:

@@ -10,7 +10,7 @@ import { useEffect, useLayoutEffect, useRef } from 'react';
 import { Outlet, useLocation } from 'react-router-dom';
 import { Header } from './Header';
 import { scrollToTop } from '../../utils/scroll';
-import { BackToTop, ScrollProgress, useAutoReveal } from './MotionLayer';
+import { BackToTop, ScrollProgress, useAutoReveal, useCardSpotlight } from './MotionLayer';
 import { CommandPalette, useCommandPalette } from './CommandPalette';
 
 export function AppShell() {
@@ -19,6 +19,7 @@ export function AppShell() {
   const firstRender = useRef(true);
   const palette = useCommandPalette();
   useAutoReveal(pathname);
+  useCardSpotlight();
 
   // The browser must not restore a remembered offset on its own; every route change starts at the top.
   useEffect(() => {

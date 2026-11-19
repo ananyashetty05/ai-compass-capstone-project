@@ -73,12 +73,13 @@ def _rx(p: str) -> "re.Pattern":
 
 INTENT_PATTERNS: Dict[str, List[Tuple["re.Pattern", float]]] = {
     "coding": [(_rx(r"\b(code|coding|function|class|method|script|programm?(?:ing|er)?|algorithm|api|endpoint|sql|regex|python|javascript|typescript|java|c\+\+|c#|rust|golang|react|node\.?js|django|flask|fastapi|docker|kubernetes|git|unit tests?|refactor|implement(?:ation)?|compile|library|framework|database|cli)\b"), 1.0)],
-    "debugging": [(_rx(r"\b(debug\w*|bugs?|stack ?trace|traceback|exceptions?|segfault|crash(?:es|ing)?|doesn'?t work|not working|stopped working|failing|throws?)\b"), 1.2),
+    "debugging": [(_rx(r"\b(debug\w*|bugs?|stack ?trace|traceback|exceptions?|segfault|segmentation fault|crash(?:es|ing)?|doesn'?t work|not working|stopped working|failing|fails|failed|throws?|how (?:do|can|should) i fix|re-?render\w*|infinite loop|endless(?:ly)?|memory leak|race condition|null ?pointer|off-by-one|undefined is not)\b"), 1.2),
                   (_rx(r"\b\w*error\b"), 0.8), (_rx(r"```"), 0.6)],
-    "architecture": [(_rx(r"\b(architecture|system design|design patterns?|microservices?|scalab(?:le|ility)|distributed|high availability|event[- ]driven|schema design|load balanc\w+)\b"), 1.2)],
-    "math": [(_rx(r"\b(prove|proofs?|theorem|lemma)\b"), 2.0), (_rx(r"\b(solve|equations?|integral|derivative|matrix|matrices|probability|algebra|geometry|calculus|eigen\w*|differential|factori[sz]e|calculate|compute)\b"), 1.0),
-             (_rx(r"\d\s*[\+\-\*/\^=]\s*\d"), 1.0)],
-    "writing": [(_rx(r"\b(email|e-mail|letter|essay|blog|article|speech|cover letter|press release|newsletter|memo|report|proposal|post)\b"), 1.0),
+    "architecture": [(_rx(r"\b(architecture|system design|design patterns?|microservices?|scalab(?:le|ility)|distributed|high availability|event[- ]driven|schema design|load balanc\w+|fault[- ]tolerant|kafka|replication|message queues?|data pipelines?|order pipelines?)\b"), 1.2)],
+    "math": [(_rx(r"\b(prove|proofs?|theorem|lemma|corollary|show that|irrational|rational numbers?)\b"), 2.0),
+             (_rx(r"\b(solve|equations?|integral|derivative|matrix|matrices|probability|algebra|geometry|calculus|eigen\w*|differential|factori[sz]e|calculate|compute|mathematic\w*|olympiad|inequalit(?:y|ies)|prime numbers?|primes|fibonacci|number theory|combinatoric\w*|polynomials?|logarithms?|trigonometr\w*|converge\w*|diverge\w*|derive|derivation|closed form|generating functions?)\b"), 1.0),
+             (_rx(r"\d\s*[\+\-\*/\^=]\s*[\d(]"), 1.0), (_rx(r"\b[a-z]\s*\^\s*\d"), 1.0)],
+    "writing": [(_rx(r"\b(?:write|draft|compose|prepare|create|generate|make|need|send)\b[^.?!\n]{0,30}\b(email|e-mail|letter|essay|blog|article|speech|cover letter|press release|newsletter|memo|report|proposal|post)\b|\b(?:an?|the)\s+(?:formal\s+|short\s+)?(?:email|e-mail|letter|essay|blog post|article|speech|memo)\s+(?:to|about|for|on)\b"), 1.4),
                 (_rx(r"\b(draft|compose)\b"), 0.6)],
     "creative": [(_rx(r"\b(story|poem|lyrics?|fiction|narrative|characters?|plot|screenplay|slogan|tagline|brainstorm|creative)\b"), 1.2)],
     "editing": [(_rx(r"\b(proofread|rewrite|rephrase|paraphrase|edit|fix (?:the )?grammar|improve (?:the )?(?:wording|tone|grammar)|make (?:it|this) (?:more )?(?:concise|formal|professional|shorter))\b"), 1.4)],
@@ -86,11 +87,14 @@ INTENT_PATTERNS: Dict[str, List[Tuple["re.Pattern", float]]] = {
     "translation": [(_rx(r"\b(translate|translation|translating)\b"), 2.0)],
     "data_analysis": [(_rx(r"\b(dataset|data ?frames?|csv|spreadsheet|columns?|rows?|anomal(?:y|ies)|outliers?|regression|correlation|statistic(?:s|al)|pivot|trends?|cohorts?|forecast\w*|a/b test|aggregate)\b"), 1.0)],
     "research": [(_rx(r"\b(research|literature review|sources?|citations?|cite|references|state of the art|survey of|evidence|studies|latest developments)\b"), 1.0)],
-    "extraction": [(_rx(r"\b(extract|parse|pull out|named entities|identify all)\b"), 1.4)],
-    "planning": [(_rx(r"\b(plan|roadmap|schedule|itinerary|strategy|milestones?|timeline)\b"), 1.0)],
+    "extraction": [(_rx(r"\b(extract|parse|pull out|named entities|identify all|pull (?:\w+ ){1,4}out)\b"), 1.4)],
+    "planning": [(_rx(r"\b(plan|roadmap|schedule|itinerary|strategy|milestones?|timeline)\b"), 1.0),
+                (_rx(r"\b(?:study|learning|training|meal|workout|project|migration|rollout) (?:plan|schedule)\b"), 1.6), (_rx(r"\b\d+[- ](?:day|week|month)s?\b"), 0.8)],
     "classification": [(_rx(r"\b(classify|categori[sz]e|sentiment|which category|label (?:each|these|the))\b"), 1.4)],
     "reasoning": [(_rx(r"\b(why|explain|reason(?:ing)?|analy[sz]e|compare|evaluate|assess|argue|critique|implications?|pros and cons|trade-?offs?|justify|derive|infer|deduce|puzzle|logic(?:al)?)\b"), 0.8)],
-    "education": [(_rx(r"\b(teach|lesson|tutorial|beginner|eli5|walk me through|for a (?:child|student)|quiz me|learn)\b"), 1.2)],
+    "education": [(_rx(r"\b(teach|lesson|tutorial|beginner|eli5|walk me through|for a (?:child|student|beginner|kid)|quiz me|learn)\b"), 1.2),
+                  (_rx(r"\bto an? (?:\w+ )?(?:year[- ]old|child|kid|beginner|novice|layperson)\b"), 1.6)],
+    "qa": [(_rx(r"\b(?:which|what|suggest|recommend|find|list|compare)\b[^.?!\n]{0,40}\b(?:models?|llms?)\b"), 2.2)],
     "image_generation": [(_rx(r"\b" + _GEN_VERB + r"\b[^.?!\n]{0,40}\b(image|picture|illustration|logo|poster|photo|icon|artwork|portrait|wallpaper|banner)s?\b"), 3.0),
                          (_rx(r"\btext[- ]to[- ]image\b"), 3.0),
                          # a noun-phrase request with no verb ("realistic image of a car", "car image, photorealistic")
@@ -103,6 +107,15 @@ INTENT_PATTERNS: Dict[str, List[Tuple["re.Pattern", float]]] = {
     "presentation": [(_rx(r"\b(presentation|slide deck|slides|powerpoint|pitch deck)\b"), 3.0)],
     "image_analysis": [(_rx(r"\b(this|the|attached|uploaded)\s+(?:image|photo|picture|screenshot|diagram)\b"), 2.0)],
     "audio_transcription": [(_rx(r"\b(transcribe|transcription|speech[- ]to[- ]text)\b"), 3.0)],
+}
+
+DOMAIN_STRONG: Dict[str, "re.Pattern"] = {
+    "computer_science": _rx(r"\b(python|javascript|typescript|rust|golang|c\+\+|sql|regex|hash ?map|http|api|algorithm|compiler|segfault|microservices?|kubernetes|docker|concurren\w+|async\w*|crawler|embedding models?|chatbot|open[- ]weights?|llms?|rag|vector (?:search|database)|recursion|data structures?|linked list|binary tree|postgres\w*|mongodb|mysql|redis|nosql|kafka|react|node\.?js|django|jest|git)\b"),
+    "mathematics": _rx(r"\b(prove|proofs?|theorem|olympiad|mathematic\w*|prime numbers?|inequalit(?:y|ies)|calculus|algebra|eigen\w*|integral|derivative|fibonacci|generating functions?|equation)\b|\d\s*[\+\-\*/\^]\s*\d"),
+    "science": _rx(r"\b(physics|chemistry|biology|quantum|photosynthesis|relativity|boiling point|sky is blue|gravity|molecule|dna|planet|schwarzschild)\b"),
+    "education": _rx(r"\b(study plan|curriculum|syllabus|homework|lesson plan)\b"),
+    "business": _rx(r"\b(cover letter|resume|job application|business plan|marketing|startup)\b"),
+    "creative": _rx(r"\b(short story|poem|novel|screenplay|lyrics)\b"),
 }
 
 DOMAIN_PATTERNS: Dict[str, "re.Pattern"] = {
@@ -118,13 +131,22 @@ DOMAIN_PATTERNS: Dict[str, "re.Pattern"] = {
 }
 
 COMPLEXITY_WEIGHTS: Dict[str, float] = {
-    "subtasks": 0.20, "constraints": 0.15, "reasoning_depth": 0.20, "technical_depth": 0.15,
-    "context_size": 0.10, "intent_breadth": 0.10, "output_demand": 0.05, "structured_output": 0.05,
+    "subtasks": 0.13, "constraints": 0.09, "reasoning_depth": 0.17, "technical_depth": 0.11, "context_size": 0.08,
+    "intent_breadth": 0.06, "output_demand": 0.05, "structured_output": 0.03,
+    "difficulty_markers": 0.08, "precision": 0.06, "domain_specificity": 0.06, "consequence": 0.08,
 }
+# Score thresholds for the weighted sum. Floors (see _FLOORS) can only raise a band, never lower it.
+COMPLEXITY_BANDS = (("simple", 0.15), ("moderate", 0.30), ("complex", 0.48))
 _ACTION_VERBS = _rx(r"\b(analy[sz]e|identify|explain|compare|write|implement|list|summari[sz]e|design|evaluate|generate|create|build|fix|calculate|derive|prove|plan|extract|translate|convert|optimi[sz]e|review|recommend|describe|detect|report)\b")
 _CONSTRAINT_MARKERS = _rx(r"\b(must|should|only|exactly|at most|at least|no more than|without|avoid|do not|don'?t|ensure|limit|never|always|required?)\b|\b(?:under|within|in)\s+\d+\s+(?:words|sentences|bullets|lines|paragraphs)\b")
 _REASONING_CUES = _rx(r"\b(prove|derive|trade-?offs?|justify|step[- ]by[- ]step|edge cases?|invariants?|complexity analysis|optimi[sz]e|compare|why|root cause|rigorous|formal(?:ly)?)\b")
-_TECH_TERMS = _rx(r"\b(distributed systems?|concurrency|race conditions?|deadlocks?|transformers?|consensus|kubernetes|compiler|cryptograph\w+|differential equations?|bayesian|eigen\w*|neural networks?|machine learning|microservices?|sharding|big o|lock-?free|gradient)\b")
+_TECH_TERMS = _rx(r"\b(distributed systems?|concurren\w+|race conditions?|deadlocks?|transformers?|consensus|kubernetes|compiler|cryptograph\w+|differential equations?|bayesian|eigen\w*|neural networks?|machine learning|microservices?|sharding|big o|lock-?free|linearizab\w+|gradient|async\w*|rate[- ]limit\w*|exponential backoff|idempot\w+|multi-?thread\w*|parallel\w*|oauth|websockets?|general relativity|schwarzschild|generating functions?)\b")
+_DIFFICULTY_MARKERS = _rx(r"\b(hard|difficult|challenging|olympiad|advanced|rigorous\w*|research[- ]level|non-?trivial|graduate[- ]level|phd|from first principles|formal(?:ly)?|exhaustive\w*)\b")
+_PROOF_CUES = _rx(r"\b(prove|proof|derive|derivation|show that|demonstrate that)\b")
+_STRONG_REASONING_CUES = _rx(r"\b(prove|derive|rigorous\w*|step[- ]by[- ]step|each step|justify|formal(?:ly)?|trade-?offs?|linearizab\w+)\b")
+_PRECISION_MARKERS = _rx(r"\b(accurate\w*|precise\w*|exact\w*|correct\w*|rigorous\w*|verify|double[- ]check|no mistakes|production[- ]ready)\b")
+_REGULATED = {"medical": 1.0, "legal": 1.0, "finance": 0.8, "science": 0.4, "mathematics": 0.4, "computer_science": 0.3}
+_ENUM_SPLIT = _rx(r",\s*(?:and\s+|or\s+)?|\s+(?:and|plus|as well as)\s+")
 
 _LENGTH_RX = _rx(r"\b(?:under|within|less than|at most|no more than|no longer than|not exceed|not to exceed|must not exceed|max(?:imum)?(?: of)?|up to)\s+(\d{1,5})\s*(words|sentences|characters|tokens|lines|paragraphs|bullets|slides)\b")
 _EXACT_LEN_RX = _rx(r"\b(?:in|exactly|about|around)\s+(\d{1,4})\s+(words|sentences|bullets|bullet points|paragraphs|slides)\b")
@@ -222,9 +244,14 @@ def _classify_domain(text: str) -> Tuple[str, float]:
     ranked = sorted(counts.items(), key=lambda kv: (-kv[1], kv[0]))
     best, n = ranked[0]
     if n < 2:
-        # a single hit is accepted only for narrowly-scoped regulated domains
+        # A single hit is accepted for regulated domains, or when it is a specific term that belongs to one domain only.
         if n == 1 and best in {"medical", "legal"}:
             return best, 0.5
+        strong = sorted(d for d, rx in DOMAIN_STRONG.items() if rx.search(text))
+        if len(strong) == 1:
+            return strong[0], 0.45
+        if len(strong) > 1 and n == 1 and best in strong:
+            return best, 0.4
         return "general", round(0.3 if n == 0 else 0.35, 3)
     runner = ranked[1][1]
     return best, round(min(0.95, 0.5 + 0.45 * (n - runner) / (n + 1)), 3)
@@ -262,6 +289,12 @@ def _extract_requirements(text: str, tokens: int) -> Tuple[List[Requirement], Li
         add("citations", "requested", "mentions sources or citations")
     if _rx(r"\b(accurate|accurately|precise|precisely|verify|double[- ]check|rigorous)\b").search(text):
         add("accuracy", "high", "stresses accuracy")
+    if _rx(r"\b(most accurate|highest[- ](?:quality|accuracy)|best (?:possible )?(?:quality|accuracy)|most (?:capable|reliable|powerful)|state[- ]of[- ]the[- ]art|best model)\b").search(text):
+        add("accuracy", "highest", "asks for the most accurate / highest-quality option")
+    if _rx(r"\b(as (?:quickly|fast) as possible|fastest|lowest latency|asap|right away|immediately)\b").search(text):
+        add("latency", "lowest", "asks for the fastest option")
+    if _rx(r"\b(cheapest|lowest[- ](?:cost|price)|as cheap(?:ly)? as possible|minimi[sz]e (?:the )?cost|least expensive)\b").search(text):
+        add("cost", "lowest", "asks for the cheapest option")
     if _rx(r"\b(quickly|quick|asap|as fast as possible|immediately|right away)\b").search(text):
         add("latency", "low", "asks for speed")
     if _rx(r"\b(cheap(?:est)?|low[- ]cost|budget|inexpensive|free)\b").search(text):
@@ -312,26 +345,91 @@ def _detect_ambiguities(text: str, words: int, has_content_block: bool, intents:
 
 # ── complexity / risk ───────────────────────────────────────────────────────
 
-def _assess_complexity(text: str, intents: List[Intent], tokens: int, out_tokens: int, structured: Optional[str]) -> ComplexityAssessment:
+def _enumerated_requirements(text: str) -> int:
+    """Items in 'with/including/that X, Y and Z' lists: each is an extra requirement the answer must satisfy."""
+    best = 0
+    for m in re.finditer(r"\b(?:with|including|includes|covering|featuring|plus|supporting|that (?:has|handles|supports))\b([^.?!\n]{3,200})", text, re.I):
+        parts = [p for p in _ENUM_SPLIT.split(m.group(1)) if p and p.strip()]
+        best = max(best, len(parts))
+    return best
+
+
+def _assess_complexity(text: str, intents: List[Intent], tokens: int, out_tokens: int, structured: Optional[str],
+                       domain: str = "general", risk_score: float = 0.0) -> ComplexityAssessment:
+    primary = intents[0].name
     numbered = len(re.findall(r"(?m)^\s*(?:\d+[.)]|[-*•])\s+\S", text))
     verbs = len({m.group(0).lower() for m in _ACTION_VERBS.finditer(text)})
-    subtasks = min(1.0, max(numbered, verbs - 1, 0) / 4.0)
+    enum_items = _enumerated_requirements(text)
+    subtasks = min(1.0, max(numbered, verbs - 1, enum_items - 1, 0) / 4.0)
     constraints = min(1.0, len(_CONSTRAINT_MARKERS.findall(text)) / 6.0)
-    base = 0.4 if intents[0].name in {"math", "reasoning", "architecture"} else 0.0
-    reasoning = min(1.0, base + 0.25 * len(_REASONING_CUES.findall(text)))
-    technical = min(1.0, len({m.group(0).lower() for m in _TECH_TERMS.finditer(text)}) / 3.0)
+    strong = len({m.group(0).lower() for m in _STRONG_REASONING_CUES.finditer(text)})
+    base = {"math": 0.45, "architecture": 0.45, "reasoning": 0.3, "debugging": 0.25, "planning": 0.2, "research": 0.25, "coding": 0.1}.get(primary, 0.0)
+    reasoning = min(1.0, base + 0.25 * len(_REASONING_CUES.findall(text)) + 0.15 * strong)
+    tech_terms = len({m.group(0).lower() for m in _TECH_TERMS.finditer(text)})
+    technical = min(1.0, tech_terms / 3.0)
     context = min(1.0, tokens / 6000.0)
     breadth = min(1.0, (len(intents) - 1) / 3.0)
     output = min(1.0, out_tokens / 2000.0)
     struct = 1.0 if structured in {"json", "yaml", "csv", "table"} else 0.0
+    markers = len({m.group(0).lower() for m in _DIFFICULTY_MARKERS.finditer(text)})
+    difficulty = min(1.0, 0.45 * markers)
+    precision = min(1.0, (0.5 if primary in {"math", "coding", "debugging", "data_analysis", "extraction"} else 0.0) + 0.3 * len(_PRECISION_MARKERS.findall(text)))
+    specificity = _REGULATED.get(domain, 0.0)
+    consequence = min(1.0, risk_score)
     comps = {"subtasks": subtasks, "constraints": constraints, "reasoning_depth": reasoning, "technical_depth": technical,
-             "context_size": context, "intent_breadth": breadth, "output_demand": output, "structured_output": struct}
+             "context_size": context, "intent_breadth": breadth, "output_demand": output, "structured_output": struct,
+             "difficulty_markers": difficulty, "precision": precision, "domain_specificity": specificity, "consequence": consequence}
     score = round(sum(COMPLEXITY_WEIGHTS[k] * v for k, v in comps.items()), 4)
-    cat = "simple" if score < 0.2 else "moderate" if score < 0.4 else "complex" if score < 0.6 else "highly_complex"
+
+    def band_of(x: float) -> str:
+        for name, hi in COMPLEXITY_BANDS:
+            if x < hi:
+                return name
+        return "highly_complex"
+    cat = band_of(score)
+    order = ["simple", "moderate", "complex", "highly_complex"]
+    adjustments: List[str] = []
+
+    def floor(band: str, why: str) -> None:
+        nonlocal cat
+        if order.index(band) > order.index(cat):
+            adjustments.append(f"raised to {band}: {why}")
+            cat = band
+    # Floors: a short request can be very hard. These rules encode that explicitly rather than hiding it in a weight.
+    proofs = len(_PROOF_CUES.findall(text))
+    if primary == "math" and proofs:
+        floor("highly_complex" if strong >= 3 else "complex", f"a proof/derivation is requested ({strong} strong reasoning cue(s))")
+    if markers >= 2:
+        floor("complex", "the request itself describes the task as hard/advanced/rigorous")
+    elif markers == 1 and primary == "math":
+        floor("moderate", "a mathematical task is flagged as hard")
+    if primary in {"coding", "architecture", "debugging"} and enum_items >= 3:
+        floor("complex" if (tech_terms >= 1 or markers) else "moderate", f"{enum_items} enumerated requirements" + (" with technical depth" if tech_terms else ""))
+    if primary in {"coding", "architecture"} and tech_terms >= 2 and strong >= 1:
+        floor("complex", "several advanced technical terms combined with a formal reasoning requirement")
+    if primary == "architecture":
+        floor("complex", "system design requires weighing several interacting constraints")
+    if domain in {"medical", "legal", "finance"} and primary in {"reasoning", "research", "planning"}:
+        floor("complex", f"regulated domain ({domain}) where an error has material consequences")
+    elif domain in {"medical", "legal", "finance"} and risk_score >= 0.5:
+        floor("moderate", f"regulated domain ({domain}) with sensitive content")
+    if primary == "research":
+        floor("complex", "research requires gathering and weighing several sources")
+    if primary == "debugging" and ("```" in text or tokens > 150):
+        floor("moderate", "debugging requires reading supplied code or logs")
+    if primary == "data_analysis" and (("\n" in text and tokens > 60) or "```" in text):
+        floor("moderate", "analysis over supplied data")
+    if primary == "planning" and (_rx(r"\b\d+[- ](?:day|week|month)s?\b").search(text) or enum_items >= 3):
+        floor("moderate", "a multi-period plan has several dependent parts")
+    if primary == "writing" and constraints >= 0.3 and len(text.split()) >= 8:
+        floor("moderate", "a formal writing task with explicit constraints")
+    if primary == "coding" and "```" in text and verbs >= 2:
+        floor("moderate", "a change request over supplied code")
     return ComplexityAssessment(
-        score=score, category=cat, components={k: round(v, 3) for k, v in comps.items()}, weights=dict(COMPLEXITY_WEIGHTS),
-        methodology="Weighted sum of eight bounded features (subtasks, constraints, reasoning depth, technical depth, context size, "
-                    "intent breadth, output demand, structured output). Ambiguity is excluded. Thresholds: <0.2 simple, <0.4 moderate, <0.6 complex. "
+        score=score, category=cat, components={k: round(v, 3) for k, v in comps.items()}, weights=dict(COMPLEXITY_WEIGHTS), adjustments=adjustments,
+        methodology="Weighted sum of twelve bounded features (sub-tasks, constraints, reasoning depth, technical depth, context size, intent breadth, output demand, "
+                    "structured output, stated difficulty, required precision, domain specificity, consequence of error). Bands: <0.15 simple, <0.30 moderate, <0.48 complex. "
+                    "Explicit floor rules (listed under adjustments) can raise a band for short but demanding requests. Ambiguity is excluded. "
                     "Heuristic indicator; not validated against measured difficulty.")
 
 
@@ -411,12 +509,17 @@ def analyze(query: str, task_type_hint: Optional[str] = None) -> QueryProfileV2:
     explicit, inferred, structured = _extract_requirements(text, in_tokens)
     cx_hint = min(1.0, words / 200.0)
     out_tokens, out_basis = _expected_output_tokens(primary, cx_hint, explicit)
-    complexity = _assess_complexity(text, intents, in_tokens, out_tokens, structured)
+    risk = assess_risk(text)
+    complexity = _assess_complexity(text, intents, in_tokens, out_tokens, structured, domain, risk.score)
     out_tokens, out_basis = _expected_output_tokens(primary, complexity.score, explicit)
     ambiguities = _detect_ambiguities(text, words, has_block, intents, explicit)
-    risk = assess_risk(text)
     from app.services.routing_engine import audience as audience_mod
     aud = audience_mod.assess(text)
+    if aud.ambiguous:
+        ambiguities.append(Ambiguity(kind="intent_category", severity="major",
+                                     message="It is unclear whether you want an AI assistant to use directly or a model/API to integrate into a project. "
+                                             "Conversational AI models are shown; Developer & API models are not mixed in.",
+                                     clarifying_question=aud.clarifying_question))
 
     caps: List[str] = []
     modalities = ["text"]
@@ -433,7 +536,9 @@ def analyze(query: str, task_type_hint: Optional[str] = None) -> QueryProfileV2:
         caps.append("embedding")
     if aud.kind == "developer" and any(i.name in {"coding", "debugging", "architecture"} for i in intents) and "coding" not in caps:
         caps.append("coding")
-    if primary in {"math", "debugging", "architecture"} or complexity.category == "highly_complex":
+    if complexity.category == "simple" and primary == "math":
+        reasoning_req = "light"          # arithmetic or a one-step problem does not need a reasoning model
+    elif primary in {"math", "debugging", "architecture"} or complexity.category == "highly_complex":
         reasoning_req = "deep"
     elif complexity.category == "complex" or primary in {"reasoning", "data_analysis", "research"}:
         reasoning_req = "moderate"
@@ -451,11 +556,20 @@ def analyze(query: str, task_type_hint: Optional[str] = None) -> QueryProfileV2:
         notes.append("Several task signals were detected; the strongest is primary.")
     if tok_method.startswith("heuristic"):
         notes.append("Token counts are estimates (characters ÷ 4), not exact tokenizer output.")
+    task_tags = list(INTENT_TAGS[primary])
+    if complexity.category == "simple" and primary in {"math", "reasoning", "coding"}:
+        # A one-step arithmetic, explanation or short-program request (a loop, a small function) is within any capable general model's
+        # ability; do not demand a specialist tag. Anything with tests, constraints, concurrency or other difficulty markers is raised out of
+        # "simple" by the complexity floors and keeps the specialist requirement.
+        task_tags += [t for t in ("qa", "general") if t not in task_tags]
+        notes_extra = "Simple task: general-purpose models are accepted as a task fit as well as specialists."
+    else:
+        notes_extra = ""
     return QueryProfileV2(
         original_query=query, primary_intent=primary, secondary_intents=intents[1:], intents=intents,
-        task_type=INTENT_TASK_TYPE[primary], task_tags=list(INTENT_TAGS[primary]), domain=domain, domain_confidence=dom_conf,
+        task_type=INTENT_TASK_TYPE[primary], task_tags=task_tags, domain=domain, domain_confidence=dom_conf,
         complexity=complexity, required_capabilities=caps, required_modalities=modalities,
         tokens=TokenEstimate(input_tokens=in_tokens, output_tokens=out_tokens, method=tok_method, exact=exact, output_basis=out_basis),
         reasoning_requirement=reasoning_req, structured_output=structured, explicit_requirements=explicit,
         inferred_requirements=inferred, ambiguities=ambiguities, needs_clarification=any(a.severity == "major" for a in ambiguities),
-        risk=risk, audience=aud, confidence={"intent": intent_conf, "domain": dom_conf}, user_hint_applied=hint_applied, notes=notes)
+        risk=risk, audience=aud, confidence={"intent": intent_conf, "domain": dom_conf}, user_hint_applied=hint_applied, notes=notes + ([notes_extra] if notes_extra else []))

@@ -10,7 +10,7 @@ import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { LiveCatalogBrowser, LiveRegistryPanel } from '../components/registry/LiveRegistry';
 import { EcosystemPanel } from '../components/registry/Ecosystem';
-import { CATEGORY_LABEL, KIND_LABEL, ModelCard, cardKey } from '../components/registry/ModelCard';
+import { KIND_LABEL, ModelCard, PRICING_LABEL, ACCESS_LABEL, cardKey } from '../components/registry/ModelCard';
 import { Boxes, Check, Filter, GitCompareArrows, LayoutGrid, List, Search, SlidersHorizontal } from 'lucide-react';
 import { PageHeader } from '../components/layout/PageHeader';
 import { CapabilityOverview, ProviderDistribution } from '../components/dashboard/DistributionCards';
@@ -25,6 +25,7 @@ import { TextInput } from '../components/ui/Input';
 import { EmptyState, ErrorState } from '../components/ui/EmptyState';
 import { Segmented, SkeletonMetrics, SkeletonTable } from '../components/ui/Skeleton';
 import { useAsync } from '../hooks/useAsync';
+import { EcosystemMap } from '../components/registry/EcosystemMap';
 import { useDocumentTitle } from '../hooks/useDocumentTitle';
 import { getPoolStats, getRegistryStatus, listModels } from '../services/models.service';
 import {
@@ -37,11 +38,14 @@ import {
   humanizeToken,
 } from '../utils/format';
 import { UNAVAILABLE } from '../types';
-import type { ModelInfo, PoolStats, PrimaryCategory } from '../types';
+import type { ModelGroup, ModelInfo, PoolStats, PricingCategory } from '../types';
 
 type StatusFilter = 'all' | 'active' | 'inactive';
 type RegistryView = 'cards' | 'table';
-type UseCategory = 'all' | PrimaryCategory;
+type UseCategory = 'all' | ModelGroup;
+type PricingFilter = 'all' | PricingCategory;
+type AccessFilter = 'all' | 'consumer_chat' | 'provider_api' | 'hosted_inference' | 'aggregator_api' | 'self_hosted';
+type ContextFilter = 'all' | '32000' | '128000' | '1000000';
 type FreeFilter = 'all' | 'free_any' | 'free_download' | 'paid';
 type WeightsFilter = 'all' | 'open_weights' | 'proprietary';
 const MAX_COMPARE = 3;
@@ -56,12 +60,32 @@ const SORT_OPTIONS: { value: SortKey; label: string }[] = [
   { value: 'latency', label: 'Latency estimate (low first)' },
 ];
 
-const CATEGORY_DETAIL: Record<PrimaryCategory, string> = {
-  conversational: 'Chat and instruction-tuned models that answer questions directly',
-  developer: 'Embeddings, code, speech, vision, image/video and base models to integrate',
-  application: 'Consumer AI apps and tools you open yourself; not models and not routable',
-  unclassified: 'No verified capability evidence yet; shown, never guessed',
+const GROUP_LABEL: Record<ModelGroup, string> = {
+  conversational: 'Conversational AI Models',
+  developer_api: 'Developer & API Models',
+  unclassified: 'Unclassified',
 };
+const GROUP_DETAIL: Record<ModelGroup, string> = {
+  conversational: 'AI assistants and chat models you talk to directly: questions, research, writing, coding help and analysis.',
+  developer_api: 'Models and API providers for integrating AI into your own applications, projects and workflows.',
+  unclassified: 'Provider role or model type not verified yet; shown, never guessed.',
+};
+const PRICING_OPTIONS: Array<{ value: PricingFilter; label: string }> = [
+  { value: 'all', label: 'Any pricing' },
+  { value: 'completely_free', label: 'Free' },
+  { value: 'free_tier_limited', label: 'Free tier with limits' },
+  { value: 'pay_as_you_go', label: 'Pay-as-you-go' },
+  { value: 'self_hosted_open_weight', label: 'Self-hosted (open weights)' },
+  { value: 'unknown', label: 'Pricing not verified' },
+];
+const ACCESS_OPTIONS: Array<{ value: AccessFilter; label: string }> = [
+  { value: 'all', label: 'Any access route' },
+  { value: 'consumer_chat', label: 'Consumer chat' },
+  { value: 'provider_api', label: 'Provider API' },
+  { value: 'hosted_inference', label: 'Hosted inference' },
+  { value: 'aggregator_api', label: 'Aggregator API' },
+  { value: 'self_hosted', label: 'Self-hosted' },
+];
 const PAGE_SIZE = 48;
 function isFreeAny(m: ModelInfo): boolean { return m.free_download === true || m.free_access === 'free' || m.free_access === 'limited_free'; }
 
@@ -115,6 +139,9 @@ export function ModelPool() {
   const [availability, setAvailability] = useState<string>('all');
   const [lifecycle, setLifecycle] = useState<string>('all');
   const [useCat, setUseCat] = useState<UseCategory>('all');
+  const [pricingFilter, setPricingFilter] = useState<PricingFilter>('all');
+  const [accessFilter, setAccessFilter] = useState<AccessFilter>('all');
+  const [contextFilter, setContextFilter] = useState<ContextFilter>('all');
   const [kind, setKind] = useState('all');
   const [freeFilter, setFreeFilter] = useState<FreeFilter>('all');
   const [weightsFilter, setWeightsFilter] = useState<WeightsFilter>('all');
@@ -151,7 +178,10 @@ export function ModelPool() {
   const filtered = useMemo(() => {
     const needle = query.trim().toLowerCase();
     const rows = (models.data ?? []).filter((model) => {
-      if (useCat !== 'all' && (model.primary_category ?? 'unclassified') !== useCat) return false;
+      if (useCat !== 'all' && (model.model_category ?? 'unclassified') !== useCat) return false;
+      if (pricingFilter !== 'all' && (model.pricing_category ?? 'unknown') !== pricingFilter) return false;
+      if (accessFilter !== 'all' && (model.access_type ?? 'unknown') !== accessFilter) return false;
+      if (contextFilter !== 'all' && (model.context_window ?? 0) < Number(contextFilter)) return false;
       if (kind !== 'all' && (model.category_kind ?? 'unclassified') !== kind) return false;
       if (freeFilter === 'free_any' && !isFreeAny(model)) return false;
       if (freeFilter === 'free_download' && model.free_download !== true) return false;
@@ -195,7 +225,7 @@ export function ModelPool() {
     };
     const compare = by[sortKey];
     return compare ? rows.slice().sort(compare) : rows;
-  }, [availability, capability, freeFilter, kind, lifecycle, models.data, provider, query, status, sortKey, useCat, weightsFilter]);
+  }, [accessFilter, availability, capability, contextFilter, freeFilter, kind, lifecycle, models.data, pricingFilter, provider, query, status, sortKey, useCat, weightsFilter]);
 
   // Page size resets whenever the result set changes; the visible slice never hides records (the count always shows the full total).
   useEffect(() => { setLimit(PAGE_SIZE); }, [filtered]);
@@ -205,27 +235,25 @@ export function ModelPool() {
   // Headline numbers come from the server (`/models/pool-stats`); this is only a fallback if that call fails, computed with the same rules.
   const stats: PoolStats | null = poolStats.data ?? null;
   const fallbackCounts = useMemo(() => {
-    const out: Record<PrimaryCategory, number> = { conversational: 0, developer: 0, application: 0, unclassified: 0 };
-    for (const model of models.data ?? []) out[model.primary_category ?? 'unclassified'] += 1;
+    const out: Record<ModelGroup, number> = { conversational: 0, developer_api: 0, unclassified: 0 };
+    for (const model of models.data ?? []) out[model.model_category ?? 'unclassified'] += 1;
     return out;
   }, [models.data]);
-  const primary = stats?.primary ?? fallbackCounts;
+  const groups = stats?.categories?.counts ?? fallbackCounts;
   const mismatch = stats !== null && stats.pool_total !== total;
   const kindOptions = useMemo(() => {
     if (useCat === 'all') return [];
-    const fromStats = stats?.kinds?.[useCat];
-    if (fromStats) return fromStats;
     const counts = new Map<string, number>();
-    for (const model of models.data ?? []) if ((model.primary_category ?? 'unclassified') === useCat) counts.set(model.category_kind ?? 'unclassified', (counts.get(model.category_kind ?? 'unclassified') ?? 0) + 1);
-    return Array.from(counts, ([k, count]) => ({ kind: k, label: KIND_LABEL[k] ?? humanizeToken(k), count }));
-  }, [models.data, stats, useCat]);
+    for (const model of models.data ?? []) if ((model.model_category ?? 'unclassified') === useCat) counts.set(model.category_kind ?? 'unclassified', (counts.get(model.category_kind ?? 'unclassified') ?? 0) + 1);
+    return Array.from(counts, ([k, count]) => ({ kind: k, label: KIND_LABEL[k] ?? humanizeToken(k), count })).sort((a, b) => b.count - a.count);
+  }, [models.data, useCat]);
 
-  const advancedActive = [status !== 'all', availability !== 'all', lifecycle !== 'all', capability !== 'all', freeFilter !== 'all', weightsFilter !== 'all'].filter(Boolean).length;
+  const advancedActive = [status !== 'all', availability !== 'all', lifecycle !== 'all', capability !== 'all', freeFilter !== 'all', weightsFilter !== 'all', pricingFilter !== 'all', accessFilter !== 'all', contextFilter !== 'all'].filter(Boolean).length;
   const filtersActive = query.trim().length > 0 || provider !== 'all' || useCat !== 'all' || kind !== 'all' || advancedActive > 0;
 
   const clearFilters = useCallback(() => {
     setQuery(''); setStatus('all'); setProvider('all'); setAvailability('all'); setLifecycle('all'); setUseCat('all'); setKind('all');
-    setFreeFilter('all'); setWeightsFilter('all'); setCapability('all');
+    setFreeFilter('all'); setWeightsFilter('all'); setCapability('all'); setPricingFilter('all'); setAccessFilter('all'); setContextFilter('all');
   }, []);
 
   const toggleCompare = useCallback((model: ModelInfo) => {
@@ -255,6 +283,24 @@ export function ModelPool() {
         header: 'Provider',
         cell: (row) => providerLabel(row.provider),
         sortValue: (row) => providerLabel(row.provider),
+        secondary: true,
+      },
+      {
+        id: 'group',
+        header: 'Group · access',
+        cell: (row) => (
+          <div>
+            <span className="cell-primary">{GROUP_LABEL[row.model_category ?? 'unclassified']}</span>
+            <p className="cell-sub">{ACCESS_LABEL[row.access_type ?? 'unknown']}</p>
+          </div>
+        ),
+        sortValue: (row) => row.model_category ?? 'unclassified',
+      },
+      {
+        id: 'pricing',
+        header: 'Pricing (verified)',
+        cell: (row) => <span title={row.free_access_note ?? undefined}>{PRICING_LABEL[row.pricing_category ?? 'unknown']}</span>,
+        sortValue: (row) => row.pricing_category ?? 'unknown',
         secondary: true,
       },
       {
@@ -341,11 +387,10 @@ export function ModelPool() {
   const compareModels = (models.data ?? []).filter((model) => compareIds.includes(cardKey(model)));
   const chooseCategory = (next: UseCategory) => { setUseCat(next); setKind('all'); };
   const categoryTabs: Array<{ key: UseCategory; label: string; detail: string; count: number }> = [
-    { key: 'all', label: 'All entries', detail: 'Everything in the active pool: models plus AI applications', count: stats?.pool_total ?? total },
-    { key: 'conversational', label: CATEGORY_LABEL.conversational, detail: CATEGORY_DETAIL.conversational, count: primary.conversational },
-    { key: 'developer', label: 'Developer & Project models', detail: CATEGORY_DETAIL.developer, count: primary.developer },
-    { key: 'application', label: 'AI applications', detail: CATEGORY_DETAIL.application, count: primary.application },
-    ...(primary.unclassified > 0 ? [{ key: 'unclassified' as UseCategory, label: 'Unclassified', detail: CATEGORY_DETAIL.unclassified, count: primary.unclassified }] : []),
+    { key: 'all', label: 'All entries', detail: 'Everything in the active pool, in both groups', count: stats?.pool_total ?? total },
+    { key: 'conversational', label: GROUP_LABEL.conversational, detail: GROUP_DETAIL.conversational, count: groups.conversational },
+    { key: 'developer_api', label: GROUP_LABEL.developer_api, detail: GROUP_DETAIL.developer_api, count: groups.developer_api },
+    ...(groups.unclassified > 0 ? [{ key: 'unclassified' as UseCategory, label: GROUP_LABEL.unclassified, detail: GROUP_DETAIL.unclassified, count: groups.unclassified }] : []),
   ];
 
   return (
@@ -353,7 +398,7 @@ export function ModelPool() {
       <PageHeader
         eyebrow="Registry"
         title="Model registry"
-        description="The active catalogue of verified models and AI applications. Each entry has exactly one primary category; capabilities overlap and are filtered separately."
+        description="Two recommendation groups: Conversational AI Models for assistants you talk to, and Developer & API Models for building with AI. Each entry is in exactly one group; capabilities overlap and are filtered separately."
         actions={(
           <div className="row row-wrap">
             {compareIds.length > 0 && (
@@ -379,12 +424,26 @@ export function ModelPool() {
             <h2 id="mp-overview-title" className="sr-only">Catalogue overview</h2>
             <KpiRow
               kpis={[
-                { id: 'canonical', label: 'Active canonical models', icon: KpiIcons.models, value: stats?.canonical_models ?? catalogueSummary?.inference.length ?? 0, detail: `One per model identity · plus ${formatInteger(stats?.applications ?? primary.application)} AI applications` },
+                { id: 'canonical', label: 'Active canonical models', icon: KpiIcons.models, value: stats?.canonical_models ?? catalogueSummary?.inference.length ?? 0, detail: `One per model identity · plus ${formatInteger(stats?.applications ?? 0)} AI applications` },
                 { id: 'offerings', label: 'Provider offerings', icon: KpiIcons.providers, value: stats?.provider_offerings.count ?? null, detail: stats ? `Access routes across ${stats.provider_offerings.providers} providers, not extra models` : 'Offering count unavailable' },
                 { id: 'pending', label: 'Awaiting verification', icon: KpiIcons.registry, value: stats?.pending_verification ?? null, detail: 'Discovered but not yet published; excluded from the pool' },
                 { id: 'retired', label: 'Retired generations', icon: KpiIcons.routing, value: stats?.retired ?? null, detail: 'Older generations kept as history; excluded from the pool' },
               ]}
             />
+            {stats?.access ? (
+              <section aria-labelledby="mp-access-title">
+                <h3 id="mp-access-title" className="sr-only">Recommendation and execution access</h3>
+                <KpiRow
+                  kpis={[
+                    { id: 'rec', label: 'Recommendation-eligible', icon: KpiIcons.routing, value: stats.access.recommendation_eligible, detail: `Of ${formatInteger(stats.access.catalog_models)} catalogue models · credentials never affect this` },
+                    { id: 'exec', label: 'Execution-ready', icon: KpiIcons.providers, value: stats.access.execution_ready, detail: 'Adapter and server credential both present' },
+                    { id: 'reconly', label: 'Recommendation only', icon: KpiIcons.models, value: stats.access.recommendation_only, detail: `${formatInteger(stats.access.provider_not_configured)} lack a provider credential · ${formatInteger(stats.access.adapter_unavailable)} have no adapter` },
+                    { id: 'meta', label: 'Incomplete metadata', icon: KpiIcons.registry, value: stats.access.metadata_incomplete, detail: `${formatInteger(stats.access.metadata_stale)} more are stale; unknown values stay unknown` },
+                  ]}
+                />
+                <p className="mp-math" role="note">AI Compass recommends from the whole catalogue. A provider credential only decides whether it can also run the model.</p>
+              </section>
+            ) : null}
             <div className="mp-cats" role="group" aria-label="Primary category">
               {categoryTabs.map((tab) => (
                 <button type="button" className="mp-cat" key={tab.key} aria-pressed={useCat === tab.key} onClick={() => chooseCategory(tab.key)}>
@@ -395,9 +454,9 @@ export function ModelPool() {
               ))}
             </div>
             <p className="mp-math" role="status">
-              <span>Primary categories are exclusive:
-                {' '}<strong>{formatNumber(primary.conversational, 0)}</strong> <span className="mp-sep">+</span> <strong>{formatNumber(primary.developer, 0)}</strong> <span className="mp-sep">+</span> <strong>{formatNumber(primary.application, 0)}</strong>
-                {primary.unclassified > 0 ? <> <span className="mp-sep">+</span> <strong>{formatNumber(primary.unclassified, 0)}</strong></> : null}
+              <span>Recommendation groups are exclusive:
+                {' '}<strong>{formatNumber(groups.conversational, 0)}</strong> <span className="mp-sep">+</span> <strong>{formatNumber(groups.developer_api, 0)}</strong>
+                {groups.unclassified > 0 ? <> <span className="mp-sep">+</span> <strong>{formatNumber(groups.unclassified, 0)}</strong></> : null}
                 {' '}<span className="mp-sep">=</span> <strong>{formatNumber(stats?.pool_total ?? total, 0)}</strong></span>
               {stats ? (
                 <span className="mp-audit" data-ok={stats.integrity.ok && !mismatch} title={stats.integrity.checks.map((c) => `${c.ok ? '✓' : '✗'} ${c.check.replace(/_/g, ' ')}`).join('\n')}>
@@ -406,7 +465,7 @@ export function ModelPool() {
               ) : poolStats.isLoading ? <span className="mp-audit" data-ok="true">Loading server counts…</span> : <span className="mp-audit" data-ok="false">Server counts unavailable; showing counts from the loaded list</span>}
             </p>
             {kindOptions.length > 0 ? (
-              <div className="mp-kinds" role="group" aria-label={`${CATEGORY_LABEL[useCat as PrimaryCategory]} types`}>
+              <div className="mp-kinds" role="group" aria-label={`${GROUP_LABEL[useCat as ModelGroup]} types`}>
                 <button type="button" className="mp-kind" aria-pressed={kind === 'all'} onClick={() => setKind('all')}>All types</button>
                 {kindOptions.map((option) => (
                   <button type="button" className="mp-kind" key={option.kind} aria-pressed={kind === option.kind} onClick={() => setKind(option.kind)}>{option.label}<b>{formatNumber(option.count, 0)}</b></button>
@@ -414,6 +473,8 @@ export function ModelPool() {
               </div>
             ) : null}
           </section>
+
+          <EcosystemMap models={models.data ?? []} selected={provider} onSelect={setProvider} labelOf={providerLabel} />
 
           <div className="table-surface">
             <div className="mp-toolbar">
@@ -452,6 +513,18 @@ export function ModelPool() {
                 <label className="mp-field"><span>Cost to use</span>
                   <select className="registry-filter-select" aria-label="Filter by free access" value={freeFilter} onChange={(event) => setFreeFilter(event.target.value as FreeFilter)}>
                     <option value="all">Any</option><option value="free_any">Free download or free tier</option><option value="free_download">Free to download (weights)</option><option value="paid">Paid only</option>
+                  </select></label>
+                <label className="mp-field"><span>Pricing (verified)</span>
+                  <select className="registry-filter-select" aria-label="Filter by pricing category" value={pricingFilter} onChange={(event) => setPricingFilter(event.target.value as PricingFilter)}>
+                    {PRICING_OPTIONS.map((o) => <option key={o.value} value={o.value}>{o.label}</option>)}
+                  </select></label>
+                <label className="mp-field"><span>Access route</span>
+                  <select className="registry-filter-select" aria-label="Filter by access route" value={accessFilter} onChange={(event) => setAccessFilter(event.target.value as AccessFilter)}>
+                    {ACCESS_OPTIONS.map((o) => <option key={o.value} value={o.value}>{o.label}</option>)}
+                  </select></label>
+                <label className="mp-field"><span>Context window</span>
+                  <select className="registry-filter-select" aria-label="Filter by minimum context window" value={contextFilter} onChange={(event) => setContextFilter(event.target.value as ContextFilter)}>
+                    <option value="all">Any</option><option value="32000">32K or more</option><option value="128000">128K or more</option><option value="1000000">1M or more</option>
                   </select></label>
                 <label className="mp-field"><span>Availability</span>
                   <select className="registry-filter-select" aria-label="Filter by availability" value={availability} onChange={(event) => setAvailability(event.target.value)}>
@@ -521,7 +594,7 @@ export function ModelPool() {
                       <Status name={row.active ? 'active' : 'inactive'}>{row.active ? 'Active' : 'Inactive'}</Status>
                     </div>
                     <dl className="record-metrics">
-                      <div className="record-metric"><dt className="record-metric-label">Category</dt><dd className="record-metric-value">{CATEGORY_LABEL[row.primary_category ?? 'unclassified']}</dd></div>
+                      <div className="record-metric"><dt className="record-metric-label">Category</dt><dd className="record-metric-value">{GROUP_LABEL[row.model_category ?? 'unclassified']}</dd></div>
                       <div className="record-metric"><dt className="record-metric-label">Provider</dt><dd className="record-metric-value">{providerLabel(row.provider)}</dd></div>
                       <div className="record-metric"><dt className="record-metric-label">Quality estimate</dt><dd className="record-metric-value">{formatPercent(row.estimated_quality, 0)}</dd></div>
                       <div className="record-metric"><dt className="record-metric-label">Cost / 1K</dt><dd className="record-metric-value">{formatModelCostPerThousand(row)}</dd></div>

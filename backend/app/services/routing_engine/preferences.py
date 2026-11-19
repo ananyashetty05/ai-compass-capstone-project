@@ -19,6 +19,9 @@ DIMENSIONS = ("quality", "cost", "latency", "reliability", "risk", "preference_a
 DEFAULT_WEIGHTS: Dict[str, float] = {"quality": 0.30, "cost": 0.15, "latency": 0.15, "reliability": 0.20, "risk": 0.10, "preference_alignment": 0.10}
 
 
+MIN_QUALITY_WEIGHT = 0.18
+
+
 def normalize_weights(supplied: Optional[Dict[str, Any]]) -> Dict[str, float]:
     """Validate and normalise to sum 1. Negative/non-finite -> ValueError; unparsable legacy value -> default;
     no positive supplied weight -> documented defaults."""
@@ -61,25 +64,65 @@ def resolve(profile: QueryProfileV2, *, saved_weights: Optional[Dict[str, Any]] 
     adjustments: List[WeightAdjustment] = []
     factors = {d: 1.0 for d in DIMENSIONS}
 
-    def bump(dim: str, factor: float, reason: str) -> None:
-        factors[dim] = min(1.5, factors[dim] * factor)
-        adjustments.append(WeightAdjustment(dimension=dim, factor=factor, reason=reason))
+    # Two budgets: inferred adjustments are small and capped at 1.5x; explicit user wishes may go up to 2.5x. Both are reported.
+    caps = {"explicit": 2.5, "inferred": 1.5}
+    spent = {"explicit": {d: 1.0 for d in DIMENSIONS}, "inferred": {d: 1.0 for d in DIMENSIONS}}
 
+    def bump(dim: str, factor: float, reason: str, origin: str = "explicit") -> None:
+        lo, hi = 1 / caps[origin], caps[origin]
+        new = min(hi, max(lo, spent[origin][dim] * factor))
+        applied = new / spent[origin][dim]
+        spent[origin][dim] = new
+        factors[dim] = spent["explicit"][dim] * spent["inferred"][dim]
+        if abs(applied - 1.0) > 1e-9:
+            adjustments.append(WeightAdjustment(dimension=dim, factor=round(applied, 3), reason=reason, origin=origin))
+
+    # --- inferred from the query (never from invented user wishes) ---
     if profile.risk.sensitivity == "high":
-        bump("risk", 1.5, "The query contains high-sensitivity content")
+        bump("risk", 1.5, "The query contains high-sensitivity content", "inferred")
     elif profile.risk.sensitivity == "moderate":
-        bump("risk", 1.3, "The query contains moderately sensitive content")
+        bump("risk", 1.3, "The query contains moderately sensitive content", "inferred")
+    cx = profile.complexity.category
+    if cx == "highly_complex":
+        bump("quality", 1.4, "Highly complex task: answer quality matters most", "inferred")
+        bump("reliability", 1.15, "Highly complex task: a failure is costly", "inferred")
+        bump("cost", 0.8, "Highly complex task: cost is secondary to getting it right", "inferred")
+        bump("latency", 0.85, "Highly complex task: latency is secondary", "inferred")
+    elif cx == "complex":
+        bump("quality", 1.25, "Complex task: answer quality matters more", "inferred")
+        bump("cost", 0.9, "Complex task: cost is secondary to quality", "inferred")
+    elif cx == "simple" and profile.reasoning_requirement in {"none", "light"}:
+        bump("cost", 1.2, "Simple task: a capable cheaper model is enough", "inferred")
+        bump("latency", 1.2, "Simple task: fast answers are valuable", "inferred")
+        bump("quality", 0.9, "Simple task: marginal quality gains matter less", "inferred")
+    if profile.risk.sensitivity in {"moderate", "high"} or profile.domain in {"medical", "legal", "finance"}:
+        bump("reliability", 1.15, f"High-consequence content ({profile.domain if profile.domain != 'general' else 'sensitive'}): consistency matters", "inferred")
+
+    # --- stated by the user ---
     kinds = {(r.kind, r.value) for r in profile.explicit_requirements}
-    if ("latency", "low") in kinds:
-        bump("latency", 1.25, "You asked for a fast answer")
-    if ("accuracy", "high") in kinds:
-        bump("quality", 1.25, "You stressed accuracy")
-        bump("reliability", 1.1, "You stressed accuracy")
-    if ("cost", "low") in kinds:
-        bump("cost", 1.25, "You asked for low cost")
+    if ("latency", "lowest") in kinds:
+        bump("latency", 2.0, "You asked for the fastest answer possible")
+    elif ("latency", "low") in kinds:
+        bump("latency", 1.4, "You asked for a fast answer")
+    if ("accuracy", "highest") in kinds:
+        bump("quality", 2.0, "You asked for the most accurate / highest-quality model")
+        bump("reliability", 1.3, "You asked for the most accurate / highest-quality model")
+    elif ("accuracy", "high") in kinds:
+        bump("quality", 1.4, "You stressed accuracy")
+        bump("reliability", 1.15, "You stressed accuracy")
+    if ("cost", "lowest") in kinds:
+        bump("cost", 2.0, "You asked for the cheapest suitable model")
+    elif ("cost", "low") in kinds:
+        bump("cost", 1.4, "You asked for low cost")
     adjusted = {d: base[d] * factors[d] for d in DIMENSIONS}
     total = sum(adjusted.values())
     weights = {d: adjusted[d] / total for d in DIMENSIONS}
+    if weights["quality"] < MIN_QUALITY_WEIGHT:
+        deficit = MIN_QUALITY_WEIGHT - weights["quality"]
+        others = sum(v for d, v in weights.items() if d != "quality")
+        weights = {d: (MIN_QUALITY_WEIGHT if d == "quality" else v * (1 - deficit / others)) for d, v in weights.items()}
+        adjustments.append(WeightAdjustment(dimension="quality", factor=1.0, origin="inferred",
+                                            reason=f"Quality keeps at least a {MIN_QUALITY_WEIGHT:.0%} share so a cost/speed wish cannot select an unsuitable model"))
 
     hard: List[HardConstraint] = []
     if profile.risk.execution_blocked:

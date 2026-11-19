@@ -40,10 +40,8 @@ def _conn():
         raise RuntimeError("PostgreSQL support is unavailable; install psycopg[binary].")
     if not settings.DATABASE_URL:
         raise RuntimeError("DATABASE_URL is not configured.")
-    return psycopg.connect(
-        settings.DATABASE_URL,
-        row_factory=dict_row
-    )
+    from app.core import db
+    return db.connect(settings.DATABASE_URL, row_factory=dict_row)
 
 
 def init_db():

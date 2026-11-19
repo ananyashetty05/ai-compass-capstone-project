@@ -149,7 +149,7 @@
 .cp-head-text { display: grid; gap: 2px; min-width: 0; flex: 1 1 auto; }
 .cp-head-text strong { color: var(--color-text-primary); font-size: var(--font-size-md, 1rem); font-weight: 650; }
 .cp-head-text small { color: var(--color-text-muted); font-size: var(--font-size-xs); line-height: 1.45; }
-.cp-head-tag, .cp-head-badge { flex: 0 0 auto; padding: 3px 10px; border-radius: var(--radius-pill); font-size: 0.72rem; font-weight: 650; white-space: nowrap; }
+.cp-head-tag, .cp-head-badge { flex: 0 0 auto; padding: 3px 10px; border-radius: var(--radius-pill); font-size: calc(0.72rem * var(--font-scale, 1)); font-weight: 650; white-space: nowrap; }
 .cp-head-tag { border: 1px solid var(--color-border); color: var(--color-text-muted); background: var(--color-surface); }
 .cp-head-badge { background: var(--color-primary); color: var(--color-text-on-primary); }
 .cp-head-chev { flex: 0 0 auto; width: 1.1rem; height: 1.1rem; color: var(--color-text-muted); transition: transform 300ms cubic-bezier(.2,.8,.2,1); }
@@ -188,7 +188,7 @@
 
 .cp-toggles { display: flex; flex-wrap: wrap; gap: 6px; }
 .cp-pill { display: inline-flex; align-items: center; gap: 6px; height: 2rem; padding: 0 12px; border: 1px solid var(--color-border); border-radius: var(--radius-pill); background: var(--color-surface); color: var(--color-text-secondary); font: inherit; font-size: var(--font-size-xs); font-weight: 550; text-transform: capitalize; cursor: pointer; transition: all 160ms ease; }
-.cp-pill small { padding: 0 6px; border-radius: var(--radius-pill); background: var(--color-surface-muted); color: var(--color-text-muted); font-size: 0.68rem; font-weight: 650; }
+.cp-pill small { padding: 0 6px; border-radius: var(--radius-pill); background: var(--color-surface-muted); color: var(--color-text-muted); font-size: calc(0.68rem * var(--font-scale, 1)); font-weight: 650; }
 .cp-pill:hover:not(:disabled) { border-color: var(--color-border-strong); color: var(--color-text-primary); }
 .cp-pill[aria-pressed='true'] { border-color: var(--color-primary); background: var(--color-primary); color: var(--color-text-on-primary); }
 .cp-pill[aria-pressed='true'] small { background: rgb(255 255 255 / 22%); color: inherit; }
@@ -220,7 +220,7 @@
 .cp-pool-item input { flex: 0 0 auto; width: 1rem; height: 1rem; accent-color: var(--color-primary); }
 .cp-pool-item span { display: grid; min-width: 0; }
 .cp-pool-item strong { overflow: hidden; color: var(--color-text-primary); font-size: var(--font-size-xs); font-weight: 600; text-overflow: ellipsis; white-space: nowrap; }
-.cp-pool-item small { color: var(--color-text-muted); font-size: 0.7rem; }
+.cp-pool-item small { color: var(--color-text-muted); font-size: calc(0.7rem * var(--font-scale, 1)); }
 
 /* ── Small screens ───────────────────────────────────────────────── */
 @media (max-width: 640px) {

@@ -89,6 +89,14 @@ class ModelMetadata(BaseModel):
     api_available: Optional[bool] = None
     embedding_dimensions: Optional[int] = None
     taxonomy_status: str = Field(default="unclassified", description="curated | derived | unclassified")
+    # ── Recommendation category / access route / pricing class (derived by services/access_category.py; never guessed) ──
+    model_category: str = Field(default="unclassified", description="conversational | developer_api | unclassified")
+    access_type: str = Field(default="unknown", description="consumer_chat | provider_api | hosted_inference | aggregator_api | self_hosted | unknown")
+    intended_use: List[str] = Field(default_factory=list, description="general_assistant | project_integration | coding | reasoning | embedding | multimodal | agent_development | rag | specialized")
+    integration_supported: Optional[bool] = Field(default=None, description="Documented integration route (API or local weights); None = not verified")
+    pricing_category: str = Field(default="unknown", description="completely_free | free_tier_limited | pay_as_you_go | paid_subscription | self_hosted_open_weight | unknown")
+    free_tier_available: Optional[bool] = Field(default=None, description="True only when a free tier/free access is documented; None = unknown")
+    category_basis: Optional[str] = None
     # ── Independent state flags (deliberately not collapsed into one 'available') ──
     comparison_eligible: bool = Field(default=True, description="Can be compared using published metadata; never depends on credentials")
     execution_available: bool = Field(default=False, description="AI Compass can run it right now (adapter + provider credential on the server)")

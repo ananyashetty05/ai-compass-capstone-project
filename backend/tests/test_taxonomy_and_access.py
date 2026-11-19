@@ -83,12 +83,16 @@ class CategorisationTests(Base):
         for c in r.candidates:
             self.assertEqual(model_taxonomy.classify(r.model_lookup[c.model_id]).weights_status, "open_weights")
 
-    def test_qwen_is_not_excluded_from_conversation_when_it_is_a_chat_model(self):
+    def test_open_chat_model_on_a_model_hub_is_developer_category_not_conversational(self):
+        """A chat model hosted on Hugging Face is a developer/API offering: it is not an ordinary-question recommendation,
+        and it is recommended once the user says they are building something."""
         r = route("Explain how photosynthesis works in simple terms.")
-        self.assertIn("Qwen/Qwen2.5-72B-Instruct", {c.model_id for c in r.candidates})
-        coder = {e.model_id: e for e in r.exclusions}.get("Qwen/Qwen2.5-Coder-32B-Instruct")
-        self.assertIsNotNone(coder)
-        self.assertEqual(coder.code, "developer_only_model")
+        self.assertNotIn("Qwen/Qwen2.5-72B-Instruct", {c.model_id for c in r.candidates})
+        ex = {e.model_id: e for e in r.exclusions}
+        self.assertEqual(ex["Qwen/Qwen2.5-72B-Instruct"].code, "developer_only_model")
+        self.assertEqual(ex["Qwen/Qwen2.5-Coder-32B-Instruct"].code, "developer_only_model")
+        d = route("I am building a chatbot for my project; which open-weights model should I use?")
+        self.assertIn("Qwen/Qwen2.5-72B-Instruct", {c.model_id for c in d.candidates})
 
     def test_providers_are_not_model_developers(self):
         groq = model_taxonomy.classify(self.by_id("llama-3.3-70b-versatile"))

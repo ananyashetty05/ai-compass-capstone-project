@@ -31,7 +31,7 @@ body {
   background-color: var(--color-background);
   color: var(--color-text-primary);
   font-family: var(--font-sans);
-  font-size: calc(var(--font-size-base) * var(--font-scale, 1));
+  font-size: var(--font-size-base);
   line-height: var(--line-height-normal);
   letter-spacing: var(--letter-snug);
   -webkit-font-smoothing: antialiased;

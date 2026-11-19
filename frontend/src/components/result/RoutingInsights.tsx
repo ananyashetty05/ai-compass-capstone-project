@@ -25,7 +25,7 @@ export function RoutingPipeline({ result }: { result: RouteResponse }) {
     { id: 'query', title: 'Query', value: `${result.query.length.toLocaleString()} characters` },
     { id: 'analysis', title: 'Analysis', value: `${humanizeToken(result.query_analysis.task_type)} · ${humanizeToken(result.query_analysis.domain)}` },
     { id: 'filter', title: 'Filtering', value: `${excluded} excluded` },
-    { id: 'score', title: 'Scoring', value: `${m.candidates_evaluated ?? result.model_scores.length} scored` },
+    { id: 'score', title: 'Scoring', value: `${m.candidates_scored ?? m.candidates_evaluated ?? result.model_scores.length} scored` },
     { id: 'select', title: 'Selection', value: result.selected_model_name },
     { id: 'rec', title: 'Recommendation', value: result.final_model_name + (result.escalation_info.escalated ? ' (escalated)' : '') },
   ];

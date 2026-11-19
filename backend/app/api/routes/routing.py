@@ -10,6 +10,7 @@ The response keeps every legacy field and adds ``engine`` with the complete stru
 """
 import threading
 import time
+from concurrent.futures import ThreadPoolExecutor
 import uuid
 from typing import Any, Dict, Optional, Tuple
 
@@ -21,7 +22,7 @@ from app.schemas.query import OptimizePromptRequest, OptimizePromptResponse, Que
 from app.schemas.response import RouteAndGenerateResponse
 from app.services import feedback_store, routing_log_store, user_store
 from app.services.model_registry import get_catalog_with_exclusions, get_model_by_id, get_tool_recommendations
-from app.services.routing_engine import optimizer, pipeline, understanding
+from app.services.routing_engine import optimizer, pipeline, scoring, understanding
 from app.services.routing_engine.compat import to_legacy_profile
 
 router = APIRouter()
@@ -96,6 +97,7 @@ def _build_response(req: QueryRequest, user, res: "pipeline.PipelineResult", rou
             "model_id": r.model_id, "quality_score": r.utilities.get("quality"), "cost_score": u["cost"], "latency_score": u["latency"], "reliability_score": u["reliability"],
             "risk_score": u["risk"], "preference_alignment": u["preference_alignment"], "overall_score": round(r.robust_score, 4),
             "score_breakdown": {**{k: r.utilities.get(k) for k in u}, "utility": r.utility, "robust_score": r.robust_score, "confidence": r.confidence, "learning_bonus": r.learning_adjustment}})
+    scored_ids = {r.model_id for r in rows if scoring.is_scored(r)}
     alternatives = []
     for r in rows[1:_RANKED_ALTERNATIVES_COUNT + 1]:
         m = by_model[r.model_id]
@@ -138,18 +140,49 @@ def _build_response(req: QueryRequest, user, res: "pipeline.PipelineResult", rou
     engine = res.model_dump()
     engine["profile"]["original_query"] = ""  # the query is already returned as `query`; do not duplicate it in the engine payload
     engine["optimization"]["original_prompt"] = ""
+    # Wire size: a listed model with no objective data has nothing to compare, so it is sent as a compact entry instead of a full
+    # evidence block (about 1.7 KB each; hundreds of them made the response over 1 MB). Every pool member stays visible.
+    full, compact = [], []
+    for c in engine["candidates"]:
+        if c["model_id"] in scored_ids:
+            full.append(c)
+        else:
+            compact.append({"model_id": c["model_id"], "model_name": c["model_name"], "provider": c["provider"], "metadata_status": c["metadata_status"],
+                            "recommendation_eligible": c.get("recommendation_eligible", True), "execution_ready": c.get("execution_ready", False), "execution_status": c.get("execution_status")})
+    engine["candidates"], engine["unscored_candidates"] = full, compact
+    engine["pool_summary"] = {"eligible": len(rows), "scored": len(full), "unscored": len(compact)}
+    legacy_scores = [x for x in legacy_scores if x["model_id"] in scored_ids]
     engine["trace_available"] = routing_log_store.trace_table_available()
     return RouteAndGenerateResponse(
         routing_system={"name": "AI Compass", "type": "adaptive_llm_router"}, routing_id=routing_id, query=req.query, profile=user.user_group,
         query_analysis=to_legacy_profile(res.profile).model_dump(), candidate_models=[r.model_id for r in rows], filtered_models=_filtered_legacy(res.exclusions), model_scores=legacy_scores,
         selected_model_id=top.model_id, selected_model_name=selected.model_name, routing_explanation=routing_explanation, generated_response=generated,
         response_evaluation=response_eval, escalation_info=escalation, final_model_id=final_id, final_model_name=final_model.model_name,
-        performance_metrics={"total_latency_ms": round(total_ms, 1), "routing_latency_ms": res.routing_latency_ms, "candidates_evaluated": len(rows), "models_filtered": len(res.exclusions),
+        performance_metrics={"total_latency_ms": round(total_ms, 1), "routing_latency_ms": res.routing_latency_ms, "candidates_evaluated": len(rows), "candidates_scored": sum(1 for r in rows if scoring.is_scored(r)), "models_filtered": len(res.exclusions),
                              "escalated": ex.escalated, "user_group": user.user_group, "total_estimated_cost": ex.total_cost_usd},
         request_usage=usage, optimized_prompt=res.prompt_used, learning_active=any(r.learning_adjustment != 0 for r in rows), ranked_alternatives=alternatives,
         tool_recommendations=tools,
         recommended_destination={"provider": final_model.provider, "entry_type": final_model.entry_type, "official_url": final_model.external_url, "availability": final_model.availability,
                                  "data_provenance": final_model.data_provenance, "last_verified_at": final_model.last_verified_at}, engine=engine)
+
+
+def _persist_decision(routing_id: str, uid: str, res: Any) -> float:
+    """Write the three independent decision records concurrently (each opens its own connection), so the request pays the slowest
+    write rather than the sum. Every write is best-effort: a storage problem is logged and never fails the routing request.
+    Writes complete before the response (not a background task) because serverless hosts may freeze after responding."""
+    def safe(label: str, fn, *args) -> None:
+        try:
+            fn(*args)
+        except Exception:
+            logger.exception("Could not persist %s", label)
+    t0 = time.perf_counter()
+    with ThreadPoolExecutor(max_workers=3, thread_name_prefix="route-persist") as pool:
+        futures = [pool.submit(safe, "routing decision for feedback validation", feedback_store.record_routing_decision, routing_id, uid, res.selection.selected_model_id),
+                   pool.submit(safe, "routing log", routing_log_store.record, routing_id, uid, res),
+                   pool.submit(safe, "decision trace", routing_log_store.record_trace, routing_id, uid, res)]
+        for f in futures:
+            f.result()
+    return round((time.perf_counter() - t0) * 1000, 1)
 
 
 @router.post("/route-and-generate", response_model=RouteAndGenerateResponse)
@@ -172,16 +205,9 @@ def route_and_generate(req: QueryRequest, uid: Optional[str] = Depends(_get_uid)
         hint = " ".join(res.no_candidate_guidance.get("suggestions", []))
         raise HTTPException(422, f"No model satisfies this query's constraints. {parts}. {hint}".strip())
     routing_id = str(uuid.uuid4())
-    try:
-        feedback_store.record_routing_decision(routing_id, uid, res.selection.selected_model_id)
-    except Exception:
-        logger.exception("Could not persist routing decision for feedback validation")
-    try:
-        routing_log_store.record(routing_id, uid, res)
-        routing_log_store.record_trace(routing_id, uid, res)
-    except Exception:
-        logger.exception("Could not persist routing log")
+    persistence_ms = _persist_decision(routing_id, uid, res)
     response = _build_response(req, user, res, routing_id, (time.time() - t0) * 1000)
+    response.performance_metrics["persistence_ms"] = persistence_ms
     logger.info(f"Routed: {user.user_group} | {res.selection.selected_model_id} | mode={res.mode} | {response.performance_metrics['total_latency_ms']}ms")
     if cache_key:
         with _idem_lock:

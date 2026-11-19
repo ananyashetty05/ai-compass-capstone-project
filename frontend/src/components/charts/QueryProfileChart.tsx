@@ -18,6 +18,7 @@ import { ChartFrame } from './ChartFrame';
 import { coerceNumber, formatNumber, formatPercent } from '../../utils/format';
 import { humanizeToken } from '../../utils/format';
 import type { QueryProfile } from '../../types';
+import { useChartMotion } from '../../hooks/useChartMotion';
 
 /** Requirement dimensions that are scored between 0 and 1. */
 const REQUIREMENTS: { key: keyof QueryProfile; label: string }[] = [
@@ -36,6 +37,7 @@ export interface QueryProfileChartProps {
 }
 
 export function QueryProfileChart({ profile, height = 240 }: QueryProfileChartProps) {
+  const motion = useChartMotion();
   const data = REQUIREMENTS.map(({ key, label }) => {
     const raw = profile[key];
     return { label, value: typeof raw === 'number' ? raw : null };
@@ -77,7 +79,7 @@ export function QueryProfileChart({ profile, height = 240 }: QueryProfileChartPr
               formatter={(value) => [formatPercent(coerceNumber(value), 1), 'Requirement']}
             />
             <Legend wrapperStyle={{ fontSize: 12 }} />
-            <Bar dataKey="value" name="Requirement" fill={theme.series[0]} radius={[4, 4, 0, 0]} maxBarSize={48} />
+            <Bar {...motion} dataKey="value" name="Requirement" fill={theme.series[0]} radius={[4, 4, 0, 0]} maxBarSize={48} />
           </BarChart>
         </ResponsiveContainer>
       )}

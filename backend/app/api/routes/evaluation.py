@@ -5,7 +5,8 @@ from fastapi import APIRouter, Depends, HTTPException
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 
 from app.schemas.evaluation import OfflineEvaluationRequest, OfflineEvaluationResponse
-from app.services import candidate_filter, offline_evaluation, query_analyzer, user_store
+from app.services import candidate_filter, category_evaluation, offline_evaluation, query_analyzer, user_store
+from app.services.routing_engine import audience as audience_mod
 from app.services.model_registry import get_catalog_for_recommendation
 
 router = APIRouter()
@@ -63,6 +64,7 @@ def evaluate_offline(
         max_latency=req.max_latency,
         require_capabilities=req.require_capabilities,
         privacy_requirement=getattr(req, "privacy_requirement", None),
+        audience_kind=audience_mod.assess(req.query).kind,
     )
     if req.max_cost is not None:
         unknown_pricing = [
@@ -89,4 +91,14 @@ def evaluate_offline(
         candidate_count=len(candidates),
         filtered_models=filtered,
         strategy_results=strategy_results,
+        catalog_coverage=offline_evaluation.catalog_coverage(candidates, strategy_results),
     )
+
+
+@router.get("/evaluate/categories")
+def evaluate_categories(uid: Optional[str] = Depends(_get_uid)) -> dict:
+    """Category-aware offline evaluation over a fixed labelled query set. Metadata only: no model is called."""
+    user = user_store.get_by_id(uid) if uid else None
+    if not user:
+        raise HTTPException(401, "Authentication required. Please log in.")
+    return category_evaluation.run()

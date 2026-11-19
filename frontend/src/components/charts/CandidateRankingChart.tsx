@@ -9,6 +9,7 @@ import { Bar, BarChart, CartesianGrid, Cell, LabelList, ResponsiveContainer, Too
 import { ChartFrame } from './ChartFrame';
 import { formatPercent, coerceNumber } from '../../utils/format';
 import type { ModelScore } from '../../types';
+import { useChartMotion } from '../../hooks/useChartMotion';
 
 export interface CandidateRankingChartProps {
   scores: readonly ModelScore[];
@@ -24,6 +25,7 @@ export function CandidateRankingChart({
   height = 280,
   limit = 10,
 }: CandidateRankingChartProps) {
+  const motion = useChartMotion();
   const ranked = [...scores]
     .sort((a, b) => b.overall_score - a.overall_score)
     .slice(0, limit);
@@ -81,7 +83,7 @@ export function CandidateRankingChart({
               contentStyle={{ background: theme.surface, borderRadius: 8, fontSize: 13 }}
               formatter={(value) => [formatPercent(coerceNumber(value), 1), 'Overall score']}
             />
-            <Bar dataKey="value" name="Overall score" radius={[4, 4, 0, 0]} maxBarSize={56}>
+            <Bar {...motion} dataKey="value" name="Overall score" radius={[4, 4, 0, 0]} maxBarSize={56}>
               {data.map((row) => (
                 <Cell key={row.label} fill={row.selected ? theme.series[0] : theme.neutral} />
               ))}

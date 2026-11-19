@@ -11,6 +11,7 @@ import { SegmentedControl } from '../ui/ds';
 import { STRATEGIES, strategyShort } from './strategies';
 import { formatDuration, formatPercent, formatUsd } from '../../utils/format';
 import type { OfflineEvaluationResponse, OfflineStrategyResult } from '../../types';
+import { useChartMotion } from '../../hooks/useChartMotion';
 
 type Key = 'routing_score' | 'quality_score' | 'reliability_score' | 'latency_seconds' | 'estimated_cost_usd' | 'risk_score';
 interface Metric { key: Key; label: string; note: string; best: 'max' | 'min' | null; ratio: boolean; fmt: (v: number) => string }
@@ -38,6 +39,7 @@ function bestSet(rows: OfflineStrategyResult[], m: Metric): Set<string> {
 }
 
 export function BenchmarkResults({ evaluation }: { evaluation: OfflineEvaluationResponse }) {
+  const motion = useChartMotion();
   const [metricKey, setMetricKey] = useState<Key>('quality_score');
   const byKey = useMemo(() => new Map(evaluation.strategy_results.map((r) => [r.strategy, r])), [evaluation]);
   const ordered = STRATEGIES.flatMap(({ key }) => { const r = byKey.get(key); return r ? [r] : []; });
@@ -168,7 +170,7 @@ export function BenchmarkResults({ evaluation }: { evaluation: OfflineEvaluation
                 <XAxis type="number" stroke="var(--color-text-muted)" tick={{ fill: 'var(--color-text-secondary)', fontSize: 11 }} tickFormatter={(v) => (metric.ratio ? `${Math.round(Number(v) * 100)}%` : String(v))} />
                 <YAxis type="category" dataKey="strategy" width={96} stroke="var(--color-text-muted)" tick={{ fill: 'var(--color-text-secondary)', fontSize: 12 }} />
                 <Tooltip cursor={{ fill: 'var(--color-primary-subtle)' }} formatter={(value) => [metric.fmt(Number(value)), metric.label]} labelFormatter={(label, payload) => { const m = payload?.[0]?.payload?.model; return m ? `${label} · ${m}` : label; }} contentStyle={{ background: 'var(--color-surface-raised)', borderColor: 'var(--color-border)', borderRadius: 10, color: 'var(--color-text-primary)' }} />
-                <Bar dataKey="value" name={metric.label} radius={[0, 6, 6, 0]} maxBarSize={26}>
+                <Bar {...motion} dataKey="value" name={metric.label} radius={[0, 6, 6, 0]} maxBarSize={26}>
                   {chartData.map((d) => <Cell key={d.key} fill={COLOR[d.key] ?? 'var(--color-primary)'} />)}
                 </Bar>
               </BarChart>
@@ -188,6 +190,14 @@ export function BenchmarkResults({ evaluation }: { evaluation: OfflineEvaluation
           <summary><ShieldCheck aria-hidden="true" />Research validity and methodology</summary>
           <div className="xb-method">
             <p>{evaluation.data_disclosure}</p>
+            {evaluation.catalog_coverage ? (
+              <p>
+                Coverage (metadata only): {evaluation.catalog_coverage.evaluated_models} models across {evaluation.catalog_coverage.providers} providers were compared, whether or not a provider key is configured.
+                {' '}{evaluation.catalog_coverage.recommendation_only_models} of them cannot be run with the current configuration (recommendation only);
+                {' '}{evaluation.catalog_coverage.models_with_missing_metadata} lack a quality score, a price or verified metadata.
+                {' '}Escalation rate, response quality, latency and spend are not measured here.
+              </p>
+            ) : null}
             <p>All four strategies use the same analysed query, registry catalog and hard-constraint-filtered pool. AI Compass uses the signed-in profile’s routing weights. Quality is a registry estimate unless its source names a benchmark; it is not a measured response-quality score. Input cost uses the estimated input-token count and known input pricing only, excluding output tokens. Latency, reliability, risk, capability, context-window and availability fields are registry metadata, not measurements from this run.</p>
           </div>
         </details>

@@ -1,9 +1,11 @@
 
 """Feedback persistence and adaptive satisfaction learning."""
+import threading
+import time
 import uuid
 import json
 from datetime import datetime, timezone
-from typing import List, Dict
+from typing import List, Dict, Optional
 
 try:
     import psycopg
@@ -39,10 +41,8 @@ def _conn():
         raise RuntimeError("PostgreSQL support is unavailable; install psycopg[binary].")
     if not settings.DATABASE_URL:
         raise RuntimeError("DATABASE_URL is not configured.")
-    return psycopg.connect(
-        settings.DATABASE_URL,
-        row_factory=dict_row,
-    )
+    from app.core import db
+    return db.connect(settings.DATABASE_URL, row_factory=dict_row)
 
 def init_feedback_db():
     with _conn() as c:
@@ -97,6 +97,13 @@ def record_routing_decision(routing_id: str, user_id: str, selected_model_id: st
         )
 
 def submit_feedback(user_id: str, sub: FeedbackSubmission) -> FeedbackRecord:
+    try:
+        return _submit_feedback(user_id, sub)
+    finally:
+        invalidate_learning_cache(user_id)
+
+
+def _submit_feedback(user_id: str, sub: FeedbackSubmission) -> FeedbackRecord:
     fid = str(uuid.uuid4())
     now = datetime.now(timezone.utc).isoformat()
 
@@ -258,15 +265,60 @@ def get_learning_state(user_id: str) -> LearningState:
     )
 
 
+_LEARN_TTL_SECONDS = 30.0
+_LEARN_STALE_SECONDS = 300.0
+_learn_refreshing: set = set()
+_learn_cache: Dict[str, tuple] = {}
+_learn_lock = threading.Lock()
+
+
+def invalidate_learning_cache(user_id: Optional[str] = None) -> None:
+    with _learn_lock:
+        if user_id is None:
+            _learn_cache.clear()
+        else:
+            _learn_cache.pop(user_id, None)
+
+
 def get_learning_bonuses(user_id: str, model_ids: List[str]) -> Dict[str, float]:
+    """Cached per user for a short TTL (one Postgres round trip otherwise per routing request); submitting feedback invalidates it."""
+    wanted = set(model_ids)
+    now = time.monotonic()
+    with _learn_lock:
+        hit = _learn_cache.get(user_id)
+    if hit and now - hit[0] < _LEARN_TTL_SECONDS:
+        return {k: v for k, v in hit[1].items() if k in wanted}
+    if hit and now - hit[0] < _LEARN_STALE_SECONDS:
+        # Stale-while-revalidate. The user's own feedback invalidates this cache explicitly, so only changes from elsewhere lag.
+        with _learn_lock:
+            start = user_id not in _learn_refreshing
+            _learn_refreshing.add(user_id)
+        if start:
+            def work():
+                try:
+                    full = _load_learning_bonuses(user_id)
+                    with _learn_lock:
+                        _learn_cache[user_id] = (time.monotonic(), full)
+                except Exception:
+                    pass
+                finally:
+                    with _learn_lock:
+                        _learn_refreshing.discard(user_id)
+            threading.Thread(target=work, name="learning-refresh", daemon=True).start()
+        return {k: v for k, v in hit[1].items() if k in wanted}
+    full = _load_learning_bonuses(user_id)
+    with _learn_lock:
+        _learn_cache[user_id] = (now, full)
+    return {k: v for k, v in full.items() if k in wanted}
+
+
+def _load_learning_bonuses(user_id: str, model_ids: Optional[List[str]] = None) -> Dict[str, float]:
     """Return all requested user-local bonuses with one connection/query.
 
     This preserves the cold-start and per-model sample thresholds while avoiding
     one aggregate lookup per eligible routing candidate.
     """
-    wanted = set(model_ids)
-    if not wanted:
-        return {}
+    wanted = set(model_ids) if model_ids is not None else None
     with _conn() as c:
         rows = c.execute(
             """
@@ -280,7 +332,7 @@ def get_learning_bonuses(user_id: str, model_ids: List[str]) -> Dict[str, float]
         return {}
     bonuses: Dict[str, float] = {}
     for row in rows:
-        if row["model_id"] not in wanted or row["sample_count"] < MIN_SAMPLES_FOR_INFLUENCE:
+        if (wanted is not None and row["model_id"] not in wanted) or row["sample_count"] < MIN_SAMPLES_FOR_INFLUENCE:
             continue
         posterior = (PRIOR_WEIGHT * PRIOR_MEAN + row["sum_ratings"]) / (PRIOR_WEIGHT + row["sample_count"])
         deviation = (posterior - 1.0) / 4.0 - 0.5

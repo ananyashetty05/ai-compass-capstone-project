@@ -9,6 +9,7 @@ import { Bar, BarChart, CartesianGrid, ResponsiveContainer, Tooltip, XAxis, YAxi
 import { ChartFrame } from './ChartFrame';
 import { coerceNumber, formatPercent, humanizeToken } from '../../utils/format';
 import { sum } from '../../utils/scores';
+import { useChartMotion } from '../../hooks/useChartMotion';
 
 export interface WeightChartProps {
   title?: string;
@@ -23,6 +24,7 @@ export function WeightChart({
   weights,
   height = 220,
 }: WeightChartProps) {
+  const motion = useChartMotion();
   // A weight the backend did not report stays `null` so the bar renders
   // as absent rather than as a real zero-height bar. Sorting therefore
   // has to push those to the end — comparing them as `0` would
@@ -88,7 +90,7 @@ export function WeightChart({
               }}
               formatter={(value) => [formatPercent(coerceNumber(value), 1), 'Weight']}
             />
-            <Bar dataKey="value" name="Weight" fill={theme.series[0]} radius={[4, 4, 0, 0]} maxBarSize={64} />
+            <Bar {...motion} dataKey="value" name="Weight" fill={theme.series[0]} radius={[4, 4, 0, 0]} maxBarSize={64} />
           </BarChart>
         </ResponsiveContainer>
       )}

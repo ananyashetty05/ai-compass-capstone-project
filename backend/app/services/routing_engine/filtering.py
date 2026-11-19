@@ -6,6 +6,7 @@ because metadata is missing exclude the candidate (unknown is not treated as com
 from typing import Dict, List, Optional, Tuple
 
 from app.schemas.model import ModelMetadata
+from app.services import access_category
 from app.services.routing_engine.types import ExclusionRecord, QueryProfileV2, ResolvedPreferences
 
 _PERMANENT_LIFECYCLE = {"retired", "incompatible"}
@@ -38,36 +39,45 @@ def _tags(model: ModelMetadata) -> set:
 
 
 def _audience_checks(model: ModelMetadata, profile: QueryProfileV2, fail) -> None:
-    """Conversational-vs-developer gate. Applies only to models with a curated taxonomy; an unclassified
-    entry keeps legacy behaviour (and is reported as unclassified in the registry, never guessed)."""
-    if model.taxonomy_status == "unclassified":
-        return
+    """Category gate: runs BEFORE scoring, so conversational and developer/API models are never ranked against each other.
+
+    Conversational intent  -> only the Conversational AI category.
+    Developer/API intent   -> models with a documented integration route (the Developer & API category, plus provider
+                              APIs of model developers). Consumer applications and unclassified entries never qualify.
+    Ambiguous intent is handled upstream: it uses the conversational pool and surfaces one clarifying question.
+    """
     aud = profile.audience
-    cats = set(model.use_categories or [])
+    prof = access_category.profile_of(model)
     # A generation request (image / video / audio) asks for the artefact itself. A model that declares the
     # required generation capability is the thing being asked for, whatever its integration route; the
     # capability and modality checks already exclude everything that cannot produce it.
     generation = {"image-generation", "video-generation", "audio-generation"} & set(profile.required_capabilities or [])
     if generation and generation & set(model.capabilities or []):
         return
+    if prof.model_category == access_category.UNCLASSIFIED:
+        # Nothing verified about this entry (unknown provider role, no taxonomy): legacy behaviour, reported as "unclassified" in the
+        # result. It is never labelled conversational or developer on a guess, and is shown as such to the user.
+        return
+    ev = dict(model_category=prof.model_category, access_type=prof.access_type, model_type=model.model_type)
     if aud.kind == "conversational":
-        if "conversational" not in cats:
-            fail("developer_only_model", "ordinary questions need a model that supports direct conversation",
-                 f"{model.model_name} is a {model.model_type.replace('_', ' ')} model intended for development use, so it is not recommended for a general question",
-                 "permanent", model_type=model.model_type, use_categories=sorted(cats))
+        if prof.model_category == access_category.DEVELOPER_API:
+            fail("developer_only_model", "ordinary questions use Conversational AI models",
+                 f"{model.model_name} is a developer/API offering ({model.provider}, {prof.access_type.replace('_', ' ')}); it is shown only when you say you are building something",
+                 "permanent", **ev)
     else:
-        if "developer" not in cats:
+        if prof.integration_supported is not True:
             fail("no_integration_path", "a developer request needs a model with a documented integration route (API or local weights)",
-                 f"{model.model_name} is a consumer application with no developer integration route", "permanent", use_categories=sorted(cats))
+                 f"{model.model_name} is a consumer application with no developer integration route" if prof.integration_supported is False
+                 else f"{model.model_name} has no verified API or download route", "permanent" if prof.integration_supported is False else "unknown", **ev)
         if aud.requires_open_weights and model.weights_status != "open_weights":
             fail("open_weights_required", "open-weight model requested",
                  "Weights are not documented as openly available" if model.weights_status == "unknown" else "Proprietary model; weights are not available",
                  "permanent" if model.weights_status == "proprietary" else "unknown", weights_status=model.weights_status)
-        if aud.prefers_free and not (model.free_download or model.free_access in {"free", "limited_free"}):
-            fail("free_access_unverified" if model.free_access == "unknown" else "not_free",
+        if aud.prefers_free and prof.pricing_category not in {"completely_free", "free_tier_limited", "self_hosted_open_weight"}:
+            fail("free_access_unverified" if prof.pricing_category == "unknown" else "not_free",
                  "free access requested (documented free download, free tier or free inference)",
-                 "No documented free access" if model.free_access == "unknown" else "Documented as paid; no free tier or free download",
-                 "unknown" if model.free_access == "unknown" else "permanent", free_access=model.free_access, free_download=model.free_download)
+                 "No documented free access" if prof.pricing_category == "unknown" else "Documented as paid; no free tier or free download",
+                 "unknown" if prof.pricing_category == "unknown" else "permanent", pricing_category=prof.pricing_category, free_access=model.free_access, free_download=model.free_download)
     types = set(aud.required_model_types)
     if types:
         want = {"embedding": "embedding", "reranker": "reranker"}
@@ -180,7 +190,7 @@ def no_candidate_guidance(excluded: List[ExclusionRecord]) -> Dict[str, object]:
         "privacy_unverified": "Turn off strict privacy, or add models with documented data handling.",
         "capability_missing": "Remove a required capability or add a model that declares it.", "modality_unsupported": "Choose a task a configured model supports, or configure a provider that does.",
         "context_insufficient": "Shorten the input or use a larger-context model.", "not_executable": "Run in recommendation mode, or configure an API provider for this task.",
-        "developer_only_model": "Say you are building something (e.g. \"for my app\") to include developer models.",
+        "developer_only_model": "Say you are building something (e.g. \"for my app\") to include Developer & API models.",
         "no_integration_path": "Consumer applications cannot be integrated into a project.", "free_access_unverified": "Free access could not be verified for these models; relax the 'free' requirement to see them.",
         "not_free": "Relax the 'free' requirement to include paid models.", "open_weights_required": "Relax the open-weights requirement.",
         "model_type_mismatch": "No catalogue model of the required type matched the other constraints.",

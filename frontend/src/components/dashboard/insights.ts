@@ -2,8 +2,7 @@
  * Pure derivations for the dashboard. Everything here is computed from
  * data the API actually returned; nothing is estimated or invented.
  */
-import type { HealthState, ModelInfo, RegistryStatus } from '../../types';
-import type { ProviderHealth } from '../../services/health.service';
+import type { ModelInfo } from '../../types';
 import { humanizeToken } from '../../utils/format';
 
 export const isInference = (m: ModelInfo) => m.entry_type === 'inference_model' || m.entry_type === 'model';
@@ -53,73 +52,6 @@ export function summariseModels(models: ModelInfo[]): ModelSummary {
     capabilities: rank(caps),
     modalities: rank(mods),
   };
-}
-
-export interface AttentionItem {
-  id: string;
-  tone: 'warning' | 'danger' | 'info';
-  title: string;
-  detail: string;
-  to?: string;
-  action?: string;
-}
-
-export function deriveAttention(input: {
-  health: HealthState;
-  providers: ProviderHealth[];
-  summary: ModelSummary | null;
-  registry: RegistryStatus | null;
-}): AttentionItem[] {
-  const items: AttentionItem[] = [];
-  const { health, providers, summary, registry } = input;
-
-  if (health === 'offline') {
-    items.push({ id: 'offline', tone: 'danger', title: 'Routing service unreachable', detail: 'The backend health check failed, so routing and registry data may be out of date.' });
-  } else if (health === 'degraded') {
-    const routable = summary?.eligible ?? 0;
-    items.push({
-      id: 'degraded', tone: 'warning', title: 'Routing service partially available',
-      detail: routable > 0
-        ? `No provider has a server credential, so AI Compass cannot run models yet. It can still compare and recommend all ${routable} eligible model${routable === 1 ? '' : 's'}.`
-        : 'The service responded, but no provider is currently configured and enabled.',
-    });
-  }
-
-  const missing = providers.filter((p) => p.state === 'unknown');
-  if (missing.length > 0) {
-    items.push({
-      id: 'credentials',
-      tone: 'info',
-      title: `${missing.length} provider${missing.length === 1 ? '' : 's'} without a server credential`,
-      detail: `${missing.map((p) => p.label).join(', ')} cannot be used to run models until a credential is configured on the server. Comparison and recommendation do not need one.`,
-    });
-  }
-  const disabled = providers.filter((p) => p.state === 'offline');
-  if (disabled.length > 0) {
-    items.push({ id: 'disabled', tone: 'warning', title: `${disabled.map((p) => p.label).join(', ')} disabled`, detail: 'Disabled by server configuration; its models are not routable.' });
-  }
-
-  if (registry) {
-    if (!registry.persistence_available) {
-      items.push({ id: 'persistence', tone: 'info', title: 'Static catalog in use', detail: 'Registry persistence is unavailable, so live model discovery is not being stored.', to: '/models', action: 'Open model pool' });
-    } else if (registry.live_registry_enabled === false) {
-      items.push({ id: 'live-off', tone: 'info', title: 'Live registry is switched off', detail: 'Models come from the built-in catalog until live discovery is enabled.', to: '/models', action: 'Open model pool' });
-    }
-    const failed = registry.providers.filter((p) => p.last_attempt_status === 'failed' || p.status === 'failed');
-    if (failed.length > 0) {
-      items.push({ id: 'refresh-failed', tone: 'warning', title: `Last refresh failed for ${failed.map((p) => p.display_name ?? humanizeToken(p.provider)).join(', ')}`, detail: 'The previous catalog data remains in use. Open the model pool for the error detail.', to: '/models', action: 'Review' });
-    }
-  }
-
-  if (summary) {
-    if (summary.stale > 0) {
-      items.push({ id: 'stale', tone: 'warning', title: `${summary.stale} model${summary.stale === 1 ? '' : 's'} with stale catalog data`, detail: 'Their catalog data has not been confirmed by a live provider refresh.', to: '/models', action: 'Review models' });
-    }
-    if (summary.inference.length > 0 && summary.active === 0) {
-      items.push({ id: 'none-active', tone: 'danger', title: 'No active inference models', detail: 'Routing has nothing to choose from until a model is active.', to: '/models', action: 'Open model pool' });
-    }
-  }
-  return items;
 }
 
 /** "3 min ago" style label; falls back to the raw date for older values. */

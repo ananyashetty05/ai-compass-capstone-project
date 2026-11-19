@@ -5,10 +5,11 @@ from typing import Any, Callable, Dict, List, Optional
 from pydantic import BaseModel, Field
 
 from app.schemas.model import ModelMetadata
-from app.services.routing_engine import access as access_mod, counterfactual, explain, filtering, observed as observed_mod, optimizer, preferences, scoring, understanding
+from app.services import access_category
+from app.services.routing_engine import access as access_mod, confidence as confidence_mod, counterfactual, explain, provenance as provenance_mod, filtering, observed as observed_mod, optimizer, preferences, scoring, understanding
 from app.services.routing_engine import execution as execution_mod
 from app.services.routing_engine.types import (
-    CandidateScore, DecisionExplanation, ENGINE_VERSION, EvaluationOutcome, ExclusionRecord, ExecutionOutcome, ExecutionPolicy,
+    CandidateScore, ConfidenceReport, DecisionExplanation, ENGINE_VERSION, EvaluationOutcome, ExclusionRecord, ExecutionOutcome, ExecutionPolicy,
     NormalizationDetails, OptimizationResult, QueryProfileV2, ResolvedPreferences, SCORING_VERSION, ScoringConfig, Selection, StageRecord,
 )
 
@@ -57,6 +58,9 @@ class PipelineResult(BaseModel):
     access: Dict[str, Any] = Field(default={}, description="Execution access of the recommended model; independent of its suitability")
     counterfactuals: List[Dict[str, Any]] = Field(default=[], description="Scenarios computed by re-running filtering+scoring with one input changed")
     catalogue_summary: Dict[str, Any] = {}
+    provenance: Dict[str, Any] = Field(default={}, description="Fingerprint of every input that determines the decision; equal fingerprints give equal rankings")
+    confidence_report: Optional[ConfidenceReport] = None
+    executable_alternative: Optional[Dict[str, Any]] = Field(default=None, description="Best-ranked candidate that can run right now, when the best match cannot")
     prompt_used: str = ""
     prompt_used_source: str = "original"
     scoring_config: Optional[ScoringConfig] = None
@@ -85,6 +89,39 @@ class _Timer:
 def _registry_exclusions(items: List[Dict[str, str]]) -> List[ExclusionRecord]:
     return [ExclusionRecord(model_id=i["model_id"], code="registry_ineligible", requirement="routing eligibility from the live model registry", reason=i["reason"],
                             permanence="temporary", stage="registry_eligibility") for i in items]
+
+
+def _annotate_access(rows: List[CandidateScore], models: Dict[str, ModelMetadata]) -> None:
+    """Attach execution status to every ranked candidate. Runs after scoring, so credentials cannot influence rank."""
+    for r in rows:
+        m = models.get(r.model_id)
+        if m is None:
+            continue
+        d = access_mod.describe(m)
+        r.execution_ready = bool(d["execution_available"])
+        r.execution_status = d["status"]
+        op = access_category.profile_of(m)
+        r.model_category, r.access_type, r.pricing_category, r.free_tier_available = op.model_category, op.access_type, op.pricing_category, op.free_tier_available
+
+
+def _executable_alternative(rows: List[CandidateScore], models: Dict[str, ModelMetadata], selection: Selection, access: Dict[str, Any]) -> Optional[Dict[str, Any]]:
+    """Best match vs best *executable* match. Computed only when the best match cannot run; never substituted silently."""
+    if not selection.selected_model_id or not access or access.get("execution_available"):
+        return None
+    best = next((r for r in rows if r.model_id == selection.selected_model_id), None)
+    for r in rows:
+        if r.model_id == selection.selected_model_id:
+            continue
+        m = models.get(r.model_id)
+        if m is not None and access_mod.describe(m)["execution_available"]:
+            gap = round(best.robust_score - r.robust_score, 4) if best else None
+            return {"model_id": r.model_id, "model_name": r.model_name, "provider": r.provider, "rank": r.rank, "score_gap_to_best_match": gap,
+                    "statement": (f"The best catalogue match, {best.model_name if best else selection.selected_model_id}, cannot be run from AI Compass right now "
+                                  f"({access.get('status', 'no execution route').replace('_', ' ')}). The best-ranked model that can run is {r.model_name} (rank {r.rank}"
+                                  + (f", {gap:.3f} below on the robust score" if gap is not None else "") + "). It is offered as an alternative; it was not substituted."),
+                    "substituted": False}
+    return {"model_id": None, "substituted": False,
+            "statement": f"The best catalogue match cannot be run from AI Compass right now ({access.get('status', 'no execution route').replace('_', ' ')}) and no other eligible model has a working execution route."}
 
 
 def run(req: PipelineRequest, *, saved_weights: Optional[Dict[str, float]], user_id: Optional[str],
@@ -138,7 +175,8 @@ def run(req: PipelineRequest, *, saved_weights: Optional[Dict[str, float]], user
     api_pool = [m for m in catalog if m.entry_type == "inference_model"]
     app_pool = [m for m in catalog if m.entry_type != "inference_model"]
     models_by_id = {m.model_id: m for m in catalog}
-    obs = (observed_loader or observed_mod.load_observed)([m.model_id for m in catalog])
+    obs = tm.run("observed_evidence", "Observed performance evidence", lambda: (observed_loader or observed_mod.load_observed)([m.model_id for m in catalog]),
+                 lambda o: f"{len(o)} model(s) with observed history")
 
     pool_name = "api_models"
     obs_latency = {k: v.latency_p50_seconds for k, v in obs.items() if v.latency_p50_seconds}
@@ -168,7 +206,8 @@ def run(req: PipelineRequest, *, saved_weights: Optional[Dict[str, float]], user
                 ll = learning_loader
                 if ll is None:
                     from app.services.feedback_store import get_learning_bonuses as ll
-                learn = ll(user_id, [m.model_id for m in passing])
+                learn = tm.run("feedback_adjustments", "Personal feedback adjustments", lambda: ll(user_id, [m.model_id for m in passing]),
+                               lambda d: f"{len(d)} model(s) adjusted by your past ratings")
             except Exception:
                 learn = {}
         rows, norm = tm.run("multi_objective_scoring", "Multi-objective scoring", lambda: scoring.score_candidates(passing, profile, prefs, observed=obs, learning=learn, config=cfg),
@@ -239,10 +278,14 @@ def run(req: PipelineRequest, *, saved_weights: Optional[Dict[str, float]], user
             cfs = []
     catalogue = {"catalogue_total": len(catalog) + len(reg_excl), "considered": len(catalog), "excluded_by_registry": len(reg_excl), "eligible": len(passing) if pool_name == "api_models" or passing else 0,
                  "excluded_by_constraints": len(excl), "scored": len(rows), "selected": 1 if selection.selected_model_id else 0,
-                 "credentials_used_for_comparison": False, "audience": profile.audience.kind}
+                 "credentials_used_for_comparison": False, "audience": profile.audience.kind, "category": profile.audience.category, "intent_ambiguous": profile.audience.ambiguous}
+    _annotate_access(rows, models_by_id)
+    exec_alt = _executable_alternative(rows, models_by_id, selection, access) if rows else None
+    prov = provenance_mod.build(query=req.query, mode=req.mode, task_hint=req.task_type_hint, prefs=prefs, models=catalog, observed_latency=obs_latency, learning=learn, pool=pool_name)
+    conf_report = confidence_mod.build(profile, selection, access, execution, evaluation)
     status = "needs_clarification" if profile.needs_clarification and rows else ("no_eligible_candidates" if not rows else "ok")
     return PipelineResult(
         mode=req.mode, status=status, profile=profile, optimization=optimization, preferences=prefs, candidates=rows, exclusions=exclusions, normalization=norm,
         selection=selection, explanation=explanation, execution=execution, evaluation=evaluation, stages=stages, candidate_pool=pool_name,
-        no_candidate_guidance=guidance, access=access, counterfactuals=cfs, catalogue_summary=catalogue, prompt_used=prompt, prompt_used_source=source, scoring_config=cfg,
+        no_candidate_guidance=guidance, access=access, counterfactuals=cfs, catalogue_summary=catalogue, provenance=prov, confidence_report=conf_report, executable_alternative=exec_alt, prompt_used=prompt, prompt_used_source=source, scoring_config=cfg,
         routing_latency_ms=round((time.perf_counter() - t_start) * 1000, 2), model_lookup=models_by_id)
