@@ -66,7 +66,6 @@ export function SettingsPage() {
   const { state, providers, isChecking, error, lastCheckedAt, refresh } = useSystemStatus();
   const { signOut } = useAuth();
   const { push } = useToast();
-  const [section, setSection] = useState<SectionId>('appearance');
   const [confirmSignOut, setConfirmSignOut] = useState(false);
 
   // A short-lived confirmation for sign-out, since it is destructive
@@ -90,296 +89,281 @@ export function SettingsPage() {
         }
       />
 
-      <div className="settings-layout">
-        <nav className="settings-nav" aria-label="Settings categories">
-          <ul className="nav-list">
-            {SECTIONS.map((entry) => {
-              const Icon = entry.icon;
-              const current = entry.id === section;
-              return (
-                <li key={entry.id}>
-                  <button
-                    type="button"
-                    className="nav-link"
-                    aria-current={current ? 'page' : undefined}
-                    title={entry.description}
-                    onClick={() => setSection(entry.id)}
-                  >
-                    <Icon aria-hidden="true" />
-                    <span className="settings-nav-text">
-                      <span className="settings-nav-label">{entry.label}</span>
-                      <span className="settings-nav-description">{entry.description}</span>
-                    </span>
-                  </button>
-                </li>
-              );
-            })}
-          </ul>
+      <div className="settings-page">
+        <nav className="settings-jump" aria-label="Jump to a settings group">
+          {SECTIONS.map((entry) => {
+            const Icon = entry.icon;
+            return (
+              <a key={entry.id} href={`#settings-${entry.id}`} className="settings-jump-link" title={entry.description}>
+                <Icon aria-hidden="true" />{entry.label}
+              </a>
+            );
+          })}
         </nav>
 
-        <div className="settings-panel">
-          {section === 'appearance' ? (
-            <Card>
-              <CardHeader title="Theme" compact icon={<Palette />} description="Applied immediately and saved to your account." />
-              <CardBody>
-                <div className="field">
-                  <Segmented<ThemePreference>
-                    label="Theme"
-                    value={preference}
-                    onChange={(next) => setPreference(next)}
-                    options={[
-                      { value: 'light', label: 'Light', icon: <Sun /> },
-                      { value: 'dark', label: 'Dark', icon: <Moon /> },
-                      { value: 'system', label: 'System', icon: <Monitor /> },
-                    ]}
-                  />
-                  <p className="field-hint">
-                    Currently rendering in {resolved} mode
-                    {preference === 'system' ? ', following your operating system setting.' : '.'}
-                  </p>
-                </div>
-              </CardBody>
-            </Card>
-          ) : null}
-
-          {section === 'accessibility' ? (
-            <Card>
-              <CardHeader
-                title="Accessibility"
-                compact
-                icon={<Accessibility />}
-                description="Also applied immediately and saved to your account."
-              />
-              <CardBody>
-                <div className="field">
-                  <span className="field-label" id="text-size-label">
-                    Text size
-                  </span>
-                  <Segmented<FontSizePreference>
-                    label="Text size"
-                    value={accessibility.preferences.font_size}
-                    onChange={accessibility.setTextSize}
-                    options={[
-                      { value: 'small', label: 'Small' },
-                      { value: 'default', label: 'Default' },
-                      { value: 'large', label: 'Large' },
-                    ]}
-                  />
-                  <p className="field-hint">Scales all text through the interface. Your browser zoom still works too.</p>
-                </div>
-                <SwitchRow
-                  checked={accessibility.preferences.reduced_motion}
-                  onChange={accessibility.setReducedMotion}
-                  label="Reduce motion"
-                  description="Removes transitions and animation."
+        <div className="settings-grid">
+          <section id="settings-appearance" className="settings-block">
+          <Card>
+            <CardHeader title="Theme" compact icon={<Palette />} description="Applied immediately and saved to your account." />
+            <CardBody>
+              <div className="field">
+                <Segmented<ThemePreference>
+                  label="Theme"
+                  value={preference}
+                  onChange={(next) => setPreference(next)}
+                  options={[
+                    { value: 'light', label: 'Light', icon: <Sun /> },
+                    { value: 'dark', label: 'Dark', icon: <Moon /> },
+                    { value: 'system', label: 'System', icon: <Monitor /> },
+                  ]}
                 />
-                <SwitchRow
-                  checked={accessibility.preferences.high_contrast}
-                  onChange={accessibility.setHighContrast}
-                  label="High contrast"
-                  description="Increases the contrast between text, borders and surfaces."
-                />
-                <div className="row">
-                  <Button size="sm" variant="ghost" onClick={accessibility.reset}>
-                    Reset to defaults
-                  </Button>
-                </div>
-              </CardBody>
-            </Card>
-          ) : null}
+                <p className="field-hint">
+                  Currently rendering in {resolved} mode
+                  {preference === 'system' ? ', following your operating system setting.' : '.'}
+                </p>
+              </div>
+            </CardBody>
+          </Card>
+          </section>
 
-          {section === 'status' ? (
-            <Card>
-              <CardHeader
-                title="Backend status"
-                compact
-                description="Reported by GET /health. This interface never requests, displays or stores provider credentials."
-                icon={<PlugZap />}
-                actions={<Status name={statusName(state)}>{stateLabel(state)}</Status>}
+          <section id="settings-accessibility" className="settings-block">
+          <Card>
+            <CardHeader
+              title="Accessibility"
+              compact
+              icon={<Accessibility />}
+              description="Also applied immediately and saved to your account."
+            />
+            <CardBody>
+              <div className="field">
+                <span className="field-label" id="text-size-label">
+                  Text size
+                </span>
+                <Segmented<FontSizePreference>
+                  label="Text size"
+                  value={accessibility.preferences.font_size}
+                  onChange={accessibility.setTextSize}
+                  options={[
+                    { value: 'small', label: 'Small' },
+                    { value: 'default', label: 'Default' },
+                    { value: 'large', label: 'Large' },
+                  ]}
+                />
+                <p className="field-hint">Scales all text through the interface. Your browser zoom still works too.</p>
+              </div>
+              <SwitchRow
+                checked={accessibility.preferences.reduced_motion}
+                onChange={accessibility.setReducedMotion}
+                label="Reduce motion"
+                description="Removes transitions and animation."
               />
-              <CardBody>
-                {error ? (
-                  <Notice tone="danger" title="Status unavailable">
-                    {error}
-                  </Notice>
-                ) : null}
-                <div className="table-wrap">
-                  <table className="data-table">
-                    <caption className="sr-only">Provider connectivity as reported by the health endpoint</caption>
-                    <thead>
-                      <tr>
-                        <th scope="col">Provider</th>
-                        <th scope="col">State</th>
-                        <th scope="col">Detail</th>
-                        <th scope="col">Credential configured</th>
+              <SwitchRow
+                checked={accessibility.preferences.high_contrast}
+                onChange={accessibility.setHighContrast}
+                label="High contrast"
+                description="Increases the contrast between text, borders and surfaces."
+              />
+              <div className="row">
+                <Button size="sm" variant="ghost" onClick={accessibility.reset}>
+                  Reset to defaults
+                </Button>
+              </div>
+            </CardBody>
+          </Card>
+          </section>
+
+          <section id="settings-status" className="settings-block settings-wide">
+          <Card>
+            <CardHeader
+              title="Backend status"
+              compact
+              description="Reported by GET /health. This interface never requests, displays or stores provider credentials."
+              icon={<PlugZap />}
+              actions={<Status name={statusName(state)}>{stateLabel(state)}</Status>}
+            />
+            <CardBody>
+              {error ? (
+                <Notice tone="danger" title="Status unavailable">
+                  {error}
+                </Notice>
+              ) : null}
+              <div className="table-wrap">
+                <table className="data-table">
+                  <caption className="sr-only">Provider connectivity as reported by the health endpoint</caption>
+                  <thead>
+                    <tr>
+                      <th scope="col">Provider</th>
+                      <th scope="col">State</th>
+                      <th scope="col">Detail</th>
+                      <th scope="col">Credential configured</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {providers.map((provider) => (
+                      <tr key={provider.id}>
+                        <th scope="row" className="cell-row-head">
+                          {provider.label}
+                        </th>
+                        <td>
+                          <Status name={statusName(provider.state)}>{stateLabel(provider.state)}</Status>
+                        </td>
+                        <td>{provider.detail}</td>
+                        <td>
+                          {provider.status.credential_configured ? (
+                            <Badge tone="success" outline>
+                              Yes
+                            </Badge>
+                          ) : (
+                            <Badge tone="neutral" outline>
+                              No
+                            </Badge>
+                          )}
+                        </td>
                       </tr>
-                    </thead>
-                    <tbody>
-                      {providers.map((provider) => (
-                        <tr key={provider.id}>
-                          <th scope="row" className="cell-row-head">
-                            {provider.label}
-                          </th>
-                          <td>
-                            <Status name={statusName(provider.state)}>{stateLabel(provider.state)}</Status>
-                          </td>
-                          <td>{provider.detail}</td>
-                          <td>
-                            {provider.status.credential_configured ? (
-                              <Badge tone="success" outline>
-                                Yes
-                              </Badge>
-                            ) : (
-                              <Badge tone="neutral" outline>
-                                No
-                              </Badge>
-                            )}
-                          </td>
-                        </tr>
-                      ))}
-                      {providers.length === 0 ? (
-                        <tr>
-                          <td colSpan={4} className="text-muted">
-                            No provider status was reported.
-                          </td>
-                        </tr>
-                      ) : null}
-                    </tbody>
-                  </table>
-                </div>
-                <p className="inline-note">
-                  Checked {lastCheckedAt ? formatTimestamp(lastCheckedAt.toISOString()) : 'not yet'}. A provider without a
-                  configured credential cannot be selected, so routing reports an error rather than substituting another
-                  model without telling you.
-                </p>
-              </CardBody>
-            </Card>
-          ) : null}
+                    ))}
+                    {providers.length === 0 ? (
+                      <tr>
+                        <td colSpan={4} className="text-muted">
+                          No provider status was reported.
+                        </td>
+                      </tr>
+                    ) : null}
+                  </tbody>
+                </table>
+              </div>
+              <p className="inline-note">
+                Checked {lastCheckedAt ? formatTimestamp(lastCheckedAt.toISOString()) : 'not yet'}. A provider without a
+                configured credential cannot be selected, so routing reports an error rather than substituting another
+                model without telling you.
+              </p>
+            </CardBody>
+          </Card>
+          </section>
 
-          {section === 'connection' ? (
-            <Card>
-              <CardHeader
-                title="API connection"
-                compact
-                description="The endpoint this interface talks to."
-                icon={<Server />}
-              />
-              <CardBody>
-                <MetadataRow label="API connection">
-                  <MetadataEntry label="Base URL" value={<span className="mono">{API_BASE_URL}</span>} />
-                  <MetadataEntry
-                    label="Source"
-                    value={IS_DEVELOPMENT_FALLBACK ? 'VITE_API_BASE_URL not set — using the local default' : 'VITE_API_BASE_URL'}
-                  />
-                  <MetadataEntry
-                    label="Interactive API docs"
-                    value={
-                      <a
-                        className="text-link"
-                        href={`${API_BASE_URL.replace(/\/api\/v1\/?$/, '')}/docs`}
-                        target="_blank"
-                        rel="noreferrer noopener"
-                      >
-                        Open in a new tab
-                      </a>
-                    }
-                  />
-                </MetadataRow>
-                {IS_DEVELOPMENT_FALLBACK ? (
-                  <Notice tone="info" title="Development default in use">
-                    Set <code>VITE_API_BASE_URL</code> in a <code>.env</code> file to point this build at another backend.
-                  </Notice>
-                ) : null}
-              </CardBody>
-            </Card>
-          ) : null}
+          <section id="settings-connection" className="settings-block">
+          <Card>
+            <CardHeader
+              title="API connection"
+              compact
+              description="The endpoint this interface talks to."
+              icon={<Server />}
+            />
+            <CardBody>
+              <MetadataRow label="API connection">
+                <MetadataEntry label="Base URL" value={<span className="mono">{API_BASE_URL}</span>} />
+                <MetadataEntry
+                  label="Source"
+                  value={IS_DEVELOPMENT_FALLBACK ? 'VITE_API_BASE_URL not set — using the local default' : 'VITE_API_BASE_URL'}
+                />
+                <MetadataEntry
+                  label="Interactive API docs"
+                  value={
+                    <a
+                      className="text-link"
+                      href={`${API_BASE_URL.replace(/\/api\/v1\/?$/, '')}/docs`}
+                      target="_blank"
+                      rel="noreferrer noopener"
+                    >
+                      Open in a new tab
+                    </a>
+                  }
+                />
+              </MetadataRow>
+              {IS_DEVELOPMENT_FALLBACK ? (
+                <Notice tone="info" title="Development default in use">
+                  Set <code>VITE_API_BASE_URL</code> in a <code>.env</code> file to point this build at another backend.
+                </Notice>
+              ) : null}
+            </CardBody>
+          </Card>
+          </section>
 
-          {section === 'limits' ? (
-            <Card>
-              <CardHeader
-                title="Capabilities and limits"
-                compact
-                description="What this interface can and cannot show, stated plainly."
-                icon={<Info />}
-              />
-              <CardBody>
-                <ul className="reason-list">
-                  <li>
-                    Routing history: this backend build does not expose{' '}
-                    <code className="mono">{ROUTING_HISTORY_ENDPOINT}</code>, so no history is listed. A result stays
-                    available in this session only.
-                  </li>
-                  <li>Model quality, cost and latency come from registry metadata, not from live benchmarks.</li>
-                  <li>Evaluation Lab compares routing decisions offline using registry metadata and does not call providers.</li>
-                  <li>Provider credentials are never sent to the browser.</li>
-                </ul>
-              </CardBody>
-            </Card>
-          ) : null}
+          <section id="settings-limits" className="settings-block">
+          <Card>
+            <CardHeader
+              title="Capabilities and limits"
+              compact
+              description="What this interface can and cannot show, stated plainly."
+              icon={<Info />}
+            />
+            <CardBody>
+              <ul className="reason-list">
+                <li>
+                  Routing history: this backend build does not expose{' '}
+                  <code className="mono">{ROUTING_HISTORY_ENDPOINT}</code>, so no history is listed. A result stays
+                  available in this session only.
+                </li>
+                <li>Model quality, cost and latency come from registry metadata, not from live benchmarks.</li>
+                <li>Evaluation Lab compares routing decisions offline using registry metadata and does not call providers.</li>
+                <li>Provider credentials are never sent to the browser.</li>
+              </ul>
+            </CardBody>
+          </Card>
+          </section>
 
-          {section === 'sources' ? (
-            <Card>
-              <CardHeader
-                title="Data sources"
-                compact
-                description="Registry figures are derived from the locally stored RouterBench data. The figures below describe the dataset, not a benchmark run."
-                icon={<Database />}
-              />
-              <CardBody>
-                <div className="grid grid-3">
-                  {DATASETS.map((dataset) => (
-                    <div key={dataset.name} className="record-card">
-                      <p className="record-title">{dataset.name}</p>
-                      <p className="inline-note">{dataset.shape}</p>
-                      <p className="inline-note">{dataset.note}</p>
-                    </div>
-                  ))}
-                </div>
-                <p className="inline-note">
-                  Stored under <code className="mono">data/</code> in the backend. The interface reads these figures
-                  through <code className="mono">GET /models</code> only.
-                </p>
-              </CardBody>
-            </Card>
-          ) : null}
+          <section id="settings-sources" className="settings-block settings-wide">
+          <Card>
+            <CardHeader
+              title="Data sources"
+              compact
+              description="Registry figures are derived from the locally stored RouterBench data. The figures below describe the dataset, not a benchmark run."
+              icon={<Database />}
+            />
+            <CardBody>
+              <div className="grid grid-3">
+                {DATASETS.map((dataset) => (
+                  <div key={dataset.name} className="record-card">
+                    <p className="record-title">{dataset.name}</p>
+                    <p className="inline-note">{dataset.shape}</p>
+                    <p className="inline-note">{dataset.note}</p>
+                  </div>
+                ))}
+              </div>
+              <p className="inline-note">
+                Stored under <code className="mono">data/</code> in the backend. The interface reads these figures
+                through <code className="mono">GET /models</code> only.
+              </p>
+            </CardBody>
+          </Card>
+          </section>
 
-          {section === 'session' ? (
-            <Card>
-              <CardHeader
-                title="Session"
-                compact
-                description="Signing out discards the in-memory routing result for this session."
-                icon={<Terminal />}
-              />
-              <CardBody>
-                <div className="row row-wrap">
-                  {confirmSignOut ? (
-                    <>
-                      <Button
-                        variant="danger"
-                        leadingIcon={<LogOut />}
-                        onClick={() => {
-                          setConfirmSignOut(false);
-                          signOut();
-                          push({ tone: 'info', title: 'Signed out' });
-                        }}
-                      >
-                        Confirm sign out
-                      </Button>
-                      <Button variant="ghost" onClick={() => setConfirmSignOut(false)}>
-                        Cancel
-                      </Button>
-                    </>
-                  ) : (
-                    <Button variant="secondary" leadingIcon={<LogOut />} onClick={() => setConfirmSignOut(true)}>
-                      Sign out
+          <section id="settings-session" className="settings-block">
+          <Card>
+            <CardHeader
+              title="Session"
+              compact
+              description="Signing out discards the in-memory routing result for this session."
+              icon={<Terminal />}
+            />
+            <CardBody>
+              <div className="row row-wrap">
+                {confirmSignOut ? (
+                  <>
+                    <Button
+                      variant="danger"
+                      leadingIcon={<LogOut />}
+                      onClick={() => {
+                        setConfirmSignOut(false);
+                        signOut();
+                        push({ tone: 'info', title: 'Signed out' });
+                      }}
+                    >
+                      Confirm sign out
                     </Button>
-                  )}
-                  <Tag>Token stored under aicompass.auth.token</Tag>
-                </div>
-              </CardBody>
-            </Card>
-          ) : null}
+                    <Button variant="ghost" onClick={() => setConfirmSignOut(false)}>
+                      Cancel
+                    </Button>
+                  </>
+                ) : (
+                  <Button variant="secondary" leadingIcon={<LogOut />} onClick={() => setConfirmSignOut(true)}>
+                    Sign out
+                  </Button>
+                )}
+                <Tag>Token stored under aicompass.auth.token</Tag>
+              </div>
+            </CardBody>
+          </Card>
+          </section>
         </div>
       </div>
     </>

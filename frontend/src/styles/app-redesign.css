@@ -182,17 +182,6 @@
   padding-inline: var(--space-5);
 }
 
-.routing-visualization {
-  position: relative;
-  display: grid;
-  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr) minmax(0, 1fr);
-  align-items: center;
-  min-width: 0;
-  min-height: 17rem;
-  margin: 0;
-  isolation: isolate;
-}
-
 .routing-flow-lines {
   position: absolute;
   z-index: -1;
@@ -322,16 +311,6 @@
   border-color: var(--color-primary-border);
   color: var(--color-primary);
   animation: routing-model-glow 5.6s ease-in-out infinite;
-}
-
-.routing-visualization-caption {
-  position: absolute;
-  right: 0;
-  bottom: 0;
-  left: 0;
-  color: var(--color-text-muted);
-  font-size: var(--font-size-2xs);
-  text-align: center;
 }
 
 @keyframes routing-node-sequence {
@@ -660,11 +639,7 @@
     max-width: 42rem;
   }
 
-  .routing-visualization {
-    width: min(100%, 42rem);
-    min-height: 15rem;
-    margin-inline: auto;
-  }
+  
 }
 
 @media (max-width: 42rem) {
@@ -718,9 +693,7 @@
     font-size: var(--font-size-base);
   }
 
-  .routing-visualization {
-    min-height: 12rem;
-  }
+  
 
   .routing-node-icon {
     width: 2.6rem;
@@ -781,7 +754,7 @@
     animation: none !important;
   }
 
-  .routing-visualization *,
+  
   .dashboard-model-card {
     animation: none !important;
     transition: none !important;

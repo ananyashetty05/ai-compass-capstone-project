@@ -1,7 +1,15 @@
 import { useEffect, useRef, useState } from 'react';
+import type { RefObject } from 'react';
+import { SCENES, SCENE_HUES } from './scenes';
 
-/** Number of scenes in the story (opening + 5 workflow stages + finale). */
-export const SCENE_COUNT = 7;
+/** Number of scenes in the story (opening + 6 workflow stages + finale). */
+export const SCENE_COUNT = SCENES.length;
+
+/**
+ * Plain mutable values shared with the canvas layer. The canvas reads these
+ * on its own animation frame, so nothing here triggers a React render.
+ */
+export const storySignals = { p: 0, hue: SCENE_HUES[0], scene: 0, mx: 0, my: 0 };
 
 const clamp = (v: number, lo = 0, hi = 1) => Math.min(hi, Math.max(lo, v));
 /** Cross-fade width, as a fraction of total story progress. */
@@ -31,9 +39,11 @@ export function useReducedMotion(): boolean {
  * transforms and opacity. Scroll is never hijacked.
  *
  *  --p            overall progress 0..1
- *  --v0..--v6     per-scene visibility (cross-faded, sums to ~1)
- *  --l0..--l6     per-scene local progress 0..1 (stays 1 afterwards)
- *  --c            candidate-model layer presence (scenes 2-5)
+ *  --v0..--v7     per-scene visibility (cross-faded, sums to ~1)
+ *  --l0..--l7     per-scene local progress 0..1 (stays 1 afterwards)
+ *  --c            candidate-model layer presence (scenes 2-6)
+ *  --sel          selected-route layer presence (scenes 4-5)
+ *  --hue          background hue, interpolated between scene hues
  *  --side         0 at opening/finale, 1 while workflow scenes are shown
  */
 export function useStoryProgress(enabled: boolean) {
@@ -66,11 +76,21 @@ export function useStoryProgress(enabled: boolean) {
         stage.style.setProperty(`--l${i}`, smooth(clamp((p - start) / step)).toFixed(4));
       }
       stage.style.setProperty('--p', p.toFixed(5));
-      stage.style.setProperty('--c', clamp(v[2] + v[3] + v[4] + v[5]).toFixed(4));
-      stage.style.setProperty('--side', clamp(1 - v[0] - v[6]).toFixed(4));
+      const last = SCENE_COUNT - 1;
+      stage.style.setProperty('--c', clamp(v[2] + v[3] + v[4] + v[5] + v[6]).toFixed(4));
+      stage.style.setProperty('--sel', clamp(v[4] + v[5]).toFixed(4));
+      stage.style.setProperty('--side', clamp(1 - v[0] - v[last]).toFixed(4));
+      const f = clamp(p * SCENE_COUNT - 0.5, 0, last);
+      const i0 = Math.floor(f);
+      const i1 = Math.min(last, i0 + 1);
+      const hue = SCENE_HUES[i0] + (SCENE_HUES[i1] - SCENE_HUES[i0]) * smooth(f - i0);
+      stage.style.setProperty('--hue', hue.toFixed(1));
+      storySignals.p = p;
+      storySignals.hue = hue;
       const now = Math.min(SCENE_COUNT - 1, Math.floor(p * SCENE_COUNT));
       if (now !== active) {
         active = now;
+        storySignals.scene = now;
         stage.dataset.scene = String(now);
       }
     };
@@ -112,4 +132,39 @@ export function useStoryProgress(enabled: boolean) {
   }, [enabled]);
 
   return { trackRef, stageRef };
+}
+
+/**
+ * Eased pointer position (-1..1) written to the stage as --mx / --my, for a
+ * little depth: the core tilts and layers slide by different amounts. Only on
+ * devices with a real pointer; stops its frame loop once it has settled.
+ */
+export function usePointerParallax(stageRef: RefObject<HTMLDivElement | null>, enabled: boolean) {
+  useEffect(() => {
+    const stage = stageRef.current;
+    if (!enabled || !stage || !window.matchMedia('(hover: hover) and (pointer: fine)').matches) return;
+    let raf = 0;
+    let tx = 0;
+    let ty = 0;
+    let x = 0;
+    let y = 0;
+    const frame = () => {
+      raf = 0;
+      x += (tx - x) * 0.07;
+      y += (ty - y) * 0.07;
+      if (Math.abs(tx - x) < 0.001 && Math.abs(ty - y) < 0.001) { x = tx; y = ty; }
+      stage.style.setProperty('--mx', x.toFixed(3));
+      stage.style.setProperty('--my', y.toFixed(3));
+      storySignals.mx = x;
+      storySignals.my = y;
+      if (x !== tx || y !== ty) raf = requestAnimationFrame(frame);
+    };
+    const onMove = (e: PointerEvent) => {
+      tx = (e.clientX / window.innerWidth) * 2 - 1;
+      ty = (e.clientY / window.innerHeight) * 2 - 1;
+      if (!raf) raf = requestAnimationFrame(frame);
+    };
+    window.addEventListener('pointermove', onMove, { passive: true });
+    return () => { window.removeEventListener('pointermove', onMove); if (raf) cancelAnimationFrame(raf); };
+  }, [enabled, stageRef]);
 }

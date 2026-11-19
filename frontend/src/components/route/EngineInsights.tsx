@@ -23,6 +23,7 @@ function StageIcon({ status }: { status: EngineStage['status'] }) {
 }
 
 export function PipelineTrace({ engine }: { engine: EngineResult }) {
+  const total = engine.stages.reduce((sum, s) => (s.status === 'skipped' ? sum : sum + Math.max(0, s.duration_ms)), 0);
   return (
     <Reveal as="section" className="cx-card" ariaLabelledBy="eng-pipe-title">
       <header className="cx-card-head">
@@ -30,11 +31,16 @@ export function PipelineTrace({ engine }: { engine: EngineResult }) {
         <span className="cx-note-inline">{formatDuration(engine.routing_latency_ms)} total · engine {engine.version}</span>
       </header>
       <ol className="eng-stages">
-        {engine.stages.map((s) => (
-          <li key={s.name} className={`eng-stage eng-stage--${s.status}`}>
+        {engine.stages.map((s, i) => (
+          <li key={s.name} className={`eng-stage eng-stage--${s.status}`} style={{ ['--i' as string]: i }}>
             <StageIcon status={s.status} />
             <span className="eng-stage-main"><strong>{s.label}</strong>{s.detail ? <span>{s.detail}</span> : null}</span>
             <span className="eng-stage-time">{s.status === 'skipped' ? 'skipped' : formatDuration(s.duration_ms)}</span>
+            {s.status !== 'skipped' && total > 0 ? (
+              <span className="eng-stage-bar" aria-hidden="true" title={`${Math.round((Math.max(0, s.duration_ms) / total) * 100)}% of measured stage time`}>
+                <i style={{ width: `${Math.max(2, (Math.max(0, s.duration_ms) / total) * 100)}%` }} />
+              </span>
+            ) : null}
           </li>
         ))}
       </ol>

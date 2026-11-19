@@ -12,6 +12,16 @@ router = APIRouter()
 bearer = HTTPBearer(auto_error=False)
 
 
+def inference_models_only(catalog):
+    """Offline evaluation compares routing strategies over API models AI Compass can actually run.
+
+    Consumer applications (ChatGPT, Cursor, ...) are destinations the user opens themselves: they have no
+    adapter and no published per-token price, so they would win cost- and latency-weighted strategies on
+    missing data. They remain visible in the Model Pool and Route Query tool suggestions.
+    """
+    return [model for model in catalog if model.entry_type == "inference_model"]
+
+
 def _get_uid(
     creds: Optional[HTTPAuthorizationCredentials] = Depends(bearer),
 ) -> Optional[str]:
@@ -37,6 +47,7 @@ def evaluate_offline(
         profile.task_type,
         profile.required_modalities[0],
     )
+    catalog = inference_models_only(catalog)
     if req.model_ids:
         available_ids = {model.model_id for model in catalog}
         unknown_ids = sorted(set(req.model_ids) - available_ids)

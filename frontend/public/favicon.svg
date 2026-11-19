@@ -1,6 +1,18 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32" role="img" aria-label="AI Compass">
-  <rect width="32" height="32" rx="7" fill="#0f172a" />
-  <circle cx="16" cy="16" r="9" fill="none" stroke="#38bdf8" stroke-width="2" />
-  <path d="M20.5 11.5 18 18l-6.5 2.5L14 14z" fill="#38bdf8" />
-  <circle cx="16" cy="16" r="1.4" fill="#0f172a" />
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" role="img" aria-label="AI Compass">
+  <defs>
+    <linearGradient id="g" x1="8" y1="4" x2="56" y2="60" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#4f8cff"/>
+      <stop offset="1" stop-color="#1f4fd8"/>
+    </linearGradient>
+  </defs>
+  <rect width="64" height="64" rx="16" fill="url(#g)"/>
+  <circle cx="32" cy="32" r="19" fill="none" stroke="#fff" stroke-opacity=".55" stroke-width="3"/>
+  <circle cx="32" cy="13" r="3.4" fill="#fff"/>
+  <circle cx="48.5" cy="41.5" r="3.4" fill="#fff" fill-opacity=".8"/>
+  <circle cx="15.5" cy="41.5" r="3.4" fill="#fff" fill-opacity=".8"/>
+  <g transform="rotate(35 32 32)">
+    <path d="M32 14 L38 32 L26 32 Z" fill="#fff"/>
+    <path d="M32 50 L38 32 L26 32 Z" fill="#fff" fill-opacity=".45"/>
+  </g>
+  <circle cx="32" cy="32" r="2.6" fill="#1f4fd8"/>
 </svg>

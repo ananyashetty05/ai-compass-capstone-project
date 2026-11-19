@@ -44,6 +44,11 @@ const radarPoints = DIMENSIONS.map((_d, i) => {
   return `${p.x},${p.y}`;
 }).join(' ');
 
+// Illustrative reasons, one per removed candidate; not live results.
+const REASONS = ['Over budget', 'Too slow', 'No vision', 'Context too small'];
+// Illustrative score parts for the selected route (bar widths, px).
+const LEDGER = [104, 82, 96, 70];
+
 const sel = CANDIDATES.find((c) => c.selected)!;
 const fb = CANDIDATES.find((c) => c.fallback)!;
 
@@ -126,7 +131,30 @@ export function CompassCore({ className, label }: { className?: string; label?: 
         <text className="cc-label" x={fb.x} y={fb.y + 44} textAnchor="middle">Fallback</text>
       </g>
 
-      {/* Scene 5 — evaluation loop and escalation */}
+      {/* Scene 5 — transparent reasoning: every removed model keeps its reason,
+          and the selected one shows the parts of its score (illustrative). */}
+      <g className="cc-layer cc-lx">
+        {CANDIDATES.filter((c) => c.out).map((c, k) => {
+          const reason = REASONS[k];
+          const below = c.y > CY;
+          return (
+            <g key={c.id} className="cc-why">
+              <path className="cc-x" d={`M ${c.x - 9} ${c.y - 9} L ${c.x + 9} ${c.y + 9} M ${c.x + 9} ${c.y - 9} L ${c.x - 9} ${c.y + 9}`} />
+              <text className="cc-label cc-why-text" x={c.x} y={c.y + (below ? 46 : -34)} textAnchor="middle">{reason}</text>
+            </g>
+          );
+        })}
+        <g className="cc-ledger" transform={`translate(${sel.x - 60} ${sel.y + 48})`}>
+          {LEDGER.map((w, k) => (
+            <g key={k} transform={`translate(0 ${k * 22})`}>
+              <rect className="cc-bar-bg" width="120" height="8" rx="4" />
+              <rect className="cc-bar" width={w} height="8" rx="4" style={{ ['--k' as string]: k }} />
+            </g>
+          ))}
+        </g>
+      </g>
+
+      {/* Scene 6 — evaluation loop and escalation */}
       <g className="cc-layer cc-l5" fill="none">
         <path className="cc-loop" d="M 400 160 A 240 240 0 1 1 399 160" markerEnd="url(#cc-arrow)" />
         <path className="cc-escalate" d={`M ${sel.x} ${sel.y} Q 560 520 ${fb.x} ${fb.y}`} markerEnd="url(#cc-arrow)" />

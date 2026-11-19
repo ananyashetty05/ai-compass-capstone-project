@@ -14,6 +14,7 @@ import { NotFound } from './pages/NotFound';
 
 const Dashboard     = lazy(() => import('./pages/Dashboard').then((m) => ({ default: m.Dashboard })));
 const RouteQuery    = lazy(() => import('./pages/RouteQuery').then((m) => ({ default: m.RouteQuery })));
+const ModelInspect  = lazy(() => import('./pages/ModelInspect').then((m) => ({ default: m.ModelInspect })));
 const ModelPool     = lazy(() => import('./pages/ModelPool').then((m) => ({ default: m.ModelPool })));
 const Explanation   = lazy(() => import('./pages/Explanation').then((m) => ({ default: m.Explanation })));
 const Evaluation    = lazy(() => import('./pages/Evaluation').then((m) => ({ default: m.Evaluation })));
@@ -35,6 +36,7 @@ export default function App() {
             <Route index element={<RouteQuery />} />
             <Route path="/route" element={<RouteQuery />} />
             <Route path="/models" element={<ModelPool />} />
+            <Route path="/models/inspect" element={<ModelInspect />} />
             <Route path="/explanation" element={<Explanation />} />
             <Route path="/evaluation" element={<Evaluation />} />
             <Route path="/personalization" element={<Personalization />} />

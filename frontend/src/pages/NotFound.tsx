@@ -1,6 +1,7 @@
 import { Compass, LayoutDashboard, Route as RouteIcon } from 'lucide-react';
 import { ButtonLink } from '../components/ui/Button';
-import { Card, CardBody } from '../components/ui/Card';
+import { Surface } from '../components/ui/ds';
+import { BrandMark } from '../components/layout/BrandMark';
 import { EmptyState } from '../components/ui/EmptyState';
 import { PageHeader } from '../components/layout/PageHeader';
 import { useDocumentTitle } from '../hooks/useDocumentTitle';
@@ -11,7 +12,8 @@ export function NotFound() {
   const { isAuthenticated } = useAuth();
 
   return (
-    <>
+    <div className="nf-page">
+      <BrandMark className="nf-mark" />
       {/* Rendered outside `AppShell`, so this page owns its own `<h1>`. */}
       <PageHeader
         as="h1"
@@ -19,8 +21,7 @@ export function NotFound() {
         title="Page not found"
         description="The address you followed is not part of AI Compass. Nothing is broken, and no routing decision was lost."
       />
-      <Card>
-        <CardBody>
+      <Surface variant="glass" className="nf-card">
           <EmptyState
             icon={<Compass />}
             title="There is nothing at this address"
@@ -48,8 +49,7 @@ export function NotFound() {
               )
             }
           />
-        </CardBody>
-      </Card>
-    </>
+      </Surface>
+    </div>
   );
 }

@@ -141,5 +141,27 @@ class OfflineEvaluationTests(unittest.TestCase):
         self.assertIn("pricing is unavailable", response.filtered_models[0]["reason"])
 
 
+class EvaluationCandidateScopeTests(unittest.TestCase):
+    def test_consumer_applications_are_not_evaluation_candidates(self):
+        from app.services.model_registry import get_catalog_for_recommendation
+
+        catalog = get_catalog_for_recommendation("coding", "text")
+        self.assertTrue(any(m.entry_type != "inference_model" for m in catalog), "fixture should include applications")
+        scoped = evaluation_route.inference_models_only(catalog)
+        self.assertTrue(scoped)
+        self.assertTrue(all(m.entry_type == "inference_model" for m in scoped))
+
+
 if __name__ == "__main__":
     unittest.main()
+
+
+class InferenceOnlyCatalogTests(unittest.TestCase):
+    def test_applications_are_not_evaluated_as_routing_candidates(self):
+        from app.services.model_registry import get_catalog_for_recommendation
+
+        catalog = get_catalog_for_recommendation("coding", "text")
+        self.assertTrue(any(model.entry_type != "inference_model" for model in catalog), "fixture should include applications")
+        kept = evaluation_route.inference_models_only(catalog)
+        self.assertTrue(kept)
+        self.assertTrue(all(model.entry_type == "inference_model" for model in kept))

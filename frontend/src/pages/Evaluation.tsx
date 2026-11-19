@@ -1,100 +1,65 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { Bar, BarChart, CartesianGrid, Cell, ResponsiveContainer, Tooltip, XAxis, YAxis } from 'recharts';
 import {
-  Bar,
-  BarChart,
-  CartesianGrid,
-  ResponsiveContainer,
-  Tooltip,
-  XAxis,
-  YAxis,
-} from 'recharts';
-import {
+  ArrowRight,
   BarChart3,
-  CheckCircle2,
-  CircleDollarSign,
+  ChevronDown,
+  CornerDownLeft,
+  FlaskConical,
   Info,
-  ListOrdered,
+  Layers,
   Loader2,
   ShieldCheck,
-  Trophy,
+  SlidersHorizontal,
+  Table2,
+  Tag,
+  X,
 } from 'lucide-react';
 import { PageHeader } from '../components/layout/PageHeader';
+import { EvaluationPipeline } from '../components/evaluation/EvaluationPipeline';
 import { MetricGuide, ResultReading } from '../components/evaluation/EvaluationInsights';
-import { Button, ButtonLink } from '../components/ui/Button';
+import { StrategyCard } from '../components/evaluation/StrategyCard';
+import { STRATEGIES, strategyShort, strategyTitle } from '../components/evaluation/strategies';
+import { SegmentedControl } from '../components/ui/ds';
 import { useDocumentTitle } from '../hooks/useDocumentTitle';
 import { useRouteResult } from '../context/routeResultContext';
 import { evaluateOffline } from '../services/evaluation.service';
 import { describeError } from '../services/http';
 import { formatDuration, formatPercent, formatUsd } from '../utils/format';
-import type {
-  OfflineEvaluationResponse,
-  OfflineEvaluationStrategy,
-  OfflineStrategyResult,
-} from '../types';
+import { scrollToElement } from '../utils/scroll';
+import type { OfflineEvaluationResponse, OfflineStrategyResult } from '../types';
 
 const EMPTY_RESULTS: OfflineStrategyResult[] = [];
-
-const STRATEGIES: Array<{
-  key: OfflineEvaluationStrategy;
-  title: string;
-  description: string;
-  icon: typeof BarChart3;
-}> = [
-  {
-    key: 'aicompass',
-    title: 'AI Compass Routing',
-    description: 'Existing multi-objective router and configured user weights.',
-    icon: BarChart3,
-  },
-  {
-    key: 'strongest',
-    title: 'Strongest Model Baseline',
-    description: 'Highest available registry quality score after filtering.',
-    icon: Trophy,
-  },
-  {
-    key: 'cheapest',
-    title: 'Cheapest Model Baseline',
-    description: 'Lowest known input price; unknown prices are excluded.',
-    icon: CircleDollarSign,
-  },
-  {
-    key: 'static',
-    title: 'Static Ranking Baseline',
-    description: 'Fixed fallback priority, independent of user weights.',
-    icon: ListOrdered,
-  },
-];
+const MAX_QUERY = 8000;
 
 const METRICS = [
-  { key: 'quality_score', label: 'Quality score', suffix: ' · registry estimate' },
-  { key: 'estimated_cost_usd', label: 'Input cost', suffix: ' · estimated USD' },
-  { key: 'latency_seconds', label: 'Latency', suffix: ' · registry estimate' },
-  { key: 'reliability_score', label: 'Reliability', suffix: ' · registry metadata' },
+  { key: 'quality_score', label: 'Quality', suffix: 'registry estimate' },
+  { key: 'estimated_cost_usd', label: 'Input cost', suffix: 'estimated USD' },
+  { key: 'latency_seconds', label: 'Latency', suffix: 'registry estimate' },
+  { key: 'reliability_score', label: 'Reliability', suffix: 'registry metadata' },
 ] as const;
-
 type MetricKey = (typeof METRICS)[number]['key'];
 
 const TASK_CATEGORIES = [
-  ['coding', 'Coding'],
-  ['research', 'Research'],
-  ['creative', 'Writing'],
-  ['analysis', 'Analysis'],
-  ['math', 'Mathematics'],
-  ['image-generation', 'Image generation'],
-  ['video-generation', 'Video generation'],
-  ['presentation', 'Presentations'],
-  ['audio-generation', 'Audio / music'],
-  ['reasoning', 'General reasoning'],
-  ['education', 'Learning'],
-  ['summarization', 'Summarization'],
-  ['design', 'Design'],
+  ['coding', 'Coding'], ['research', 'Research'], ['creative', 'Writing'], ['analysis', 'Analysis'],
+  ['math', 'Mathematics'], ['image-generation', 'Image generation'], ['video-generation', 'Video generation'],
+  ['presentation', 'Presentations'], ['audio-generation', 'Audio / music'], ['reasoning', 'General reasoning'],
+  ['education', 'Learning'], ['summarization', 'Summarization'], ['design', 'Design'],
 ] as const;
 
+const CAPABILITIES = ['coding', 'reasoning', 'math', 'research', 'image-generation'];
+
+const STRATEGY_COLOR: Record<string, string> = {
+  aicompass: 'var(--color-primary)',
+  strongest: 'var(--ev-c-strong)',
+  cheapest: 'var(--ev-c-cheap)',
+  static: 'var(--ev-c-static)',
+};
+
 function formatMetric(value: number | null, metric: MetricKey): string {
-  if (value === null || !Number.isFinite(value)) return 'Unavailable';
+  if (value === null || !Number.isFinite(value)) return '—';
   if (metric === 'quality_score' || metric === 'reliability_score') return formatPercent(value);
-  if (metric === 'estimated_cost_usd') return formatUsd(value, 8);
+  if (metric === 'estimated_cost_usd') return formatUsd(value, 6);
   return formatDuration(value * 1000);
 }
 
@@ -106,23 +71,32 @@ export function Evaluation() {
   const [maxInputPrice, setMaxInputPrice] = useState('');
   const [maxLatency, setMaxLatency] = useState('');
   const [requiredCapabilities, setRequiredCapabilities] = useState<string[]>([]);
+  const [constraintsOpen, setConstraintsOpen] = useState(false);
   const [evaluation, setEvaluation] = useState<OfflineEvaluationResponse | null>(null);
   const [metric, setMetric] = useState<MetricKey>('quality_score');
+  const [view, setView] = useState<'chart' | 'table'>('chart');
   const [running, setRunning] = useState(false);
   const [error, setError] = useState<{ message: string; hint?: string } | null>(null);
   const controllerRef = useRef<AbortController | null>(null);
+  const resultsRef = useRef<HTMLDivElement>(null);
+  const revealRef = useRef(false);
+  const isMac = typeof navigator !== 'undefined' && /Mac|iPhone|iPad/.test(navigator.platform || navigator.userAgent);
 
   useEffect(() => () => controllerRef.current?.abort(), []);
+
+  const constraintCount = (maxInputPrice ? 1 : 0) + (maxLatency ? 1 : 0) + requiredCapabilities.length;
 
   const run = useCallback(async () => {
     const text = query.trim();
     if (text.length < 3 || running) return;
     if (maxInputPrice && (!Number.isFinite(Number(maxInputPrice)) || Number(maxInputPrice) <= 0)) {
       setError({ message: 'Maximum input price must be greater than zero.' });
+      setConstraintsOpen(true);
       return;
     }
     if (maxLatency && (!Number.isFinite(Number(maxLatency)) || Number(maxLatency) <= 0)) {
       setError({ message: 'Maximum latency must be greater than zero.' });
+      setConstraintsOpen(true);
       return;
     }
     const controller = new AbortController();
@@ -131,6 +105,8 @@ export function Evaluation() {
     setRunning(true);
     setEvaluation(null);
     setError(null);
+    revealRef.current = true;
+    requestAnimationFrame(() => { if (resultsRef.current) scrollToElement(resultsRef.current); });
     try {
       const response = await evaluateOffline({
         query: text,
@@ -141,321 +117,270 @@ export function Evaluation() {
       }, controller.signal);
       setEvaluation(response);
     } catch (cause) {
-      if (!controller.signal.aborted) {
-        setError(describeError(cause, 'Offline evaluation could not be completed.'));
-      }
+      if (!controller.signal.aborted) setError(describeError(cause, 'Offline evaluation could not be completed.'));
     } finally {
       if (!controller.signal.aborted) setRunning(false);
     }
   }, [query, running, taskTypeHint, maxInputPrice, maxLatency, requiredCapabilities]);
 
-  const results = evaluation?.strategy_results ?? EMPTY_RESULTS;
-  const resultsByKey = useMemo(
-    () => new Map(results.map(row => [row.strategy, row])),
-    [results],
-  );
-  const chartData = useMemo(() => results
-    .filter(row => row.status === 'selected' && row[metric] !== null)
-    .map(row => ({
-      strategy: STRATEGIES.find(item => item.key === row.strategy)?.title ?? row.strategy,
-      value: row[metric] as number,
-      model: row.selected_model ?? 'Unavailable',
-    })), [results, metric]);
-  const selectedRows = results.filter(row => row.selected_model_id !== null);
-  const uniqueSelections = new Set(selectedRows.map(row => row.selected_model_id));
-  const metricDefinition = METRICS.find(item => item.key === metric) ?? METRICS[0];
+  // Settle onto the results once they land.
+  useEffect(() => {
+    if (!revealRef.current || running || !evaluation) return;
+    revealRef.current = false;
+    const raf = requestAnimationFrame(() => { if (resultsRef.current) scrollToElement(resultsRef.current); });
+    return () => cancelAnimationFrame(raf);
+  }, [evaluation, running]);
 
-  const setCapability = (capability: string) => {
-    setRequiredCapabilities(current => current.includes(capability)
-      ? current.filter(value => value !== capability)
-      : [...current, capability]);
-  };
+  const results = evaluation?.strategy_results ?? EMPTY_RESULTS;
+  const resultsByKey = useMemo(() => new Map(results.map((row) => [row.strategy, row])), [results]);
+  const ordered = STRATEGIES.flatMap(({ key }) => { const r = resultsByKey.get(key); return r ? [r] : []; });
+  const selectedRows = results.filter((row) => row.selected_model_id !== null);
+  const uniqueSelections = new Set(selectedRows.map((row) => row.selected_model_id));
+  const compassPick = resultsByKey.get('aicompass')?.selected_model_id ?? null;
+  const baselinesPicked = selectedRows.filter((r) => r.strategy !== 'aicompass');
+  const agreeing = compassPick ? baselinesPicked.filter((r) => r.selected_model_id === compassPick).length : 0;
+  const metricDefinition = METRICS.find((item) => item.key === metric) ?? METRICS[0];
+  const chartData = useMemo(() => results
+    .filter((row) => row.status === 'selected' && row[metric] !== null)
+    .map((row) => ({ key: row.strategy, strategy: strategyShort(row.strategy), value: row[metric] as number, model: row.selected_model ?? '—' })), [results, metric]);
+
+  const toggleCapability = (c: string) =>
+    setRequiredCapabilities((cur) => (cur.includes(c) ? cur.filter((v) => v !== c) : [...cur, c]));
+  const clearConstraints = () => { setMaxInputPrice(''); setMaxLatency(''); setRequiredCapabilities([]); };
+  const canUseLast = !!lastRoute?.query && lastRoute.query !== query;
 
   return (
     <>
       <PageHeader
         eyebrow="Research · routing policies"
         title="Evaluation Lab"
-        description="Compare model-selection strategies using offline registry metadata. No provider inference is performed."
+        description="See how AI Compass and three fixed baselines choose from the same eligible models. Offline, from registry metadata. No model is run."
       />
 
-      <div className="page-body evaluation-page offline-evaluation">
-        <section className="evaluation-overview" aria-label="Offline evaluation status">
-          <div className="evaluation-status-line">
+      <div className="page-body ev">
+        {/* ── Test bench ─────────────────────────────────────────── */}
+        <section className="ev-bench" aria-labelledby="ev-bench-title">
+          <header className="ev-bench-head">
+            <span className="ev-bench-icon" aria-hidden="true"><FlaskConical /></span>
             <div>
-              <span className="evaluation-kicker">OFFLINE EVALUATION</span>
-              <strong>How evaluation works</strong>
+              <h2 id="ev-bench-title">Test a query</h2>
+              <p>Describe a task. All four strategies pick a model for it from the same filtered pool.</p>
             </div>
-            <span className="offline-status"><CheckCircle2 size={15} aria-hidden="true" /> No provider calls</span>
-          </div>
-          <div className="evaluation-how-it-works">
-            <div><span>1</span><p><strong>Define a test query</strong><br />Choose a task and any hard constraints.</p></div>
-            <div><span>2</span><p><strong>Analyse and select</strong><br />Each strategy uses the same eligible model pool.</p></div>
-            <div><span>3</span><p><strong>Examine results</strong><br />Compare selections and metadata-derived estimates.</p></div>
-          </div>
-        </section>
+            <span className="ev-offline-pill"><ShieldCheck aria-hidden="true" />Offline · no cost</span>
+          </header>
 
-        <MetricGuide />
-
-        <section className="offline-evaluation-controls" aria-label="Evaluation controls">
-          <div className="offline-query-field">
-            <label htmlFor="offline-query">Test query</label>
+          <div className="ev-input">
             <textarea
               id="offline-query"
               value={query}
-              onChange={event => setQuery(event.target.value)}
-              placeholder="Describe a task to compare routing decisions…"
+              onChange={(e) => setQuery(e.target.value.slice(0, MAX_QUERY))}
+              onKeyDown={(e) => { if (e.key === 'Enter' && (e.metaKey || e.ctrlKey)) { e.preventDefault(); void run(); } }}
+              placeholder="e.g. Write a Python function that merges overlapping intervals and explain its complexity…"
               rows={3}
-              maxLength={8000}
+              aria-label="Test query"
+              disabled={running}
             />
-            <span>{query.length.toLocaleString()} / 8,000 characters · only used for local query analysis</span>
-          </div>
-          <div className="offline-control-row">
-            <label>
-              Task category
-              <select value={taskTypeHint} onChange={event => setTaskTypeHint(event.target.value)}>
-                <option value="">Detect from query</option>
-                {TASK_CATEGORIES.map(([value, label]) => <option key={value} value={value}>{label}</option>)}
-              </select>
-            </label>
-            <details className="offline-constraints">
-              <summary>Hard constraints</summary>
-              <div className="offline-constraint-fields">
-                <label>
-                  Max input price / 1K tokens (USD)
-                  <input type="number" min="0.0001" step="0.0001" value={maxInputPrice} onChange={event => setMaxInputPrice(event.target.value)} placeholder="No limit" />
-                </label>
-                <label>
-                  Max estimated latency (seconds)
-                  <input type="number" min="0.1" step="0.5" value={maxLatency} onChange={event => setMaxLatency(event.target.value)} placeholder="No limit" />
-                </label>
-                <fieldset>
-                  <legend>Required capability</legend>
-                  {['coding', 'reasoning', 'math', 'research', 'image-generation'].map(capability => (
-                    <label key={capability}>
-                      <input type="checkbox" checked={requiredCapabilities.includes(capability)} onChange={() => setCapability(capability)} />
-                      {capability.replaceAll('-', ' ')}
-                    </label>
-                  ))}
-                </fieldset>
-              </div>
-            </details>
-            <Button
-              variant="primary"
-              onClick={() => void run()}
-              loading={running}
-              disabled={query.trim().length < 3}
-              leadingIcon={running ? <Loader2 className="spin" /> : <BarChart3 />}
-            >
-              {running ? 'Evaluating…' : evaluation ? 'Evaluate again' : 'Evaluate routing'}
-            </Button>
-          </div>
-          {error && (
-            <div className="offline-evaluation-error" role="alert">
-              <Info size={16} aria-hidden="true" />
-              <span>{error.message}{error.hint ? ` ${error.hint}` : ''}</span>
+            <div className="ev-input-foot">
+              <span className="ev-count">{query.length.toLocaleString()} / {MAX_QUERY.toLocaleString()}</span>
+              {canUseLast ? (
+                <button type="button" className="ev-link-btn" onClick={() => setQuery(lastRoute!.query)}>
+                  <CornerDownLeft aria-hidden="true" />Use last routed query
+                </button>
+              ) : null}
+              <span className="ev-input-actions">
+                <kbd className="rq-kbd" aria-hidden="true">{isMac ? '⌘ ↵' : 'Ctrl ↵'}</kbd>
+                <button type="button" className="ev-run" onClick={() => void run()} disabled={running || query.trim().length < 3} aria-keyshortcuts={isMac ? 'Meta+Enter' : 'Control+Enter'}>
+                  {running ? <><Loader2 className="spin" aria-hidden="true" />Evaluating…</> : <>{evaluation ? 'Evaluate again' : 'Evaluate'}<ArrowRight aria-hidden="true" /></>}
+                </button>
+              </span>
             </div>
-          )}
+          </div>
+
+          <div className="ev-options">
+            <label className="ev-select">
+              <Tag aria-hidden="true" />
+              <span className="sr-only">Task category</span>
+              <select value={taskTypeHint} onChange={(e) => setTaskTypeHint(e.target.value)} disabled={running}>
+                <option value="">Category: detect from query</option>
+                {TASK_CATEGORIES.map(([value, label]) => <option key={value} value={value}>Category: {label}</option>)}
+              </select>
+              <ChevronDown aria-hidden="true" className="ev-select-chev" />
+            </label>
+            <button type="button" className="ev-toggle" aria-expanded={constraintsOpen} aria-controls="ev-constraints" onClick={() => setConstraintsOpen((o) => !o)}>
+              <SlidersHorizontal aria-hidden="true" />Hard constraints
+              {constraintCount > 0 ? <span className="ev-badge">{constraintCount}</span> : null}
+              <ChevronDown aria-hidden="true" className="ev-toggle-chev" />
+            </button>
+            {constraintCount > 0 ? (
+              <button type="button" className="ev-link-btn" onClick={clearConstraints}><X aria-hidden="true" />Clear</button>
+            ) : null}
+          </div>
+
+          <div id="ev-constraints" className="ev-constraints" data-open={constraintsOpen || undefined} inert={!constraintsOpen || undefined}>
+            <div className="ev-constraints-inner">
+              <label className="ev-field">
+                <span>Max input price / 1K tokens</span>
+                <span className="ev-field-input"><em>$</em><input type="number" min="0.0001" step="0.0001" value={maxInputPrice} onChange={(e) => setMaxInputPrice(e.target.value)} placeholder="No limit" /></span>
+              </label>
+              <label className="ev-field">
+                <span>Max estimated latency</span>
+                <span className="ev-field-input"><input type="number" min="0.1" step="0.5" value={maxLatency} onChange={(e) => setMaxLatency(e.target.value)} placeholder="No limit" /><em>sec</em></span>
+              </label>
+              <fieldset className="ev-caps">
+                <legend>Required capabilities</legend>
+                <div>
+                  {CAPABILITIES.map((c) => (
+                    <button key={c} type="button" className="ev-cap" aria-pressed={requiredCapabilities.includes(c)} onClick={() => toggleCapability(c)}>
+                      {c.replaceAll('-', ' ')}
+                    </button>
+                  ))}
+                </div>
+              </fieldset>
+            </div>
+          </div>
+
+          {error ? (
+            <div className="ev-error" role="alert"><Info aria-hidden="true" /><span>{error.message}{error.hint ? ` ${error.hint}` : ''}</span></div>
+          ) : null}
         </section>
 
-        {evaluation && (
-          <>
-            <section className="offline-selection-summary" aria-label="Model selection differences">
-              <div>
-                <span className="evaluation-kicker">SHARED ELIGIBLE POOL</span>
-                <strong>{evaluation.candidate_count} model{evaluation.candidate_count === 1 ? '' : 's'}</strong>
-                <small>after hard-constraint filtering</small>
-              </div>
-              <div>
-                <span className="evaluation-kicker">SELECTIONS</span>
-                <strong>{uniqueSelections.size} distinct model{uniqueSelections.size === 1 ? '' : 's'}</strong>
-                <small>{selectedRows.length - uniqueSelections.size} repeated selection{selectedRows.length - uniqueSelections.size === 1 ? '' : 's'} across strategies</small>
-              </div>
-              <div>
-                <span className="evaluation-kicker">FILTERED OUT</span>
-                <strong>{evaluation.filtered_models.length}</strong>
-                <small>ineligible registry entries</small>
+        {/* ── Results ────────────────────────────────────────────── */}
+        <div ref={resultsRef} className="ev-results-anchor">
+          {running ? (
+            <section className="ev-section" aria-busy="true" aria-label="Evaluating">
+              <div className="ev-running" role="status"><Loader2 className="spin" aria-hidden="true" />Analysing the query and scoring registry candidates…</div>
+              <div className="ev-grid">
+                {STRATEGIES.map((s, i) => <div key={s.key} className="ev-card ev-card--skeleton" style={{ ['--i' as string]: i }} aria-hidden="true"><i /><i /><i /><i /></div>)}
               </div>
             </section>
+          ) : null}
 
-            <section className="offline-results" aria-labelledby="offline-results-title">
-              <div className="evaluation-section-heading">
-                <div>
-                  <span className="evaluation-kicker">SELECTION RESULTS</span>
-                  <h2 id="offline-results-title">Strategy comparison</h2>
+          {evaluation && !running ? (
+            <div className="ev-results">
+              <section className="ev-stats" aria-label="Run summary">
+                <div className="ev-stat"><span>Eligible pool</span><strong>{evaluation.candidate_count}</strong><small>model{evaluation.candidate_count === 1 ? '' : 's'} after filtering</small></div>
+                <div className="ev-stat"><span>Distinct picks</span><strong>{uniqueSelections.size}</strong><small>across {selectedRows.length} selecting strateg{selectedRows.length === 1 ? 'y' : 'ies'}</small></div>
+                <div className="ev-stat"><span>Agree with AI Compass</span><strong>{compassPick ? `${agreeing}/${baselinesPicked.length}` : '—'}</strong><small>{compassPick ? 'baselines chose the same model' : 'AI Compass made no pick'}</small></div>
+                <div className="ev-stat"><span>Filtered out</span><strong>{evaluation.filtered_models.length}</strong><small>ineligible registry entries</small></div>
+              </section>
+
+              <section className="ev-section" aria-labelledby="ev-cmp-title">
+                <header className="ev-section-head">
+                  <div><p className="ev-kicker">Results</p><h2 id="ev-cmp-title">Strategy comparison</h2></div>
+                  <p className="ev-section-note">Figures are registry metadata; “—” means the registry has no value.</p>
+                </header>
+                <div className="ev-grid">
+                  {ordered.map((row, i) => <StrategyCard key={row.strategy} row={row} compassPick={compassPick} index={i} />)}
                 </div>
-                <span>Registry and benchmark metadata only</span>
-              </div>
-              <div className="offline-result-grid">
-                {STRATEGIES.map(({ key, title, icon: Icon }) => {
-                  const row = resultsByKey.get(key);
-                  if (!row) return null;
-                  return (
-                    <article className="offline-result-card" key={key} data-own={key === 'aicompass' || undefined}>
-                      <header>
-                        <Icon size={17} aria-hidden="true" />
-                        <h3>{title}</h3>
-                        <span className={`offline-result-status${row.status === 'selected' ? '' : ' is-unavailable'}`}>
-                          {row.status === 'selected' ? 'Selected' : 'Unavailable'}
-                        </span>
-                      </header>
-                      <div className="offline-model-selection">
-                        <span className="evaluation-kicker">SELECTED MODEL</span>
-                        <strong>{row.selected_model ?? 'No model selected'}</strong>
-                        {row.provider && <small>{row.provider} · {row.selected_model_id}</small>}
-                      </div>
-                      <p className="offline-rationale">{row.selection_rationale}</p>
-                      {row.status === 'selected' && (
-                        <>
-                          {row.routing_score !== null && (
-                            <div className="offline-routing-score">
-                              <span>Routing score</span>
-                              <strong>{formatPercent(row.routing_score)}</strong>
-                            </div>
-                          )}
-                          <dl className="offline-metrics">
-                            <div><dt>Quality score</dt><dd>{formatMetric(row.quality_score, 'quality_score')}</dd></div>
-                            <div><dt>Estimated input cost</dt><dd>{formatMetric(row.estimated_cost_usd, 'estimated_cost_usd')}</dd></div>
-                            <div><dt>Latency</dt><dd>{formatMetric(row.latency_seconds, 'latency_seconds')}</dd></div>
-                            <div><dt>Reliability</dt><dd>{formatMetric(row.reliability_score, 'reliability_score')}</dd></div>
-                            <div><dt>Risk / privacy</dt><dd>{formatMetric(row.risk_score, 'reliability_score')}</dd></div>
-                            <div><dt>Context window</dt><dd>{row.context_window ? `${row.context_window.toLocaleString()} tokens` : 'Unavailable'}</dd></div>
-                            <div><dt>Constraints</dt><dd>{row.constraint_satisfied ? 'Satisfied' : 'Not satisfied'}</dd></div>
-                          </dl>
-                        </>
-                      )}
-                      {row.quality_source && <p className="offline-source">Quality source: {row.quality_source}</p>}
-                      {row.cost_basis && <p className="offline-source">{row.cost_basis}</p>}
-                      {row.missing_data.length > 0 && (
-                        <details className="offline-missing">
-                          <summary>Metric availability · {row.missing_data.length} missing</summary>
-                          <ul>{row.missing_data.map(item => <li key={item}>{item}</li>)}</ul>
-                        </details>
-                      )}
-                    </article>
-                  );
-                })}
-              </div>
-            </section>
+              </section>
 
-            <ResultReading
-              rows={STRATEGIES.flatMap(({ key, title }) => {
-                const row = resultsByKey.get(key);
-                return row ? [{ ...row, title }] : [];
-              })}
-            />
+              <ResultReading rows={ordered.map((row) => ({ ...row, title: strategyShort(row.strategy) }))} />
 
-            <section className="offline-chart-section" aria-label="Metric comparison chart">
-              <div className="evaluation-section-heading">
-                <div><span className="evaluation-kicker">METADATA VISUALIZATION</span><h2>Compare available metrics</h2></div>
-                <label className="offline-chart-select">
-                  <span className="sr-only">Chart metric</span>
-                  <select value={metric} onChange={event => setMetric(event.target.value as MetricKey)}>
-                    {METRICS.map(item => <option key={item.key} value={item.key}>{item.label}</option>)}
-                  </select>
-                </label>
-              </div>
-              <p className="offline-chart-caption">
-                {metricDefinition.label}{metricDefinition.suffix}. Missing values are omitted, not represented as zero.
-              </p>
-              {chartData.length ? (
-                <div className="offline-chart">
-                  <ResponsiveContainer width="100%" height={Math.max(180, chartData.length * 52)}>
-                    <BarChart data={chartData} layout="vertical" margin={{ top: 8, right: 24, bottom: 8, left: 10 }}>
-                      <CartesianGrid horizontal={false} stroke="var(--color-border)" />
-                      <XAxis type="number" stroke="var(--color-text-muted)" tick={{ fill: 'var(--color-text-secondary)', fontSize: 11 }} />
-                      <YAxis type="category" dataKey="strategy" width={210} stroke="var(--color-text-muted)" tick={{ fill: 'var(--color-text-secondary)', fontSize: 11 }} />
-                      <Tooltip
-                        formatter={(value) => [formatMetric(Number(value), metric), metricDefinition.label]}
-                        labelFormatter={(label, payload) => {
-                          const model = payload?.[0]?.payload?.model;
-                          return model ? `${label} · ${model}` : label;
-                        }}
-                        contentStyle={{ background: 'var(--color-surface-raised)', borderColor: 'var(--color-border)', color: 'var(--color-text-primary)' }}
+              <section className="ev-section" aria-labelledby="ev-metrics-title">
+                <header className="ev-section-head">
+                  <div><p className="ev-kicker">Metrics</p><h2 id="ev-metrics-title">Compare side by side</h2></div>
+                  <SegmentedControl
+                    label="View"
+                    value={view}
+                    onChange={setView}
+                    options={[{ value: 'chart', label: 'Chart', icon: <BarChart3 /> }, { value: 'table', label: 'Table', icon: <Table2 /> }]}
+                  />
+                </header>
+
+                {view === 'chart' ? (
+                  <div className="ev-chart-wrap">
+                    <div className="ev-chart-bar">
+                      <SegmentedControl
+                        label="Chart metric"
+                        value={metric}
+                        onChange={setMetric}
+                        options={METRICS.map((m) => ({ value: m.key, label: m.label }))}
                       />
-                      <Bar dataKey="value" name={metricDefinition.label} fill="var(--color-primary)" radius={[0, 5, 5, 0]} maxBarSize={24} />
-                    </BarChart>
-                  </ResponsiveContainer>
-                </div>
-              ) : (
-                <p className="offline-no-chart">No strategies returned this metric from registry metadata.</p>
-              )}
-            </section>
+                      <span className="ev-section-note">{metricDefinition.label} · {metricDefinition.suffix}. Missing values are left out, not shown as zero.</span>
+                    </div>
+                    {chartData.length ? (
+                      <div className="ev-chart">
+                        <ResponsiveContainer width="100%" height={Math.max(170, chartData.length * 56)}>
+                          <BarChart data={chartData} layout="vertical" margin={{ top: 4, right: 28, bottom: 4, left: 4 }}>
+                            <CartesianGrid horizontal={false} stroke="var(--color-border-subtle)" />
+                            <XAxis type="number" stroke="var(--color-text-muted)" tick={{ fill: 'var(--color-text-secondary)', fontSize: 11 }}
+                              tickFormatter={(v) => (metric === 'quality_score' || metric === 'reliability_score' ? `${Math.round(Number(v) * 100)}%` : String(v))} />
+                            <YAxis type="category" dataKey="strategy" width={96} stroke="var(--color-text-muted)" tick={{ fill: 'var(--color-text-secondary)', fontSize: 12 }} />
+                            <Tooltip
+                              cursor={{ fill: 'var(--color-primary-subtle)' }}
+                              formatter={(value) => [formatMetric(Number(value), metric), metricDefinition.label]}
+                              labelFormatter={(label, payload) => { const m = payload?.[0]?.payload?.model; return m ? `${label} · ${m}` : label; }}
+                              contentStyle={{ background: 'var(--color-surface-raised)', borderColor: 'var(--color-border)', borderRadius: 10, color: 'var(--color-text-primary)' }}
+                            />
+                            <Bar dataKey="value" name={metricDefinition.label} radius={[0, 6, 6, 0]} maxBarSize={26}>
+                              {chartData.map((d) => <Cell key={d.key} fill={STRATEGY_COLOR[d.key] ?? 'var(--color-primary)'} />)}
+                            </Bar>
+                          </BarChart>
+                        </ResponsiveContainer>
+                      </div>
+                    ) : (
+                      <p className="ev-chart-empty">No strategy’s model has a {metricDefinition.label.toLowerCase()} value in the registry.</p>
+                    )}
+                  </div>
+                ) : (
+                  <div className="table-wrap ev-table-wrap">
+                    <table className="data-table ev-table">
+                      <thead>
+                        <tr>
+                          <th scope="col">Strategy</th><th scope="col">Selected model</th><th scope="col">Routing score</th>
+                          <th scope="col">Quality</th><th scope="col">Input cost</th><th scope="col">Latency</th>
+                          <th scope="col">Reliability</th><th scope="col">Constraints</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {ordered.map((row) => (
+                          <tr key={row.strategy}>
+                            <th scope="row"><span className="ev-dot" style={{ background: STRATEGY_COLOR[row.strategy] }} aria-hidden="true" />{strategyTitle(row.strategy)}</th>
+                            <td>{row.selected_model ?? <span className="ev-na">No pick</span>}{row.provider ? <small>{row.provider}</small> : null}</td>
+                            <td>{row.routing_score === null ? '—' : formatPercent(row.routing_score)}</td>
+                            <td>{formatMetric(row.quality_score, 'quality_score')}</td>
+                            <td>{formatMetric(row.estimated_cost_usd, 'estimated_cost_usd')}</td>
+                            <td>{formatMetric(row.latency_seconds, 'latency_seconds')}</td>
+                            <td>{formatMetric(row.reliability_score, 'reliability_score')}</td>
+                            <td>{row.status !== 'selected' ? '—' : row.constraint_satisfied ? 'Satisfied' : 'Not met'}</td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                )}
+              </section>
 
-            <section className="offline-table-section" aria-label="Detailed routing strategy table">
-              <div className="evaluation-section-heading"><div><span className="evaluation-kicker">DETAIL</span><h2>Selection table</h2></div></div>
-              <div className="table-wrap">
-                <table className="data-table offline-comparison-table">
-                  <thead>
-                    <tr>
-                      <th scope="col">Strategy</th>
-                      <th scope="col">Selected model</th>
-                      <th scope="col">Provider</th>
-                      <th scope="col">Routing score</th>
-                      <th scope="col">Quality</th>
-                      <th scope="col">Input cost</th>
-                      <th scope="col">Latency</th>
-                      <th scope="col">Reliability</th>
-                      <th scope="col">Constraints</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {results.map(row => (
-                      <tr key={row.strategy}>
-                        <th scope="row">{STRATEGIES.find(item => item.key === row.strategy)?.title ?? row.strategy}</th>
-                        <td>{row.selected_model ?? 'Unavailable'}</td>
-                        <td>{row.provider ?? '—'}</td>
-                        <td>{row.routing_score === null ? '—' : formatPercent(row.routing_score)}</td>
-                        <td>{row.quality_score === null ? 'Unavailable' : formatPercent(row.quality_score)}</td>
-                        <td>{formatUsd(row.estimated_cost_usd, 8)}</td>
-                        <td>{formatMetric(row.latency_seconds, 'latency_seconds')}</td>
-                        <td>{formatMetric(row.reliability_score, 'reliability_score')}</td>
-                        <td>{row.constraint_satisfied ? 'Satisfied' : 'Unavailable'}</td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
+              <div className="ev-notes">
+                {evaluation.filtered_models.length > 0 ? (
+                  <details className="ev-note">
+                    <summary><Layers aria-hidden="true" />Filtered models <span className="ev-badge">{evaluation.filtered_models.length}</span><ChevronDown aria-hidden="true" className="ev-note-chev" /></summary>
+                    <ul className="ev-filtered">
+                      {evaluation.filtered_models.map((item) => <li key={item.model_id}><code>{item.model_id}</code><span>{item.reason}</span></li>)}
+                    </ul>
+                  </details>
+                ) : null}
+                <details className="ev-note">
+                  <summary><ShieldCheck aria-hidden="true" />Research validity and methodology<ChevronDown aria-hidden="true" className="ev-note-chev" /></summary>
+                  <div className="ev-note-body">
+                    <p>{evaluation.data_disclosure}</p>
+                    <p>
+                      All four strategies use the same analysed query, registry catalog and hard-constraint-filtered pool.
+                      AI Compass uses the signed-in profile’s routing weights. Quality is a registry estimate unless its source
+                      names a benchmark; it is not a measured response-quality score. Input cost uses the estimated input-token
+                      count and known input pricing only, excluding output tokens. Latency, reliability, risk, capability,
+                      context-window and availability fields are registry metadata, not measurements from this run.
+                    </p>
+                  </div>
+                </details>
               </div>
-            </section>
+            </div>
+          ) : null}
+        </div>
 
-            {evaluation.filtered_models.length > 0 && (
-              <details className="offline-filtered-models">
-                <summary>Filtered models · {evaluation.filtered_models.length}</summary>
-                <ul>
-                  {evaluation.filtered_models.map(item => <li key={item.model_id}><strong>{item.model_id}</strong>: {item.reason}</li>)}
-                </ul>
-              </details>
-            )}
-
-            <details className="evaluation-methodology offline-methodology">
-              <summary><ShieldCheck size={16} aria-hidden="true" /> Research validity and methodology</summary>
-              <p>{evaluation.data_disclosure}</p>
-              <p>
-                All four strategies use the same analyzed query, registry catalog, and hard-constraint-filtered candidate pool.
-                AI Compass uses the signed-in profile's routing weights. Quality is a registry estimate unless its source
-                explicitly identifies a benchmark; it is not a measured response-quality score. Input cost uses the analyzer's
-                estimated input-token count and known input pricing only, excluding output tokens. Latency, reliability, risk,
-                capability, context-window, and availability fields are registry metadata, not measurements from this run.
-              </p>
-            </details>
-          </>
-        )}
-
-        {!evaluation && !running && (
-          <section className="offline-empty-state">
-            <BarChart3 size={22} aria-hidden="true" />
-            <strong>Evaluate routing decisions, not model responses</strong>
-            <p>Run a comparison to see how adaptive and fixed selection strategies choose from the same eligible model pool.</p>
-            {!lastRoute && <ButtonLink to="/route" variant="ghost">Open Route Query</ButtonLink>}
-          </section>
-        )}
-
-        {running && (
-          <div className="offline-running" role="status">
-            <Loader2 className="spin" aria-hidden="true" />
-            <span>Analyzing the query and scoring registry candidates locally…</span>
-          </div>
-        )}
+        {/* ── Method ─────────────────────────────────────────────── */}
+        <EvaluationPipeline evaluation={running ? null : evaluation} />
+        <MetricGuide />
       </div>
     </>
   );

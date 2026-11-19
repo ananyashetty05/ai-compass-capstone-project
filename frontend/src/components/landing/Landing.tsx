@@ -9,6 +9,7 @@ import { Brand } from '../layout/Brand';
 import { SignInForm } from '../auth/SignInForm';
 import { AuroraBackground } from './AuroraBackground';
 import { AuthVisual } from './AuthVisual';
+import { Capabilities } from './Capabilities';
 import { Story } from './Story';
 import { ThemeSwitch } from './ThemeSwitch';
 import { useDocumentTitle } from '../../hooks/useDocumentTitle';
@@ -41,16 +42,36 @@ export function Landing() {
     return () => io.disconnect();
   }, []);
 
+  // Overall page progress (0-1) drives a thin bar; transform-only, rAF-throttled.
+  const rootRef = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    let frame = 0;
+    const update = () => {
+      frame = 0;
+      const max = document.documentElement.scrollHeight - window.innerHeight;
+      const p = max > 0 ? Math.min(1, Math.max(0, window.scrollY / max)) : 0;
+      rootRef.current?.style.setProperty('--page-p', p.toFixed(4));
+    };
+    const onScroll = () => { if (!frame) frame = requestAnimationFrame(update); };
+    update();
+    window.addEventListener('scroll', onScroll, { passive: true });
+    window.addEventListener('resize', onScroll);
+    return () => { window.removeEventListener('scroll', onScroll); window.removeEventListener('resize', onScroll); if (frame) cancelAnimationFrame(frame); };
+  }, []);
+
   return (
-    <div className="landing">
+    <div className="landing" ref={rootRef}>
+      <div className="landing-progress" aria-hidden="true"><i /></div>
       <header className={onAuth ? 'landing-bar is-auth' : 'landing-bar'}>
         <span className="landing-bar-brand"><Brand tagline="Routing intelligence" /></span>
         <div className="landing-bar-actions">
+          <Link className="landing-create" to="/onboarding">Create account</Link>
           <a className="story-skip" href="#signin">Skip to sign in</a>
           <ThemeSwitch />
         </div>
       </header>
       <Story />
+      <Capabilities />
       <section className="landing-auth" id="signin" aria-labelledby="signin-title">
         <AuroraBackground />
         <div className="la-grid">

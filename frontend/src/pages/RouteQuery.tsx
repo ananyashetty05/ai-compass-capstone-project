@@ -12,13 +12,10 @@ import {
   BookOpen,
   Bot,
   Check,
-  ChevronDown,
-  ChevronUp,
   Clipboard,
   Code2,
   Compass,
   ExternalLink,
-  Filter,
   FileText,
   Gauge,
   Image,
@@ -39,6 +36,8 @@ import { ButtonLink } from '../components/ui/Button';
 import { RoutingInsights } from '../components/result/RoutingInsights';
 import { EngineInsights } from '../components/route/EngineInsights';
 import { PromptOptimizerPanel } from '../components/route/PromptOptimizerPanel';
+import { ConstraintsPanel } from '../components/route/ConstraintsPanel';
+import type { PrivacyLevel } from '../components/route/ConstraintsPanel';
 import { useToast } from '../context/toastContext';
 import { useAuth } from '../context/authContext';
 import { useRouteResult } from '../context/routeResultContext';
@@ -46,7 +45,11 @@ import { routeAndGenerate } from '../services/routing.service';
 import { listModels } from '../services/models.service';
 import { optimizePrompt as requestPromptOptimization } from '../services/promptOptimization.service';
 import { describeError } from '../services/http';
-import { OBJECTIVES, EXAMPLE_QUERIES, groupLabel } from '../utils/domain';
+import { scrollToElement } from '../utils/scroll';
+import { ExampleGallery } from '../components/route/ExampleGallery';
+import { TaskTypeGrid } from '../components/route/TaskTypeGrid';
+import { RouteProgress } from '../components/route/RouteProgress';
+import { OBJECTIVES, groupLabel } from '../utils/domain';
 import { formatPercent, formatDuration, formatUsd, toPercent } from '../utils/format';
 import type { RouteRequest, RouteResponse, RankedAlternative, ModelInfo, OptimizationMode, OptimizePromptResponse, RouteMode, SubmitPrompt } from '../types';
 
@@ -129,10 +132,11 @@ export function RouteQuery() {
   const [taskTypeHint, setTaskTypeHint] = useState<string | null>(null);
   const [fieldError, setFieldError] = useState<string | null>(null);
   const [error, setError] = useState<{ message: string; hint?: string } | null>(null);
-  const [showConstraints, setShowConstraints] = useState(false);
   const [maxCost, setMaxCost] = useState('');
   const [maxLatency, setMaxLatency] = useState('');
   const [capabilities, setCapabilities] = useState<string[]>([]);
+  const [privacy, setPrivacy] = useState<PrivacyLevel>('standard');
+  const [excludedProviders, setExcludedProviders] = useState<string[]>([]);
   const [selectedModelIds, setSelectedModelIds] = useState<string[]>([]);
   const [compareWith, setCompareWith] = useState<string | null>(null);
   const [copied, setCopied] = useState(false);
@@ -155,6 +159,10 @@ export function RouteQuery() {
   const controllerRef = useRef<AbortController | null>(null);
   const optimizerControllerRef = useRef<AbortController | null>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
+  const resultColRef = useRef<HTMLDivElement>(null);
+  /** Set when a route is started from the form; the result scrolls into view once it lands. */
+  const revealPendingRef = useRef(false);
+  const isMac = typeof navigator !== 'undefined' && /Mac|iPhone|iPad/.test(navigator.platform || navigator.userAgent);
 
   useEffect(() => () => {
     controllerRef.current?.abort();
@@ -203,18 +211,18 @@ export function RouteQuery() {
     }
     if (taskTypeHint) payload.task_type_hint = taskTypeHint;
     if (selectedModelIds.length) payload.model_ids = selectedModelIds;
-    if (showConstraints) {
-      if (capabilities.length) payload.require_capabilities = capabilities;
-      if (maxCost.trim()) {
-        const v = Number(maxCost);
-        if (!Number.isFinite(v) || v <= 0) { setFieldError('Max cost must be a positive number.'); return; }
-        payload.max_cost = v;
-      }
-      if (maxLatency.trim()) {
-        const v = Number(maxLatency);
-        if (!Number.isFinite(v) || v <= 0) { setFieldError('Max latency must be a positive number.'); return; }
-        payload.max_latency = v;
-      }
+    if (capabilities.length) payload.require_capabilities = capabilities;
+    if (privacy === 'strict') payload.privacy_requirement = 'strict';
+    if (excludedProviders.length) payload.excluded_providers = excludedProviders;
+    if (maxCost.trim()) {
+      const v = Number(maxCost);
+      if (!Number.isFinite(v) || v <= 0) { setFieldError('Max cost must be a positive number.'); return; }
+      payload.max_cost = v;
+    }
+    if (maxLatency.trim()) {
+      const v = Number(maxLatency);
+      if (!Number.isFinite(v) || v <= 0) { setFieldError('Max latency must be a positive number.'); return; }
+      payload.max_latency = v;
     }
 
     controllerRef.current?.abort();
@@ -222,6 +230,9 @@ export function RouteQuery() {
     controllerRef.current = ctrl;
     setRouting(true);
     setCompareWith(null);
+    revealPendingRef.current = true;
+    // Glide down to the result area straight away so the progress is visible.
+    requestAnimationFrame(() => { if (resultColRef.current) scrollToElement(resultColRef.current); });
 
     try {
       const res = await routeAndGenerate(payload, ctrl.signal);
@@ -246,7 +257,28 @@ export function RouteQuery() {
     } finally {
       if (!ctrl.signal.aborted) setRouting(false);
     }
-  }, [query, taskTypeHint, isRouting, showConstraints, maxCost, maxLatency, capabilities, selectedModelIds, runMode, optMode, submitChoice, optResult, optimizedFor, optimizedPrompt, budget, promptEdited, push, setResult, setRouting]);
+  }, [query, taskTypeHint, isRouting, maxCost, maxLatency, capabilities, privacy, excludedProviders, selectedModelIds, runMode, optMode, submitChoice, optResult, optimizedFor, optimizedPrompt, budget, promptEdited, push, setResult, setRouting]);
+
+  // When the result (or an error) lands, settle onto it and give the Best Match card a brief glow.
+  useEffect(() => {
+    if (!revealPendingRef.current || isRouting) return;
+    if (!result && !error) return;
+    revealPendingRef.current = false;
+    const raf = requestAnimationFrame(() => {
+      const col = resultColRef.current;
+      const target = col?.querySelector('.rq-rec-card, .rq-error-card') ?? col;
+      if (!target) return;
+      scrollToElement(target, {
+        onDone: () => {
+          if (!target.classList.contains('rq-rec-card')) return;
+          target.classList.remove('rq-rec-card--arrive');
+          void (target as HTMLElement).offsetWidth;
+          target.classList.add('rq-rec-card--arrive');
+        },
+      });
+    });
+    return () => cancelAnimationFrame(raf);
+  }, [result, error, isRouting]);
 
   const handleKey = useCallback((e: React.KeyboardEvent<HTMLTextAreaElement>) => {
     if (e.key === 'Enter' && (e.metaKey || e.ctrlKey)) { e.preventDefault(); void run(); }
@@ -336,7 +368,6 @@ export function RouteQuery() {
           <h1>Route Query</h1>
           <p>Describe the task. AI Compass compares eligible models against your constraints and routing priorities.</p>
         </div>
-        <span className="rq-workflow-label">Task <span aria-hidden="true">→</span> analysis <span aria-hidden="true">→</span> recommendation</span>
         <ButtonLink to="/models" variant="ghost" size="sm" trailingIcon={<ArrowRight />}>
           Browse model pool
         </ButtonLink>
@@ -351,6 +382,7 @@ export function RouteQuery() {
                 <h2 className="rq-input-title">What are you working on?</h2>
                 <p className="rq-input-sub">A little context helps the router find the right fit.</p>
               </div>
+              <RouteProgress hasTask={query.trim().length >= 3} routing={isRouting} hasResult={!!result} failed={!!error && !isRouting} />
             </div>
 
             <div className="rq-textarea-wrap">
@@ -369,128 +401,59 @@ export function RouteQuery() {
               {fieldError && <p className="rq-field-error">{fieldError}</p>}
               <div className="rq-textarea-foot">
                 <span className="rq-char-count" title="Rough estimate: about 4 characters per token">{query.length.toLocaleString()} / {MAX_QUERY.toLocaleString()} · ≈{Math.ceil(query.length / 4).toLocaleString()} tokens</span>
-                <span className="rq-hint">⌘↵ to route</span>
-              </div>
-            </div>
-
-            <div className="rq-examples">
-              <span className="rq-examples-label">Try</span>
-              {EXAMPLE_QUERIES.map(ex => (
-                <button key={ex.label} type="button" className="rq-example-chip"
-                  onClick={() => { setQuery(ex.text); setFieldError(null); }} disabled={isRouting}>
-                  {ex.label}
-                </button>
-              ))}
-            </div>
-
-            <div className="rq-examples" aria-label="Task category">
-              <span className="rq-examples-label">Task type</span>
-              {TASK_CATEGORIES.map(([value, label]) => (
-                <button key={value} type="button" className="rq-example-chip"
-                  aria-pressed={taskTypeHint === value}
-                  onClick={() => setTaskTypeHint(current => current === value ? null : value)}
-                  disabled={isRouting}>
-                  {label}
-                </button>
-              ))}
-            </div>
-
-            <details className="rq-model-pool">
-              <summary>
-                <span><Layers aria-hidden="true" /> Model pool</span>
-                <small>
-                  {selectedModelIds.length
-                    ? `${selectedModelIds.length} selected`
-                    : `All eligible models${selectableModels.length ? ` · ${selectableModels.length}` : ''}`}
-                </small>
-              </summary>
-              <p className="rq-pool-description">
-                Choose API models to compare, or leave the pool unfiltered to include every eligible model.
-              </p>
-              {registryLoading ? (
-                <p className="rq-tools-message">Loading the model registry…</p>
-              ) : registryError ? (
-                <p className="rq-tools-error">{registryError}</p>
-              ) : selectableModels.length ? (
-                <div className="rq-model-pool-list">
-                  {selectableModels.map(model => (
-                    <label className="rq-model-pool-option" key={model.model_id}>
-                      <input
-                        type="checkbox"
-                        checked={selectedModelIds.includes(model.model_id)}
-                        onChange={event => setSelectedModelIds(current =>
-                          event.target.checked
-                            ? [...current, model.model_id]
-                            : current.filter(id => id !== model.model_id),
-                        )}
-                        disabled={isRouting}
-                      />
-                      <span>
-                        <strong>{model.model_name}</strong>
-                        <small>{model.provider}</small>
-                      </span>
-                    </label>
-                  ))}
-                </div>
-              ) : (
-                <p className="rq-tools-message">No API inference models are available in the registry.</p>
-              )}
-              {selectedModelIds.length > 0 && (
-                <button type="button" className="rq-pool-reset" onClick={() => setSelectedModelIds([])}>
-                  Clear selection
-                </button>
-              )}
-            </details>
-
-            <button type="button" className="rq-constraints-toggle"
-              onClick={() => setShowConstraints(v => !v)}>
-              <Filter aria-hidden="true" />
-              Hard constraints
-              {showConstraints ? <ChevronUp aria-hidden="true" /> : <ChevronDown aria-hidden="true" />}
-            </button>
-
-            {showConstraints && (
-              <div className="rq-constraints-body">
-                <div className="rq-constraint-field">
-                  <label className="rq-constraint-label" htmlFor="max-cost">Max cost (USD / request)</label>
-                  <input id="max-cost" className="rq-constraint-input" type="number" min="0" step="0.001"
-                    placeholder="0.05" value={maxCost} onChange={e => setMaxCost(e.target.value)} disabled={isRouting} />
-                </div>
-                <div className="rq-constraint-field">
-                  <label className="rq-constraint-label" htmlFor="max-latency">Max latency (seconds)</label>
-                  <input id="max-latency" className="rq-constraint-input" type="number" min="0" step="0.5"
-                    placeholder="10" value={maxLatency} onChange={e => setMaxLatency(e.target.value)} disabled={isRouting} />
-                </div>
-                <div className="rq-constraint-field">
-                  <span className="rq-constraint-label">Required capabilities</span>
-                  <div className="rq-examples" aria-label="Required capabilities">
-                    {['coding', 'reasoning', 'math', 'research', 'image-generation'].map(capability => (
-                      <button key={capability} type="button" className="rq-example-chip"
-                        aria-pressed={capabilities.includes(capability)}
-                        onClick={() => setCapabilities(current => current.includes(capability) ? current.filter(item => item !== capability) : [...current, capability])}>
-                        {capability.replace('-', ' ')}
-                      </button>
-                    ))}
-                  </div>
+                <div className="rq-inline-run">
+                  <kbd className="rq-kbd" aria-hidden="true">{isMac ? '⌘ ↵' : 'Ctrl ↵'}</kbd>
+                  <button
+                    type="button"
+                    className="rq-inline-run-btn"
+                    onClick={() => void run()}
+                    disabled={isRouting || !query.trim()}
+                    aria-keyshortcuts={isMac ? 'Meta+Enter' : 'Control+Enter'}
+                  >
+                    {isRouting
+                      ? <><Loader2 className="spin" aria-hidden="true" />Routing…</>
+                      : <>{runMode === 'execute' ? 'Find and run' : 'Find best model'}<ArrowRight aria-hidden="true" /></>}
+                  </button>
                 </div>
               </div>
-            )}
+            </div>
 
-            <fieldset className="eng-exec">
-              <legend>Mode</legend>
-              <label>
-                <input type="radio" name="run-mode" checked={runMode === 'recommend'} onChange={() => setRunMode('recommend')} disabled={isRouting} />
-                <span><strong>Recommend</strong><small>Choose the best model. No model is run and nothing is spent.</small></span>
-              </label>
-              <label>
-                <input type="radio" name="run-mode" checked={runMode === 'execute'} onChange={() => setRunMode('execute')} disabled={isRouting} />
-                <span><strong>Recommend and run</strong><small>Also sends the prompt to the selected model using your configured provider key. This can incur provider charges.</small></span>
-              </label>
+            <ExampleGallery onPick={(text) => { setQuery(text); setFieldError(null); }} disabled={isRouting} />
+
+            <TaskTypeGrid categories={TASK_CATEGORIES} value={taskTypeHint} onChange={setTaskTypeHint} disabled={isRouting} />
+
+            <ConstraintsPanel
+              models={selectableModels}
+              loading={registryLoading}
+              error={registryError}
+              disabled={isRouting}
+              maxCost={maxCost} onMaxCost={setMaxCost}
+              maxLatency={maxLatency} onMaxLatency={setMaxLatency}
+              capabilities={capabilities} onCapabilities={setCapabilities}
+              privacy={privacy} onPrivacy={setPrivacy}
+              excludedProviders={excludedProviders} onExcludedProviders={setExcludedProviders}
+              selectedModelIds={selectedModelIds} onSelectedModelIds={setSelectedModelIds}
+            />
+
+            <fieldset className="rq-mode" disabled={isRouting}>
+              <legend className="rq-sec-title">Mode</legend>
+              <div className="rq-mode-options">
+                <label className="rq-mode-opt">
+                  <input type="radio" name="run-mode" checked={runMode === 'recommend'} onChange={() => setRunMode('recommend')} />
+                  <span className="rq-mode-icon" aria-hidden="true"><Compass /></span>
+                  <span className="rq-mode-text"><strong>Recommend</strong><small>Choose the best model. Nothing is run and nothing is spent.</small></span>
+                </label>
+                <label className="rq-mode-opt">
+                  <input type="radio" name="run-mode" checked={runMode === 'execute'} onChange={() => setRunMode('execute')} />
+                  <span className="rq-mode-icon" aria-hidden="true"><Zap /></span>
+                  <span className="rq-mode-text"><strong>Recommend and run</strong><small>Also sends the prompt to the chosen model with your provider key. May incur charges.</small></span>
+                </label>
+              </div>
               {runMode === 'execute' && (
-                <div className="rq-constraint-field">
-                  <label className="rq-constraint-label" htmlFor="run-budget">Spend limit for this run (USD, optional)</label>
-                  <input id="run-budget" className="rq-constraint-input" type="number" min="0" step="0.001" placeholder="0.05" value={budget} onChange={e => setBudget(e.target.value)} disabled={isRouting} />
-                </div>
+                <label className="rq-budget">
+                  <span>Spend limit for this run <small>optional</small></span>
+                  <span className="cp-input"><em>$</em><input id="run-budget" type="number" min="0" step="0.001" placeholder="0.05" value={budget} onChange={e => setBudget(e.target.value)} /></span>
+                </label>
               )}
             </fieldset>
 
@@ -512,7 +475,7 @@ export function RouteQuery() {
           </div>
         </div>
 
-        <div className="rq-result-col">
+        <div className="rq-result-col" ref={resultColRef}>
           {isRouting && <RoutingLoader />}
 
           {!isRouting && error && (

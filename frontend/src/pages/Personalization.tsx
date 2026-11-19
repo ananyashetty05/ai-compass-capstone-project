@@ -8,12 +8,11 @@
  *
  * All data comes from the backend — nothing is simulated.
  */
-import { ArrowRight, Brain, RefreshCw, SlidersHorizontal, Star, ThumbsDown, ThumbsUp, UserRound } from 'lucide-react';
+import { ArrowRight, Brain, RefreshCw, SlidersHorizontal, Star, ThumbsDown, ThumbsUp } from 'lucide-react';
 import { Link } from 'react-router-dom';
-import { Reveal } from '../components/ui/Reveal';
+import { Grid, PropertyList, SectionHeader, Stat, StatusPill, Surface } from '../components/ui/ds';
 import { PageHeader } from '../components/layout/PageHeader';
-import { Card, CardBody, CardHeader } from '../components/ui/Card';
-import { Panel, PanelBody } from '../components/ui/Panel';
+import { Card, CardBody } from '../components/ui/Card';
 import { Badge, Status, Tag } from '../components/ui/Badge';
 import { Button } from '../components/ui/Button';
 import { EmptyState, ErrorState } from '../components/ui/EmptyState';
@@ -60,153 +59,83 @@ export function Personalization() {
         ) : personalization.error ? (
           <ErrorState title="Could not load" message={personalization.error.message} hint={personalization.error.hint} onRetry={personalization.reload} retryLabel="Try again" />
         ) : learningState ? (
-          <div className="personalization-dashboard">
-            <section className="personalization-overview" aria-label="Personalization overview">
-              <div className="personalization-overview-state">
+          <div className="pz">
+            <Surface className="pz-hero" aria-label="Learning status">
+              <div className="pz-hero-main">
                 <span className="personalization-learning-icon"><Brain aria-hidden="true" /></span>
                 <div>
-                  <p className="personalization-kicker">Learning profile</p>
+                  <p className="ds-kicker">Learning profile</p>
                   <h2>{learningState.learning_active ? 'Learning is active' : 'Building your baseline'}</h2>
-                  <p>{learningState.learning_active
+                  <p className="pz-muted">{learningState.learning_active
                     ? 'Your feedback informs future recommendations alongside routing objectives.'
-                    : 'Ratings build a per-model profile; routing priorities remain in control until enough feedback is available.'}</p>
+                    : 'Ratings build a per-model profile; routing priorities stay in control until enough feedback is available.'}</p>
                 </div>
-                <Status name={learningState.learning_active ? 'active' : 'warning'}>
+                <StatusPill tone={learningState.learning_active ? 'success' : 'warning'}>
                   {learningState.learning_active ? 'Active' : 'Cold start'}
-                </Status>
+                </StatusPill>
               </div>
-              <div className="personalization-metrics" aria-label="Feedback summary">
-                <div><span>Total ratings</span><strong>{formatNumber(learningState.total_feedback, 0)}</strong></div>
-                <div><span>Models rated</span><strong>{formatNumber(learningState.models_rated, 0)}</strong></div>
-                <div><span>Activation</span><strong>{learningState.cold_start ? '3 ratings' : 'Reached'}</strong></div>
+              <Grid cols={3} className="pz-stats">
+                <Stat label="Total ratings" value={formatNumber(learningState.total_feedback, 0)} />
+                <Stat label="Models rated" value={formatNumber(learningState.models_rated, 0)} />
+                <Stat label="Activation" value={learningState.cold_start ? `${ACTIVATION_RATINGS} ratings` : 'Reached'}
+                  hint={averageRating !== null ? `Average given: ${averageRating.toFixed(1)}★` : undefined} />
+              </Grid>
+              <div className="cx-progress" role="progressbar" aria-label="Ratings toward activation" aria-valuemin={0} aria-valuemax={ACTIVATION_RATINGS} aria-valuenow={Math.min(learningState.total_feedback, ACTIVATION_RATINGS)}>
+                <span style={{ ['--w' as string]: `${Math.min(100, (learningState.total_feedback / ACTIVATION_RATINGS) * 100)}%` }} />
               </div>
-            </section>
+              <p className="pz-muted">
+                {learningState.cold_start
+                  ? `${learningState.total_feedback} of ${ACTIVATION_RATINGS} ratings needed. Rate a recommended model after a routing run to start personalization.`
+                  : `Active with ${learningState.total_feedback} rating${learningState.total_feedback === 1 ? '' : 's'} across ${learningState.models_rated} model${learningState.models_rated === 1 ? '' : 's'}.`}
+              </p>
+            </Surface>
 
-            <div className="cx-grid cx-grid--2 cx-persona">
-              <Reveal as="section" className="cx-card" ariaLabelledBy="persona-profile">
-                <header className="cx-card-head">
-                  <div><p className="cx-kicker">Configured by you</p><h2 id="persona-profile">Your routing profile</h2></div>
-                  <UserRound aria-hidden="true" />
-                </header>
-                <dl className="cx-kv">
-                  <div><dt>Name</dt><dd>{user?.name ?? 'Not set'}</dd></div>
-                  <div><dt>User group</dt><dd>{groupLabel(user?.user_group)}</dd></div>
-                  <div><dt>Priorities</dt><dd>{user?.preferences_customized ? 'Custom weights' : 'Group defaults'}</dd></div>
-                </dl>
-                <Link to="/profile" className="cx-link"><SlidersHorizontal aria-hidden="true" /> Edit priorities in Profile <ArrowRight aria-hidden="true" /></Link>
-              </Reveal>
-              <Reveal as="section" className="cx-card" delay={1} ariaLabelledBy="persona-learning">
-                <header className="cx-card-head">
-                  <div><p className="cx-kicker">Learned from feedback</p><h2 id="persona-learning">Learning progress</h2></div>
-                  <Brain aria-hidden="true" />
-                </header>
-                <div className="cx-progress" role="progressbar" aria-label="Ratings toward activation" aria-valuemin={0} aria-valuemax={ACTIVATION_RATINGS} aria-valuenow={Math.min(learningState.total_feedback, ACTIVATION_RATINGS)}>
-                  <span style={{ ['--w' as string]: `${Math.min(100, (learningState.total_feedback / ACTIVATION_RATINGS) * 100)}%` }} />
+            <Grid ratio="1-2" className="pz-main">
+              {user?.routing_preferences ? (
+                <Surface className="pz-card" aria-labelledby="pz-priorities">
+                  <SectionHeader id="pz-priorities" kicker="Configured by you" title="Routing priorities"
+                    actions={<Link to="/profile" className="cx-link"><SlidersHorizontal aria-hidden="true" /> Edit <ArrowRight aria-hidden="true" /></Link>} />
+                  <PropertyList items={[
+                    { label: 'Name', value: user.name ?? 'Not set' },
+                    { label: 'User group', value: groupLabel(user.user_group) },
+                    { label: 'Priorities', value: user.preferences_customized ? 'Custom weights' : 'Group defaults' },
+                  ]} />
+                  <div className="dimension-list">
+                    {OBJECTIVES.map((objective) => (
+                      <PreferenceRow key={objective.key} label={objective.label} description={objective.description} weight={user.routing_preferences[objective.key]} />
+                    ))}
+                  </div>
+                </Surface>
+              ) : null}
+
+              <Surface className="pz-card" aria-labelledby="pz-learned">
+                <SectionHeader id="pz-learned" kicker="Learned from feedback" title="Learned model preferences"
+                  description="Satisfaction estimates from your ratings, with confidence per model." />
+                {learningState.satisfaction_estimates.length > 0 ? (
+                  <>
+                    <div className="personalization-satisfaction-list">
+                      {learningState.satisfaction_estimates.map((est) => <SatisfactionRow key={est.model_id} est={est} />)}
+                    </div>
+                    <p className="pz-muted">A Bayesian prior limits the impact of early ratings; learned preference influence is bounded and never replaces capability filtering or your priorities.</p>
+                  </>
+                ) : (
+                  <EmptyState icon={<Brain />} title="No learned preferences yet" description="Rate models after routing tasks to build a preference ranking." align="start" />
+                )}
+              </Surface>
+            </Grid>
+
+            <Surface className="pz-card" aria-labelledby="pz-history">
+              <SectionHeader id="pz-history" kicker="Activity" title="Feedback history"
+                description="Ratings submitted after a recommendation, newest first." actions={<Tag>{formatNumber(history?.length ?? 0, 0)} entries</Tag>} />
+              {!history || history.length === 0 ? (
+                <EmptyState icon={<Star />} title="Your model feedback starts here"
+                  description="After routing a task, rate the recommended model. AI Compass uses those ratings to build a per-model preference profile." align="start" />
+              ) : (
+                <div className="personalization-history pz-history-grid">
+                  {history.map((fb) => <FeedbackHistoryItem key={fb.feedback_id} fb={fb} />)}
                 </div>
-                <p className="cx-muted">
-                  {learningState.cold_start
-                    ? `${learningState.total_feedback} of ${ACTIVATION_RATINGS} ratings needed to activate learning.`
-                    : `Learning is active with ${learningState.total_feedback} rating${learningState.total_feedback === 1 ? '' : 's'} across ${learningState.models_rated} model${learningState.models_rated === 1 ? '' : 's'}.`}
-                </p>
-                {averageRating !== null ? <p className="cx-note">Average rating you have given: {averageRating.toFixed(1)}★ across {history?.length} recent entries.</p> : null}
-              </Reveal>
-            </div>
-
-            {learningState.cold_start ? (
-              <Panel tone="muted">
-                <PanelBody>
-                  <p className="personalization-next-step">
-                    <Star aria-hidden="true" />
-                    Rate a recommended model after a routing run. Personalization activates after at least 3 ratings.
-                  </p>
-                </PanelBody>
-              </Panel>
-            ) : null}
-
-            <div className="personalization-analysis-grid">
-              {user?.routing_preferences && (
-                <Card className="personalization-priorities">
-                  <CardHeader
-                    title="Routing priorities"
-                    compact
-                    description="How your saved routing objectives are balanced."
-                  />
-                  <CardBody>
-                    <div className="dimension-list">
-                      {OBJECTIVES.map((objective) => (
-                        <PreferenceRow
-                          key={objective.key}
-                          label={objective.label}
-                          description={objective.description}
-                          weight={user.routing_preferences[objective.key]}
-                        />
-                      ))}
-                    </div>
-                    <p className="panel-footnote personalization-footnote">
-                      {user.preferences_customized
-                        ? 'Your custom priorities are applied to future routing.'
-                        : 'These saved defaults follow your user group.'}
-                    </p>
-                  </CardBody>
-                </Card>
               )}
-
-              <Card>
-                <CardHeader
-                  title="Learned model preferences"
-                  compact
-                  description="Satisfaction estimates from your ratings, with confidence shown per model."
-                />
-                <CardBody>
-                  {learningState.satisfaction_estimates.length > 0 ? (
-                    <>
-                      <div className="personalization-satisfaction-list">
-                        {learningState.satisfaction_estimates.map((est) => (
-                          <SatisfactionRow key={est.model_id} est={est} />
-                        ))}
-                      </div>
-                      <p className="panel-footnote personalization-footnote">
-                        A Bayesian prior limits the impact of early ratings; learned preference influence is bounded.
-                      </p>
-                    </>
-                  ) : (
-                    <EmptyState
-                      icon={<Brain />}
-                      title="No learned preferences yet"
-                      description="Rate models after routing tasks to build a preference ranking."
-                    />
-                  )}
-                </CardBody>
-              </Card>
-            </div>
-
-            <Card>
-                <CardHeader
-                  title="Feedback history"
-                  compact
-                  description="Ratings submitted after a recommendation, newest first."
-                  actions={<Tag>{formatNumber(history?.length ?? 0, 0)} entries</Tag>}
-                />
-                <CardBody>
-                  {!history || history.length === 0 ? (
-                    <EmptyState
-                      icon={<Star />}
-                      title="Your model feedback starts here"
-                      description="After routing a task, rate the recommended model. AI Compass uses those ratings to build a per-model preference profile."
-                    />
-                  ) : (
-                    <div className="personalization-history">
-                      {history.map((fb) => (
-                        <FeedbackHistoryItem key={fb.feedback_id} fb={fb} />
-                      ))}
-                    </div>
-                  )}
-                </CardBody>
-            </Card>
-            <details className="personalization-method">
-              <summary>How learning influences recommendations</summary>
-              <p>Bayesian satisfaction estimates make a bounded adjustment to objective scores; they do not replace capability filtering or your routing priorities.</p>
-            </details>
+            </Surface>
           </div>
         ) : null}
       </div>

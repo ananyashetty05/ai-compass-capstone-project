@@ -92,6 +92,8 @@ export interface AuthResponse {
 
 /** `backend/app/schemas/model.py::ModelMetadata` */
 export interface ModelInfo {
+  /** unknown | provider_documented_restricted | customer_controlled */
+  data_handling_status?: string;
   model_id: string;
   model_name: string;
   provider: string;
@@ -798,6 +800,9 @@ export interface RoutingHistoryEntry {
   total_latency_ms: number | null;
   estimated_cost: number | null;
   escalated: boolean;
+  /** 'recommend' | 'execute' */
+  mode?: string;
+  execution_status?: string | null;
 }
 
 export type RoutingHistoryAvailability = 'available' | 'unsupported' | 'error';

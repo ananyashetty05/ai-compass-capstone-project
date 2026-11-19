@@ -5,7 +5,7 @@ export interface SceneCopy {
   chips?: string[];
 }
 
-/** Copy for the seven scenes. Workflow scenes are conceptual, not live data. */
+/** Copy for the eight scenes. Workflow scenes are conceptual, not live data. */
 export const SCENES: SceneCopy[] = [
   {
     kicker: 'AI Compass',
@@ -35,7 +35,13 @@ export const SCENES: SceneCopy[] = [
     text: 'The choice follows your constraints and objective weights, not a fixed ranking. A fallback stays ready.',
   },
   {
-    kicker: '05 — Evaluation & escalation',
+    kicker: '05 — Transparent reasoning',
+    title: 'Every decision arrives with its reasoning.',
+    text: 'AI Compass records why a model was chosen and why the others were removed, so you can inspect the route instead of trusting it blindly.',
+    chips: ['Why it was selected', 'Why others were eliminated', 'Score breakdown'],
+  },
+  {
+    kicker: '06 — Evaluation & escalation',
     title: 'Intelligence does not end with selection.',
     text: 'The response is checked for quality and risk. If it falls short, the route escalates to a stronger candidate.',
   },
@@ -45,3 +51,6 @@ export const SCENES: SceneCopy[] = [
     text: 'Your AI workspace starts here.',
   },
 ];
+
+/** Background hue (degrees) at the centre of each scene; the stage interpolates between them as you scroll. */
+export const SCENE_HUES = [212, 200, 216, 262, 188, 150, 228, 206];

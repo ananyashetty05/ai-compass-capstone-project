@@ -7,27 +7,27 @@
  * table carries a provenance label rather than implying a benchmark.
  */
 import { useCallback, useMemo, useState } from 'react';
-import { LiveCatalogBrowser, LiveRegistryPanel, RegistryDetailBlock } from '../components/registry/LiveRegistry';
-import { ArrowUpRight, Boxes, Check, Filter, GitCompareArrows, LayoutGrid, List, Search, Server } from 'lucide-react';
+import { useNavigate } from 'react-router-dom';
+import { LiveCatalogBrowser, LiveRegistryPanel } from '../components/registry/LiveRegistry';
+import { ArrowUpRight, Boxes, Check, Filter, GitCompareArrows, LayoutGrid, List, Search } from 'lucide-react';
 import { PageHeader } from '../components/layout/PageHeader';
 import { CapabilityOverview, ProviderDistribution } from '../components/dashboard/DistributionCards';
 import { KpiIcons, KpiRow } from '../components/dashboard/KpiRow';
 import { summariseModels } from '../components/dashboard/insights';
 import { Button } from '../components/ui/Button';
-import { Badge, ProvenanceTag, Status, Tag, TagList } from '../components/ui/Badge';
-import { DimensionRow } from '../components/ui/ScoreBar';
+import { Badge, ProvenanceTag, Status, Tag } from '../components/ui/Badge';
 import { DataTable } from '../components/ui/DataTable';
 import type { ColumnDef } from '../components/ui/DataTable';
 import { Modal } from '../components/ui/Modal';
 import { TextInput } from '../components/ui/Input';
-import { EmptyState, ErrorState, Notice } from '../components/ui/EmptyState';
-import { MetadataEntry, MetadataRow } from '../components/ui/Metadata';
+import { EmptyState, ErrorState } from '../components/ui/EmptyState';
 import { Segmented, SkeletonMetrics, SkeletonTable } from '../components/ui/Skeleton';
 import { useAsync } from '../hooks/useAsync';
 import { useDocumentTitle } from '../hooks/useDocumentTitle';
 import { getRegistryStatus, listModels } from '../services/models.service';
 import {
-  formatCostPerThousand,
+  formatModelCostPerThousand,
+  hasPublishedPrice,
   formatInteger,
   formatNumber,
   formatPercent,
@@ -41,6 +41,16 @@ type StatusFilter = 'all' | 'active' | 'inactive';
 type EntryFilter = 'all' | 'inference_model' | 'application_integration' | 'specialized_ai_tool';
 type RegistryView = 'cards' | 'table';
 const MAX_COMPARE = 3;
+
+type SortKey = 'default' | 'name' | 'provider' | 'quality' | 'cost' | 'latency';
+const SORT_OPTIONS: { value: SortKey; label: string }[] = [
+  { value: 'default', label: 'Registry order' },
+  { value: 'name', label: 'Name (A–Z)' },
+  { value: 'provider', label: 'Provider (A–Z)' },
+  { value: 'quality', label: 'Quality estimate (high first)' },
+  { value: 'cost', label: 'Cost (low first)' },
+  { value: 'latency', label: 'Latency estimate (low first)' },
+];
 
 const REGISTRY_CATEGORIES: { key: EntryFilter; title: string; detail: string; countKey: keyof RegistryCategoryCounts }[] = [
   { key: 'all', title: 'All entries', detail: 'Everything in the registry', countKey: 'all' },
@@ -93,6 +103,8 @@ function availabilityLabel(value: string): string {
 }
 
 export function ModelPool() {
+  const navigate = useNavigate();
+  const setSelected = (m: ModelInfo) => navigate(`/models/inspect?provider=${encodeURIComponent(m.provider)}&model=${encodeURIComponent(m.model_id)}`);
   useDocumentTitle('Model registry · AI Compass');
   const models = useAsync((signal) => listModels(signal));
   const registryStatus = useAsync((signal) => getRegistryStatus(signal));
@@ -104,7 +116,7 @@ export function ModelPool() {
   const [entryType, setEntryType] = useState<EntryFilter>('all');
   const [capability, setCapability] = useState('all');
   const [view, setView] = useState<RegistryView>('cards');
-  const [selected, setSelected] = useState<ModelInfo | null>(null);
+  const [sortKey, setSortKey] = useState<SortKey>('default');
   const [compareIds, setCompareIds] = useState<string[]>([]);
   const [compareOpen, setCompareOpen] = useState(false);
   const [adminToken, setAdminToken] = useState('');
@@ -132,7 +144,7 @@ export function ModelPool() {
 
   const filtered = useMemo(() => {
     const needle = query.trim().toLowerCase();
-    return (models.data ?? []).filter((model) => {
+    const rows = (models.data ?? []).filter((model) => {
       if (status === 'active' && !model.active) return false;
       if (status === 'inactive' && model.active) return false;
       if (provider !== 'all' && model.provider !== provider) return false;
@@ -149,7 +161,27 @@ export function ModelPool() {
         model.capabilities.some((capability) => capability.toLowerCase().includes(needle))
       );
     });
-  }, [availability, capability, entryType, lifecycle, models.data, provider, query, status]);
+    // Missing numbers sort last so unknown values never look "best".
+    const num = (v: number | null | undefined, missing: number) => (typeof v === 'number' && Number.isFinite(v) ? v : missing);
+    const by: Record<SortKey, ((a: ModelInfo, b: ModelInfo) => number) | null> = {
+      default: null,
+      name: (a, b) => a.model_name.localeCompare(b.model_name),
+      provider: (a, b) => providerLabel(a.provider).localeCompare(providerLabel(b.provider)) || a.model_name.localeCompare(b.model_name),
+      quality: (a, b) => num(b.estimated_quality, -1) - num(a.estimated_quality, -1),
+      cost: (a, b) => {
+        const ca = num(hasPublishedPrice(a) ? a.cost_per_1k_tokens : null, Infinity);
+        const cb = num(hasPublishedPrice(b) ? b.cost_per_1k_tokens : null, Infinity);
+        return ca === cb ? 0 : ca - cb;
+      },
+      latency: (a, b) => {
+        const la = num(a.avg_latency_seconds, Infinity);
+        const lb = num(b.avg_latency_seconds, Infinity);
+        return la === lb ? 0 : la - lb;
+      },
+    };
+    const compare = by[sortKey];
+    return compare ? rows.slice().sort(compare) : rows;
+  }, [availability, capability, entryType, lifecycle, models.data, provider, query, status, sortKey]);
 
   const stats = useMemo(() => {
     const list = models.data ?? [];
@@ -232,8 +264,8 @@ export function ModelPool() {
         id: 'cost',
         header: 'Cost / 1K',
         numeric: true,
-        cell: (row) => <span className="text-numeric">{formatCostPerThousand(row.cost_per_1k_tokens)}</span>,
-        sortValue: (row) => row.cost_per_1k_tokens,
+        cell: (row) => <span className="text-numeric">{formatModelCostPerThousand(row)}</span>,
+        sortValue: (row) => (hasPublishedPrice(row) ? row.cost_per_1k_tokens : null),
       },
       {
         id: 'latency',
@@ -469,6 +501,13 @@ export function ModelPool() {
                 </select>
               </label>
 
+              <label className="toolbar-group registry-select-group">
+                <span className="toolbar-label">Sort by</span>
+                <select className="registry-filter-select" aria-label="Sort models" value={sortKey} onChange={(event) => setSortKey(event.target.value as SortKey)}>
+                  {SORT_OPTIONS.map((o) => <option key={o.value} value={o.value}>{o.label}</option>)}
+                </select>
+              </label>
+
               {filtersActive ? (
                 <Button variant="ghost" size="sm" onClick={clearFilters} leadingIcon={<Filter />}>
                   Clear
@@ -522,7 +561,7 @@ export function ModelPool() {
                         {model.description && <p className="registry-card-description">{model.description}</p>}
                         <dl className="registry-card-metrics">
                           <div><dt>Quality estimate</dt><dd>{formatPercent(model.estimated_quality, 0)}</dd></div>
-                          <div><dt>Cost / 1K</dt><dd>{formatCostPerThousand(model.cost_per_1k_tokens)}</dd></div>
+                          <div><dt>Cost / 1K</dt><dd>{formatModelCostPerThousand(model)}</dd></div>
                           <div><dt>Latency estimate</dt><dd>{formatSeconds(model.avg_latency_seconds)}</dd></div>
                           <div><dt>Reliability metadata</dt><dd>{formatPercent(model.reliability, 0)}</dd></div>
                         </dl>
@@ -596,7 +635,7 @@ export function ModelPool() {
                     </div>
                     <div className="record-metric">
                       <dt className="record-metric-label">Cost / 1K</dt>
-                      <dd className="record-metric-value">{formatCostPerThousand(row.cost_per_1k_tokens)}</dd>
+                      <dd className="record-metric-value">{formatModelCostPerThousand(row)}</dd>
                     </div>
                     <div className="record-metric">
                       <dt className="record-metric-label">Latency estimate</dt>
@@ -659,16 +698,6 @@ export function ModelPool() {
       )}
 
       <Modal
-        open={selected !== null}
-        onClose={() => setSelected(null)}
-        title={selected?.model_name ?? 'Model'}
-        description={selected ? `Registry record for ${selected.model_id}` : undefined}
-        size="lg"
-      >
-        {selected ? <ModelDetail model={selected} adminToken={adminToken} /> : null}
-      </Modal>
-
-      <Modal
         open={compareOpen}
         onClose={() => setCompareOpen(false)}
         title="Compare registry entries"
@@ -693,7 +722,7 @@ function ModelComparison({ models: entries }: { models: ModelInfo[] }) {
     { label: 'Provider', value: (model) => providerLabel(model.provider) },
     { label: 'Status', value: (model) => model.active ? 'Active' : 'Inactive' },
     { label: 'Quality estimate', value: (model) => formatPercent(model.estimated_quality, 0) },
-    { label: 'Cost / 1K tokens', value: (model) => formatCostPerThousand(model.cost_per_1k_tokens) },
+    { label: 'Cost / 1K tokens', value: (model) => formatModelCostPerThousand(model) },
     { label: 'Latency estimate', value: (model) => formatSeconds(model.avg_latency_seconds) },
     { label: 'Reliability metadata', value: (model) => formatPercent(model.reliability, 0) },
     { label: 'Context window', value: (model) => formatInteger(model.context_window) },
@@ -717,83 +746,4 @@ function ModelComparison({ models: entries }: { models: ModelInfo[] }) {
       ))}
     </div>
   );
-}
-
-function ModelDetail({ model, adminToken }: { model: ModelInfo; adminToken: string }) {
-  return (
-    <div className="stack">
-      <div className="row row-wrap">
-        <Status name={model.active ? 'active' : 'inactive'}>{model.active ? 'Active' : 'Inactive'}</Status>
-        <Badge tone="neutral" outline>
-          {providerLabel(model.provider)}
-        </Badge>
-        <ProvenanceTag kind={model.source === 'measured' ? 'measured' : 'estimated'} label={SOURCE_LABELS[model.source] ?? humanizeToken(model.source)} />
-        <Tag>Fallback priority #{formatNumber(model.fallback_priority, 0)}</Tag>
-      </div>
-
-      <div className="dimension-list">
-        <DimensionRow label="Estimated quality" value={model.estimated_quality} />
-        <DimensionRow label="Reliability metadata" value={model.reliability} />
-        <DimensionRow label="Risk suitability" value={model.risk_level === null ? null : 1 - model.risk_level} description="Higher values indicate greater suitability; unavailable when risk metadata is missing." />
-        <DimensionRow
-          label="Cost efficiency"
-          value={model.estimated_cost === null ? null : 1 - model.estimated_cost}
-          description="Inverted configured cost, matching the routing score convention."
-        />
-        <DimensionRow
-          label="Speed"
-          value={model.estimated_latency === null ? null : 1 - model.estimated_latency}
-          description="Inverted configured latency, matching the routing score convention."
-        />
-      </div>
-
-      <MetadataRow label="Registry record" columns="2">
-        <MetadataEntry label="Cost / 1K" value={formatCostPerThousand(model.cost_per_1k_tokens)} />
-        <MetadataEntry label="Per request" value={formatUsdSafe(model.estimated_cost)} />
-        <MetadataEntry label="Latency estimate" value={formatSeconds(model.avg_latency_seconds)} />
-        <MetadataEntry label="Context window" value={formatInteger(model.context_window)} />
-        <MetadataEntry label="Source" value={SOURCE_LABELS[model.source] ?? humanizeToken(model.source)} />
-        <MetadataEntry label="Fallback priority" value={`#${formatNumber(model.fallback_priority, 0)}`} />
-      </MetadataRow>
-
-      <div>
-        <p className="field-label">Capabilities</p>
-        {model.capabilities.length > 0 ? (
-          <TagList items={model.capabilities.map(humanizeToken)} />
-        ) : (
-          <p className="text-muted">{UNAVAILABLE}</p>
-        )}
-      </div>
-
-      <div>
-        <p className="field-label">Supported domains</p>
-        {model.supported_domains.length > 0 ? (
-          <TagList items={model.supported_domains.map(humanizeToken)} />
-        ) : (
-          <p className="text-muted">{UNAVAILABLE}</p>
-        )}
-      </div>
-
-      <div>
-        <p className="field-label">Supported tasks</p>
-        {model.supported_tasks.length > 0 ? (
-          <TagList items={model.supported_tasks.map(humanizeToken)} />
-        ) : (
-          <p className="text-muted">{UNAVAILABLE}</p>
-        )}
-      </div>
-
-      <RegistryDetailBlock model={model} adminToken={adminToken} />
-
-      <Notice tone="info" icon={<Server />} title="How the router uses this record">
-        Quality, cost and latency are registry estimates used in per-model scoring after analysis. Reliability and risk
-        are registry metadata, not measured provider outcomes. No provider is contacted while this page is open.
-      </Notice>
-    </div>
-  );
-}
-
-function formatUsdSafe(value: number | null | undefined): string {
-  if (typeof value !== 'number' || !Number.isFinite(value)) return UNAVAILABLE;
-  return `$${value.toFixed(6)}`;
 }

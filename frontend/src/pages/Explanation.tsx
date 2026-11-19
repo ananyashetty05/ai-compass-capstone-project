@@ -15,6 +15,7 @@ import { useMemo } from 'react';
 import { Link } from 'react-router-dom';
 import { BarChart3, BookOpen, Compass, FileSearch, Scale, Target, Workflow } from 'lucide-react';
 import { PageHeader } from '../components/layout/PageHeader';
+import { DecisionHero } from '../components/explanation/DecisionHero';
 import { ButtonLink } from '../components/ui/Button';
 import { ProvenanceTag, Status } from '../components/ui/Badge';
 import { Card, CardBody, CardHeader } from '../components/ui/Card';
@@ -167,6 +168,15 @@ export function Explanation() {
       />
 
       <div className="page-body">
+        <DecisionHero
+          ranked={ranked}
+          selectedId={result.selected_model_id}
+          selectedName={result.selected_model_name}
+          finalName={result.final_model_name}
+          escalated={result.escalation_info.escalated}
+          profile={groupLabel(result.profile)}
+        />
+
         {/* 1. The decision itself, in the engine's own words */}
         {explanation.narrative ? (
           <Panel>

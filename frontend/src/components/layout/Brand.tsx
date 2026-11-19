@@ -3,7 +3,7 @@
  * control inside the shell and on the authentication surfaces.
  */
 import { Link } from 'react-router-dom';
-import { Compass } from 'lucide-react';
+import { BrandMark } from './BrandMark';
 import { cn } from '../../utils/cn';
 
 export interface BrandProps {
@@ -17,7 +17,7 @@ export function Brand({ to, tagline = 'Routing intelligence', className }: Brand
   const content = (
     <>
       <span className="brand-mark" aria-hidden="true">
-        <Compass />
+        <BrandMark />
       </span>
       <span className="brand-text">
         <span className="brand-name">AI Compass</span>

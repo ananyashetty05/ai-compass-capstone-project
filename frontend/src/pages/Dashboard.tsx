@@ -1,10 +1,12 @@
 import { ArrowRight, Clock3, Database, GitCommitHorizontal, Sparkles } from 'lucide-react';
 import { Link } from 'react-router-dom';
-import { HeroOrbit } from '../components/dashboard/HeroOrbit';
+import { HeroOrbit, RouteFlow } from '../components/dashboard/HeroOrbit';
 import { AttentionCard } from '../components/dashboard/AttentionCard';
 import { CapabilityOverview, ProviderDistribution, providerName } from '../components/dashboard/DistributionCards';
 import { KpiIcons, KpiRow } from '../components/dashboard/KpiRow';
 import type { Kpi } from '../components/dashboard/KpiRow';
+import { ReadinessBar } from '../components/dashboard/ReadinessBar';
+import { HistoryInsights } from '../components/dashboard/HistoryInsights';
 import { PathsCard } from '../components/dashboard/PathsCard';
 import { RegistryCard } from '../components/dashboard/RegistryCard';
 import { deriveAttention, summariseModels, timeAgo, topBlockReason } from '../components/dashboard/insights';
@@ -13,6 +15,7 @@ import { Status } from '../components/ui/Badge';
 import { EmptyState, ErrorState } from '../components/ui/EmptyState';
 import { Reveal } from '../components/ui/Reveal';
 import { useAsync } from '../hooks/useAsync';
+import { useAuth } from '../context/authContext';
 import { useDocumentTitle } from '../hooks/useDocumentTitle';
 import { useRouteResult } from '../context/routeResultContext';
 import { useSystemStatus } from '../context/systemStatusContext';
@@ -27,6 +30,10 @@ function historyTime(value: string): string {
   return Number.isNaN(date.getTime())
     ? 'Time unavailable'
     : new Intl.DateTimeFormat(undefined, { dateStyle: 'medium', timeStyle: 'short' }).format(date);
+}
+
+function todayLabel(): string {
+  return new Intl.DateTimeFormat(undefined, { weekday: 'long', day: 'numeric', month: 'long' }).format(new Date());
 }
 
 const HEALTH_LABEL = { online: 'Operational', degraded: 'Partially available', offline: 'Unreachable', unknown: 'Checking status' } as const;
@@ -57,6 +64,8 @@ function ModelHighlight({ model }: { model: ModelInfo }) {
 
 export function Dashboard() {
   useDocumentTitle('Dashboard');
+  const { user } = useAuth();
+  const firstName = user?.name?.trim().split(/\s+/)[0] ?? '';
   const { result } = useRouteResult();
   const { state: healthState, health, providers, isChecking } = useSystemStatus();
   const models = useAsync((signal) => listModels(signal), []);
@@ -110,24 +119,32 @@ export function Dashboard() {
 
   return (
     <div className="dashboard-redesign">
-      <section className="dashboard-hero cx-hero">
-        <div className="dashboard-hero-copy">
-          <p className="dashboard-eyebrow"><span /> AI routing intelligence</p>
-          <h1>Find the right AI model<br />for any task.</h1>
-          <p className="dashboard-hero-description">
-            Adaptive, multi-objective, and personalized model routing — with clear explanations.
-          </p>
-          <div className="cx-hero-actions">
-            <ButtonLink to="/route" variant="primary" trailingIcon={<ArrowRight />}>Route a Query</ButtonLink>
-            <span className="cx-status-pill" data-state={healthState}>
-              <span className="dashboard-status-dot" data-state={healthState} /> Routing service · <strong>{HEALTH_LABEL[healthState]}</strong>
-            </span>
+      <div className="dash-top">
+        <section className="dash-welcome" aria-labelledby="dash-welcome-title">
+          <div className="dash-welcome-copy">
+            <p className="dashboard-eyebrow"><span /> {todayLabel()}</p>
+            <h1 id="dash-welcome-title">Welcome back{firstName ? `, ${firstName}` : ''}.</h1>
+            <p className="dashboard-hero-description">
+              Route each task to the model that fits it best, with the reasoning shown. Here is the current state of your routing workspace.
+            </p>
+            <div className="cx-hero-actions">
+              <ButtonLink to="/route" variant="primary" trailingIcon={<ArrowRight />}>Route a Query</ButtonLink>
+              <span className="cx-status-pill" data-state={healthState}>
+                <span className="dashboard-status-dot" data-state={healthState} /> Routing service · <strong>{HEALTH_LABEL[healthState]}</strong>
+              </span>
+            </div>
           </div>
-        </div>
-        <HeroOrbit />
-      </section>
+          <div className="dash-welcome-orbit" aria-hidden="true"><HeroOrbit /></div>
+          <RouteFlow />
+        </section>
+        <PathsCard />
+      </div>
 
       <KpiRow kpis={kpis} />
+
+      {summary ? <ReadinessBar summary={summary} /> : null}
+
+      <HistoryInsights entries={historyEntries} />
 
       <div className="cx-grid cx-grid--2">
         <AttentionCard items={attention} loading={(isChecking && !health) || models.isInitialLoad} />
@@ -245,7 +262,6 @@ export function Dashboard() {
         </Reveal>
       </div>
 
-      <PathsCard />
     </div>
   );
 }

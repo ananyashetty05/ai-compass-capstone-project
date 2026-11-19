@@ -37,6 +37,22 @@ export function formatCostPerThousand(value: number | null | undefined): string 
   return `$${value.toFixed(4)} / 1K`;
 }
 
+/**
+ * The registry stores a missing price as 0, so `$0.0000` would read as "free".
+ * Mirrors the backend's own rule (`routes/evaluation.py`): no published input
+ * price and a non-positive per-1K cost means the price is unknown.
+ */
+type PricedModel = { cost_per_1k_tokens: number | null; input_price_per_million?: number | null };
+
+export function hasPublishedPrice(model: PricedModel): boolean {
+  const noInputPrice = model.input_price_per_million === null || model.input_price_per_million === undefined;
+  return !(noInputPrice && (!isPresent(model.cost_per_1k_tokens) || model.cost_per_1k_tokens <= 0));
+}
+
+export function formatModelCostPerThousand(model: PricedModel): string {
+  return hasPublishedPrice(model) ? formatCostPerThousand(model.cost_per_1k_tokens) : 'Not published';
+}
+
 /** 812.44 → "812 ms" · 2410 → "2.41 s" */
 export function formatDuration(ms: number | null | undefined): string {
   if (!isPresent(ms)) return UNAVAILABLE;
