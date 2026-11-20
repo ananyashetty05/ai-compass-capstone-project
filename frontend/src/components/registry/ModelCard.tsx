@@ -9,7 +9,7 @@ import { memo } from 'react';
 import { ArrowUpRight, Check, GitCompareArrows } from 'lucide-react';
 import { GenerationPill } from './Ecosystem';
 import { formatModelCostPerThousand, formatPercent, formatSeconds, humanizeToken } from '../../utils/format';
-import type { ModelGroup, ModelInfo, PricingCategory, PrimaryCategory } from '../../types';
+import type { EcosystemCategory, ModelGroup, ModelInfo, PricingCategory, PrimaryCategory } from '../../types';
 
 export const CATEGORY_LABEL: Record<PrimaryCategory, string> = {
   conversational: 'Conversational AI',
@@ -18,6 +18,11 @@ export const CATEGORY_LABEL: Record<PrimaryCategory, string> = {
   unclassified: 'Unclassified',
 };
 export const GROUP_LABEL: Record<ModelGroup, string> = { conversational: 'Conversational AI', developer_api: 'Developer & API', unclassified: 'Unclassified' };
+export const ECOSYSTEM_LABEL: Record<EcosystemCategory, string> = {
+  conversational: 'Conversational AI', image: 'Image generation', video: 'Video generation', music_voice: 'Music & voice', document_design: 'Documents, slides & design', api_models: 'API models & inference', coding: 'Coding',
+};
+/** Metric tile text: a missing value is a dash with an explanation, never a word that truncates inside a four-column grid. */
+const MISSING = '—';
 export const ACCESS_LABEL: Record<string, string> = {
   consumer_chat: 'Consumer chat', provider_api: 'Provider API', hosted_inference: 'Hosted inference', aggregator_api: 'Aggregator API', self_hosted: 'Self-hosted', unknown: 'Access route not verified',
 };
@@ -38,6 +43,13 @@ export function formatContext(tokens: number | null | undefined): string {
   if (tokens >= 1_000_000) return `${+(tokens / 1_000_000).toFixed(1)}M`;
   if (tokens >= 1_000) return `${Math.round(tokens / 1_000)}K`;
   return String(tokens);
+}
+
+function isEstimate(model: ModelInfo, metric: string): boolean {
+  return model.metric_provenance?.[metric] === 'editorial_estimate';
+}
+function estimatedNote(model: ModelInfo, metric: string): string | undefined {
+  return isEstimate(model, metric) ? 'Editorial estimate, not a measurement. It is shown for reference and does not decide the ranking.' : undefined;
 }
 
 export function cardKey(model: ModelInfo): string { return `${model.provider}::${model.model_id}`; }
@@ -80,7 +92,7 @@ function ModelCardBase({ model, providerLabel, compared, compareDisabled, onInsp
       </header>
 
       <div className="mc-chips" aria-label="Classification">
-        <span className="mc-chip mc-chip--category" data-category={category} title={model.category_basis ?? undefined}>{GROUP_LABEL[model.model_category ?? 'unclassified']}</span>
+        <span className="mc-chip mc-chip--category" data-category={category} title={model.category_basis ?? undefined}>{model.ecosystem_category ? ECOSYSTEM_LABEL[model.ecosystem_category] : GROUP_LABEL[model.model_category ?? 'unclassified']}</span>
         {kind !== 'unclassified' && kind !== 'consumer_app' ? <span className="mc-chip" title={model.classification_reason ?? undefined}>{KIND_LABEL[kind] ?? humanizeToken(kind)}</span> : null}
         {showGeneration && model.catalog ? <GenerationPill catalog={model.catalog} /> : null}
       </div>
@@ -97,10 +109,10 @@ function ModelCardBase({ model, providerLabel, compared, compareDisabled, onInsp
       ) : null}
 
       <dl className="mc-metrics">
-        <div><dt>Context</dt><dd>{isApp ? '—' : formatContext(model.context_window)}</dd></div>
-        <div><dt>Cost / 1K</dt><dd>{isApp ? '—' : formatModelCostPerThousand(model)}</dd></div>
-        <div><dt>Quality</dt><dd>{formatPercent(model.estimated_quality, 0)}</dd></div>
-        <div><dt>Latency</dt><dd>{formatSeconds(model.avg_latency_seconds)}</dd></div>
+        <div><dt>Context</dt><dd title={isApp ? 'Not applicable to an application' : undefined}>{isApp ? MISSING : formatContext(model.context_window)}</dd></div>
+        <div><dt>Cost / 1K</dt><dd title={isApp ? 'Not applicable to an application' : undefined}>{isApp ? MISSING : formatModelCostPerThousand(model)}</dd></div>
+        <div><dt>Quality</dt><dd title={estimatedNote(model, 'quality')}>{model.estimated_quality == null ? MISSING : formatPercent(model.estimated_quality, 0)}{isEstimate(model, 'quality') ? <span className="mc-est" aria-label="editorial estimate">est.</span> : null}</dd></div>
+        <div><dt>Latency</dt><dd title={model.avg_latency_seconds == null ? 'Not published' : undefined}>{model.avg_latency_seconds == null ? MISSING : formatSeconds(model.avg_latency_seconds)}</dd></div>
       </dl>
 
       <div className="mc-caps" aria-label="Capabilities">

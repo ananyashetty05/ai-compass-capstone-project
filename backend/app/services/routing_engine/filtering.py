@@ -90,6 +90,56 @@ def _audience_checks(model: ModelMetadata, profile: QueryProfileV2, fail) -> Non
              f"{model.model_name} is an embedding model; it cannot generate answers", "permanent", model_type=model.model_type)
 
 
+def _category_checks(model: ModelMetadata, profile: QueryProfileV2, fail) -> None:
+    """Approved-ecosystem gate. Runs before scoring, so products from different categories are never ranked against each other.
+    Credentials are never consulted: the gate depends only on the resolved category and the product's curated classification."""
+    from app.services.routing_engine import ecosystem
+    cat = profile.category
+    if cat is None:
+        return
+    if not ecosystem.serves(model, cat.category):
+        fail("category_mismatch", f"category: {cat.label}",
+             f"{model.model_name} belongs to {model.ecosystem_category.replace('_', ' ') if model.ecosystem_category else 'another category'}, not {cat.label}",
+             "permanent", ecosystem_category=model.ecosystem_category, secondary_categories=list(model.secondary_categories or []), resolved_category=cat.category)
+        return
+    if not ecosystem.subtype_ok(model, cat.required_subtype):
+        fail("subtype_unsupported", f"{cat.required_subtype} generation requested",
+             f"{model.model_name} is not documented for {cat.required_subtype} output", "permanent", required_subtype=cat.required_subtype)
+
+
+def _constraint_checks(model: ModelMetadata, profile: QueryProfileV2, prefs: ResolvedPreferences, fail, observed_latency: Optional[Dict[str, float]]) -> None:
+    """User hard constraints that need published metadata (cost, latency, strict privacy). Unknown is never treated as compliant."""
+    max_cost = next((c.value for c in prefs.hard_constraints if c.kind == "max_cost_usd_per_request"), None)
+    if max_cost is not None:
+        cost = estimate_request_cost(model, profile.tokens.input_tokens, profile.tokens.output_tokens)
+        if cost is None:
+            fail("cost_unverifiable", f"estimated cost ≤ ${max_cost}", "Cannot verify the cost constraint because pricing is unavailable", "unknown")
+        elif cost > max_cost:
+            fail("cost_exceeds_limit", f"estimated cost ≤ ${max_cost}", f"Estimated cost ${cost:.6f} exceeds the limit ${max_cost:.6f} (estimated from published unit prices and estimated token counts; not a guaranteed or billed amount)", "temporary",
+                 estimated_cost_usd=cost, input_tokens=profile.tokens.input_tokens, output_tokens=profile.tokens.output_tokens)
+
+    for kind, label, price in (("max_input_price_per_million", "input", model.input_price_per_million), ("max_output_price_per_million", "output", model.output_price_per_million)):
+        lim = next((c.value for c in prefs.hard_constraints if c.kind == kind), None)
+        if lim is None:
+            continue
+        if price is None:
+            fail("cost_unverifiable", f"published {label} price ≤ ${lim:g} per million tokens", f"The {label} price is not published, so the unit-price limit cannot be verified", "unknown")
+        elif price > lim:
+            fail("unit_price_exceeds_limit", f"published {label} price ≤ ${lim:g} per million tokens", f"Published {label} price ${price:g}/M exceeds the limit ${lim:g}/M", "temporary", **{f"{label}_price_per_million": price})
+
+    max_lat = next((c.value for c in prefs.hard_constraints if c.kind == "max_latency_seconds"), None)
+    if max_lat is not None:
+        lat, basis = declared_latency_seconds(model, (observed_latency or {}).get(model.model_id))
+        if lat is None:
+            fail("latency_unverifiable", f"latency ≤ {max_lat}s", "Cannot verify the latency constraint because latency metadata is unavailable", "unknown")
+        elif lat > max_lat:
+            fail("latency_exceeds_limit", f"latency ≤ {max_lat}s", f"Latency {lat:.1f}s exceeds the limit {max_lat:.1f}s ({basis.replace('_', ' ')})", "temporary", latency_seconds=lat, basis=basis)
+
+    if any(c.kind == "privacy_strict" for c in prefs.hard_constraints) and model.data_handling_status not in _ALLOWED_PRIVACY:
+        fail("privacy_unverified", "documented restricted data handling (strict privacy)",
+             "Does not have documented data-handling metadata required for strict privacy", "permanent", data_handling_status=model.data_handling_status)
+
+
 def check_model(model: ModelMetadata, profile: QueryProfileV2, prefs: ResolvedPreferences, *, mode: str = "recommend",
                 observed_latency: Optional[Dict[str, float]] = None) -> List[ExclusionRecord]:
     fails: List[ExclusionRecord] = []
@@ -113,6 +163,11 @@ def check_model(model: ModelMetadata, profile: QueryProfileV2, prefs: ResolvedPr
         fail("not_executable", "execution needs an API model with a compatible adapter",
              "Consumer applications and entries without a compatible adapter cannot be executed by AI Compass", "permanent",
              entry_type=model.entry_type, adapter_compatible=model.adapter_compatible)
+
+    if model.ecosystem_approved:
+        _category_checks(model, profile, fail)
+        _constraint_checks(model, profile, prefs, fail, observed_latency)
+        return fails
 
     _audience_checks(model, profile, fail)
 
@@ -140,26 +195,7 @@ def check_model(model: ModelMetadata, profile: QueryProfileV2, prefs: ResolvedPr
         fail("context_unverifiable", f"context ≥ {need} tokens (estimate)", "The context window is not published and this request is long, so it cannot be verified", "unknown",
              required_tokens=need)
 
-    max_cost = next((c.value for c in prefs.hard_constraints if c.kind == "max_cost_usd_per_request"), None)
-    if max_cost is not None:
-        cost = estimate_request_cost(model, profile.tokens.input_tokens, profile.tokens.output_tokens)
-        if cost is None:
-            fail("cost_unverifiable", f"estimated cost ≤ ${max_cost}", "Cannot verify the cost constraint because pricing is unavailable", "unknown")
-        elif cost > max_cost:
-            fail("cost_exceeds_limit", f"estimated cost ≤ ${max_cost}", f"Estimated cost ${cost:.6f} exceeds the limit ${max_cost:.6f}", "temporary",
-                 estimated_cost_usd=cost, input_tokens=profile.tokens.input_tokens, output_tokens=profile.tokens.output_tokens)
-
-    max_lat = next((c.value for c in prefs.hard_constraints if c.kind == "max_latency_seconds"), None)
-    if max_lat is not None:
-        lat, basis = declared_latency_seconds(model, (observed_latency or {}).get(model.model_id))
-        if lat is None:
-            fail("latency_unverifiable", f"latency ≤ {max_lat}s", "Cannot verify the latency constraint because latency metadata is unavailable", "unknown")
-        elif lat > max_lat:
-            fail("latency_exceeds_limit", f"latency ≤ {max_lat}s", f"Latency {lat:.1f}s exceeds the limit {max_lat:.1f}s ({basis.replace('_', ' ')})", "temporary", latency_seconds=lat, basis=basis)
-
-    if any(c.kind == "privacy_strict" for c in prefs.hard_constraints) and model.data_handling_status not in _ALLOWED_PRIVACY:
-        fail("privacy_unverified", "documented restricted data handling (strict privacy)",
-             "Does not have documented data-handling metadata required for strict privacy", "permanent", data_handling_status=model.data_handling_status)
+    _constraint_checks(model, profile, prefs, fail, observed_latency)
     return fails
 
 
@@ -185,7 +221,7 @@ def no_candidate_guidance(excluded: List[ExclusionRecord]) -> Dict[str, object]:
     for e in excluded:
         by_code[e.code] = by_code.get(e.code, 0) + 1
     suggestions = {
-        "cost_exceeds_limit": "Raise the maximum cost.", "cost_unverifiable": "Remove the cost limit or select models with published pricing.",
+        "cost_exceeds_limit": "Raise the maximum cost.", "unit_price_exceeds_limit": "Raise the per-million-token price limit.", "cost_unverifiable": "Remove the cost limit or select models with published pricing.",
         "latency_exceeds_limit": "Raise the latency limit.", "latency_unverifiable": "Remove the latency limit; no candidate publishes latency.",
         "privacy_unverified": "Turn off strict privacy, or add models with documented data handling.",
         "capability_missing": "Remove a required capability or add a model that declares it.", "modality_unsupported": "Choose a task a configured model supports, or configure a provider that does.",

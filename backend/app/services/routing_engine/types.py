@@ -7,7 +7,7 @@ from typing import Any, Dict, List, Optional
 from pydantic import BaseModel, Field
 
 ENGINE_VERSION = "2.0.0"
-SCORING_VERSION = "2.0.0"
+SCORING_VERSION = "3.0.0"
 
 
 # ── Query understanding ──────────────────────────────────────────────────────
@@ -86,6 +86,23 @@ class AudienceAssessment(BaseModel):
     method: str = "lexical_rules_v1"
 
 
+class CategoryResolution(BaseModel):
+    """The ONE ecosystem category a query is routed into, decided before any model is ranked."""
+    category: str = Field(description="conversational | image | video | music_voice | document_design | api_models | coding")
+    label: str = ""
+    scores: Dict[str, float] = {}
+    signals: List[str] = Field(default=[], description="Names of the lexical rules that fired for the winning category")
+    confidence: float = Field(default=0.0, ge=0.0, le=1.0, description="Strength of the winning evidence x margin over the runner-up; a heuristic, not a probability")
+    runner_up: Optional[str] = None
+    runner_up_score: float = 0.0
+    ambiguous: bool = False
+    required_subtype: Optional[str] = Field(default=None, description="music | voice: a hard requirement inside the music_voice category")
+    features: List[Dict[str, Any]] = Field(default=[], description="Features the query asks for: [{feature, accepts:[strength tags]}]")
+    unsatisfiable_features: List[str] = Field(default=[], description="Requested features that NO product in the resolved category documents; they cannot separate products, so they are left out of the fit score")
+    reason: str = ""
+    method: str = "category_lexical_rules_v2"
+
+
 class QueryProfileV2(BaseModel):
     """Canonical profile passed through filtering, scoring, execution and explanation.
 
@@ -112,6 +129,7 @@ class QueryProfileV2(BaseModel):
     ambiguities: List[Ambiguity] = []
     needs_clarification: bool = False
     audience: AudienceAssessment = Field(default_factory=AudienceAssessment)
+    category: Optional[CategoryResolution] = Field(default=None, description="Ecosystem category the query is routed into (approved pool)")
     risk: RiskAssessment
     confidence: Dict[str, float] = {}
     user_hint_applied: Optional[str] = None
@@ -213,6 +231,12 @@ class MetricEvidence(BaseModel):
     confidence: float = 0.0
     missing: bool = True
     note: str = ""
+    tier: str = Field(default="unknown", description="measured | documented | estimate | unverified_estimate | unknown")
+    used_in_ranking: bool = Field(default=False, description="True only when this value may rank candidates for THIS request (rankable evidence on an objective that ranks)")
+    freshness: str = Field(default="n/a", description="fresh | stale | undated | n/a")
+    source: Optional[str] = None
+    date: Optional[str] = None
+    sample_size: Optional[int] = None
 
 
 class CandidateScore(BaseModel):
@@ -247,6 +271,20 @@ class CandidateScore(BaseModel):
     access_type: Optional[str] = None
     pricing_category: Optional[str] = Field(default=None, description="completely_free | free_tier_limited | pay_as_you_go | paid_subscription | self_hosted_open_weight | unknown")
     free_tier_available: Optional[bool] = None
+    # Approved-ecosystem comparison (None for legacy pool rows)
+    ecosystem_category: Optional[str] = None
+    category_role: Optional[str] = Field(default=None, description="primary | secondary: how this product relates to the resolved category")
+    feature_coverage: Optional[float] = None
+    matched_features: List[str] = []
+    unmet_features: List[str] = []
+    fit_breakdown: Dict[str, float] = Field(default={}, description="Components of the preference-alignment utility: feature_fit, intent_fit, category_fit")
+    external_url: Optional[str] = None
+    strengths: List[str] = []
+    editorial_order: int = Field(default=0, description="Position in the approved list; the last deterministic tie-break when no query feature separates two products")
+    score_upper: Optional[float] = Field(default=None, description="Best case: the score if every ranking objective without rankable evidence were perfect (display only)")
+    evidence_gaps: List[str] = Field(default=[], description="Ranking objectives for which this candidate has no rankable evidence")
+    score_weights: Dict[str, float] = Field(default={}, exclude=True, description="Objective weights this row was ranked with (for exact weight-margin analysis)")
+    adjusted_values: Dict[str, float] = Field(default={}, exclude=True, description="Confidence-adjusted value per objective used in the robust score")
 
 
 class NormalizationDetails(BaseModel):
@@ -261,10 +299,10 @@ class NormalizationDetails(BaseModel):
 
 class ScoringConfig(BaseModel):
     version: str = SCORING_VERSION
-    uncertainty_penalty: float = 0.25
-    missing_policy: str = "pessimistic"
-    tie_epsilon: float = 0.005
-    weight_perturbation: float = 0.2
+    uncertainty_penalty: float = 0.0     # no penalty exists: an unverified value is not ranked at all, an unknown one is not credited
+    missing_policy: str = "credit_evidenced_only"
+    near_tie_margin: float = 0.005      # DISPLAY ONLY: score gaps below this are reported as comparable; the order itself is always exact
+    safe_weight_shift: float = 0.10     # weight stability = share of this total-variation re-weighting the winner survives (exact, worst direction)
 
 
 class Selection(BaseModel):
@@ -274,8 +312,17 @@ class Selection(BaseModel):
     tie_break_applied: Optional[str] = None
     score_margin: Optional[float] = None
     weight_stability: Optional[float] = None
+    decision_status: str = Field(default="recommended", description="recommended | qualified | indistinguishable | insufficient_evidence | needs_clarification | no_eligible_candidates")
+    decision_reason: str = ""
+    alternative_ids: List[str] = Field(default=[], description="Candidates that cannot be separated from the selected one on the evidence that may rank them")
+    evidence_gaps: List[str] = Field(default=[], description="Ranking objectives the selected candidate has no rankable evidence for")
+    not_ranked: List[Dict[str, str]] = Field(default=[], description="Objectives shown but not used to rank, with the reason")
+    weight_margin: Optional[float] = Field(default=None, description="Smallest share of weight (total variation, 0-1) that would have to move between objectives for the runner-up or any rival to tie the winner; None when no re-weighting can")
+    weight_margin_rival: Optional[str] = None
     confidence_level: str = "low"
     confidence_value: float = 0.0
+    confidence_formula: str = ""
+    confidence_components: Dict[str, float] = Field(default={}, description="Inputs of the selection-confidence formula (all derived from the ranking, never from a model answer)")
     caveats: List[str] = []
 
 

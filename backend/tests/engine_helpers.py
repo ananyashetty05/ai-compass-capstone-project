@@ -28,3 +28,7 @@ def profile(query: str = "Write a Python function that sorts a list of records."
 
 def prefs(p, **kw) -> ResolvedPreferences:
     return preferences.resolve(p, **kw)
+
+
+# Provenance under which a registry value may take part in ranking (ER-PCR: only documented/measured evidence ranks).
+MEASURED_PROV = {"quality": "benchmark", "cost": "estimated", "latency": "measured", "reliability": "measured", "risk": "estimated", "pricing": "provider_published"}

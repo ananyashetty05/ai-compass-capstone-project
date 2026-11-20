@@ -57,6 +57,7 @@ def model(model_id, *, quality=.8, price=None, priority=5, reliability=.8):
         fallback_priority=priority,
         active=True,
         source="unit_test_registry",
+        metric_provenance={"quality": "benchmark", "pricing": "provider_published"},
         input_price_per_million=price,
             output_price_per_million=(price * 4 if price is not None else None),
         availability="configuration_required_for_inference",

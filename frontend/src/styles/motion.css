@@ -5,13 +5,15 @@
    ────────────────────────────────────────────────────────────────────────── */
 .app-shell {
   --mo-ease: cubic-bezier(0.22, 0.8, 0.24, 1);
-  --mo-spring: cubic-bezier(0.34, 1.35, 0.5, 1);
+  --mo-spring: cubic-bezier(0.34, 1.15, 0.5, 1);
   --mo-glow: color-mix(in srgb, var(--color-primary) 28%, transparent);
 }
 
-/* ── page transition: soft rise + de-blur; the end state is exactly "none" so it never leaves a containing block behind ── */
-.app-shell .app-page-transition { animation: mo-page 460ms var(--mo-ease) both; }
-@keyframes mo-page { from { opacity: 0; transform: translate3d(0, 12px, 0); filter: blur(3px); } to { opacity: 1; transform: none; filter: none; } }
+/* ── page transition: one soft rise (opacity + transform only; no blur filter, which repaints every frame). The end state is exactly "none" so it never leaves a containing block behind.
+   A second, global `main { animation: dd-reveal }` (compass.css) used to stack on top of this on every navigation — the shell now owns the page entrance. ── */
+.app-shell .app-page-transition { animation: mo-page 340ms var(--mo-ease) both; }
+.app-shell main { animation: none; }
+@keyframes mo-page { from { opacity: 0; transform: translate3d(0, 10px, 0); } to { opacity: 1; transform: none; } }
 
 /* ── reading progress ── */
 .mo-progress { position: fixed; inset: 0 0 auto 0; height: 3px; z-index: 60; transform-origin: 0 50%; transform: scaleX(0); opacity: 0; pointer-events: none;
@@ -45,7 +47,8 @@
 
 /* ── command palette ── */
 .cp-backdrop { position: fixed; inset: 0; z-index: 120; display: grid; align-items: start; justify-items: center; padding: min(14vh, 120px) 16px 16px; background: rgba(10, 14, 22, .45); backdrop-filter: blur(4px); animation: mo-fade .18s ease both; }
-.cp { width: min(100%, 38rem); max-height: min(70vh, 34rem); display: flex; flex-direction: column; border-radius: 14px; border: 1px solid var(--color-border); background: var(--color-surface); color: var(--color-text-primary);
+/* Scoped to the palette: the Route Query "Hard constraints" panel also uses .cp and was inheriting this width, max-height and overflow:hidden (its expanded controls were clipped). */
+.cp-backdrop > .cp { width: min(100%, 38rem); max-height: min(70vh, 34rem); display: flex; flex-direction: column; border-radius: 14px; border: 1px solid var(--color-border); background: var(--color-surface); color: var(--color-text-primary);
   box-shadow: 0 30px 80px -20px rgba(8, 12, 22, .55); overflow: hidden; animation: mo-pop .24s var(--mo-spring, ease) both; }
 .cp-search { display: flex; align-items: center; gap: 10px; padding: 12px 16px; border-bottom: 1px solid var(--color-border); }
 .cp-search svg { width: 18px; height: 18px; color: var(--color-text-muted); flex: none; }
@@ -94,7 +97,7 @@
 
 /* ── staggered entrance (class is added/removed by useAutoReveal) ── */
 .app-shell .mo { opacity: 0; transform: translate3d(0, 18px, 0) scale(.992);
-  transition: opacity .55s var(--mo-ease, ease) var(--mo-delay, 0ms), transform .65s var(--mo-ease, ease) var(--mo-delay, 0ms); }
+  transition: opacity .45s var(--mo-ease, ease) var(--mo-delay, 0ms), transform .5s var(--mo-ease, ease) var(--mo-delay, 0ms); }
 .app-shell .mo.mo-in { opacity: 1; transform: none; }
 
 /* ── bars and meters grow in rather than appearing ── */
@@ -102,12 +105,23 @@
 
 /* ── reduced motion: every effect above is off, content is simply present ── */
 @media (prefers-reduced-motion: reduce) {
-  .app-shell .app-page-transition, .cp-backdrop, .cp { animation: none; }
+  .app-shell .app-page-transition, .cp-backdrop, .cp-backdrop > .cp { animation: none; }
   .app-shell .mo { opacity: 1; transform: none; transition: none; }
   .mo-progress, .mo-top, .topnav-indicator { transition: none; }
   .app-shell .btn, .app-shell :is(.cx-kpi, .record-card, .cx-card, .mp-cat, .mp-grid > .mc):hover { transform: none; }
 }
-:root[data-reduced-motion='true'] .app-shell .app-page-transition, :root[data-reduced-motion='true'] .cp-backdrop, :root[data-reduced-motion='true'] .cp { animation: none; }
+:root[data-reduced-motion='true'] .app-shell .app-page-transition, :root[data-reduced-motion='true'] .cp-backdrop, :root[data-reduced-motion='true'] .cp-backdrop > .cp { animation: none; }
 :root[data-reduced-motion='true'] .app-shell .mo { opacity: 1; transform: none; transition: none; }
 :root[data-reduced-motion='true'] .app-shell :is(.btn, .cx-kpi, .record-card, .cx-card, .mp-cat, .mp-grid > .mc):hover { transform: none; }
 :root[data-reduced-motion='true'] :is(.mo-progress, .mo-top, .topnav-indicator) { transition: none; }
+
+/* ── tab panels and the ecosystem graph: panels fade in on switch; the graph's node entrance keeps a gentle (not bouncy) ease ── */
+.app-shell [role='tabpanel'] { animation: mo-fade .22s var(--mo-ease) both; }
+.app-shell .eco-node { animation-timing-function: var(--mo-spring); }
+@media (prefers-reduced-motion: reduce) { .app-shell [role='tabpanel'], .app-shell .eco-node { animation: none; } }
+:root[data-reduced-motion='true'] .app-shell :is([role='tabpanel'], .eco-node) { animation: none; }
+
+/* The route-change focus target (<main tabindex="-1">) is not an interactive control. The global :focus-visible ring, raised by an
+   .app-shell-scoped rule above, was drawing a 2px outline around the entire page on every load and navigation; controls inside
+   it keep their own focus rings. */
+.app-shell .app-main:focus, .app-shell .app-main:focus-visible { outline: none; }

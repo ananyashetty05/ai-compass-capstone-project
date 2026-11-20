@@ -51,6 +51,7 @@ def model(model_id, *, quality, cost, latency, reliability=0.9, risk=0.1,
         fallback_priority=1,
         active=True,
         source="test_fixture",
+        metric_provenance={"quality": "benchmark", "cost": "estimated", "latency": "measured", "reliability": "measured", "risk": "estimated", "pricing": "provider_published"},
     )
 
 

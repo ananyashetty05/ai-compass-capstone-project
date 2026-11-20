@@ -50,7 +50,7 @@ def route(models: List[ModelMetadata], query_profile: QueryProfile, weights: Dic
         u = {k: (v if v is not None else 0.0) for k, v in r.utilities.items()}
         scores.append(ModelScore(model_id=r.model_id, quality_score=r.utilities.get("quality"), cost_score=u["cost"], latency_score=u["latency"], reliability_score=u["reliability"],
                                  risk_score=u["risk"], preference_alignment=u["preference_alignment"], overall_score=round(r.robust_score, 4),
-                                 score_breakdown={**{k: r.utilities.get(k) for k in u}, "utility": r.utility, "robust_score": r.robust_score, "learning_bonus": r.learning_adjustment}))
+                                 score_breakdown={**{k: u[k] for k in u}, "utility": r.utility, "robust_score": r.robust_score, "learning_bonus": r.learning_adjustment}))
     by_id = {m.model_id: m for m in models}
     reasons = [f"{by_id[rows[0].model_id].model_name} selected with robust score {rows[0].robust_score:.3f}"]
     if len(rows) > 1:

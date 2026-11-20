@@ -102,6 +102,13 @@ class ModelMetadata(BaseModel):
     execution_available: bool = Field(default=False, description="AI Compass can run it right now (adapter + provider credential on the server)")
     user_access_configured: bool = Field(default=False, description="A server credential for the model's provider is configured")
 
+    # ── Approved-ecosystem classification (see app/data/approved_ecosystem.py). All optional/additive. ──
+    ecosystem_category: Optional[str] = Field(default=None, description="conversational | image | video | music_voice | document_design | api_models | coding; None = not part of the approved ecosystem")
+    secondary_categories: List[str] = Field(default_factory=list, description="Other approved categories this product is documented to serve; compared only inside those categories")
+    product_kind: Optional[str] = Field(default=None, description="assistant | image_model | video_model | audio_model | design_tool | app_builder | coding_assistant | inference_platform | model_hub")
+    strengths: List[str] = Field(default_factory=list, description="Curated feature tags from the vendor's published positioning; matched against features requested in the query")
+    ecosystem_approved: bool = Field(default=False, description="True only for entries on the approved model-pool list")
+
     # Live-registry bookkeeping (all optional; static catalog rows leave them unset)
     canonical_key: Optional[str] = Field(default=None, description="'<provider-lower>:<provider model id>'")
     first_seen_at: Optional[str] = None

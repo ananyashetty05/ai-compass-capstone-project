@@ -13,52 +13,36 @@ export const DIM_LABEL: Record<Dim, string> = {
 export const PROVENANCE_LABEL: Record<string, string> = {
   measured: 'Measured', observed: 'Measured (observed history)', registry_measured: 'Measured (registry)', observed_p50: 'Measured (observed history)',
   provider_published: 'Provider-reported', benchmark: 'Benchmark-derived', estimated: 'Estimated', registry_declared_capabilities: 'Derived from declared capabilities',
-  unavailable: 'Unavailable', registry_estimate: 'Estimated',
+  unavailable: 'Unavailable', registry_estimate: 'Estimated', editorial_estimate: 'Editorial estimate', curated_pricing_category: 'Documented access class', vendor_published_strengths: 'Vendor-published',
 };
 export function provenanceLabel(p: string): string { return PROVENANCE_LABEL[p] ?? p.replace(/_/g, ' '); }
 
 export type StepState = 'done' | 'skipped' | 'failed' | 'warn' | 'idle';
-export interface FlowNode { id: string; label: string; state: StepState; summary: string; lane: 'route' | 'respond'; ms?: number; action?: 'accept' | 'verify' | 'escalate' | null }
+export interface FlowNode { id: string; label: string; state: StepState; summary: string; ms?: number }
 
 const stageOf = (e: EngineResult, name: string) => e.stages.find((s) => s.name === name);
 const humanStatus = (x: string) => x.replace(/_/g, ' ');
 export const fmtMs = (ms: number | undefined) => (ms === undefined ? '' : `${ms < 10 ? ms.toFixed(1) : Math.round(ms)} ms`);
 
+/**
+ * The recommendation pipeline, in the order it really ran. AI Compass recommends and never generates an answer, so the flow
+ * ends at the Best Match: there is no response, quality-check or escalation stage to draw.
+ */
 export function buildFlow(e: EngineResult): FlowNode[] {
-  const nodes: Omit<FlowNode, 'lane'>[] = [];
-  const stage = (id: string, label: string, name: string, fallback: string): Omit<FlowNode, 'lane'> => {
+  const stage = (id: string, label: string, name: string, fallback: string): FlowNode => {
     const s = stageOf(e, name);
     if (!s) return { id, label, state: 'idle', summary: fallback };
     return { id, label, state: s.status === 'completed' ? 'done' : s.status === 'failed' ? 'failed' : 'skipped', summary: s.detail || humanStatus(s.status), ms: s.duration_ms };
   };
-  nodes.push({ id: 'query', label: 'Query received', state: 'done', summary: `${e.profile.tokens.input_tokens} input tokens (${e.profile.tokens.exact ? 'exact' : 'estimated'})` });
-  nodes.push(stage('analysis', 'Query analysis', 'query_understanding', 'Not recorded'));
-  nodes.push(stage('constraints', 'Preferences & constraints', 'preference_resolution', 'Not recorded'));
-  nodes.push(stage('filter', 'Candidate filtering', 'hard_constraint_filtering', 'Not recorded'));
-  nodes.push(stage('score', 'Multi-objective scoring', 'multi_objective_scoring', 'Not recorded'));
-  nodes.push(stage('select', 'Model selected', 'model_selection', 'Not recorded'));
-  const ex = e.execution;
-  const ran = ex.attempts.some((a) => a.outcome === 'success');
-  const recommendOnly = ex.status === 'not_requested';
-  nodes.push({ id: 'generate', label: 'Response generation', state: ran ? 'done' : recommendOnly ? 'skipped' : 'failed',
-    summary: recommendOnly ? 'Not run: recommendation mode' : ran ? `${ex.attempts.filter((a) => a.outcome === 'success').length} successful attempt(s)` : (ex.blocked_reason ?? 'No response was produced') });
-  const ev = e.evaluation;
-  nodes.push({ id: 'quality', label: 'Quality check', state: ev.status === 'completed' ? (ev.accepted ? 'done' : 'warn') : 'skipped',
-    summary: ev.status === 'completed' ? `${ev.checks.filter((c) => c.passed).length}/${ev.checks.length} checks passed` : ev.status === 'not_requested' ? 'Not run: nothing to evaluate' : `Not run (${ev.status.replace(/_/g, ' ')})` });
-  const act = ev.decision?.action;
-  nodes.push({ id: 'decision', label: 'Accept / Verify / Escalate', state: !act || act === 'none' ? 'skipped' : act === 'accept' ? 'done' : act === 'verify' ? 'warn' : 'failed',
-    summary: act && act !== 'none' ? `Decision: ${act}` : 'No decision: no response was evaluated' });
-  const events = ex.escalation_events ?? [];
-  nodes.push({ id: 'escalate', label: 'Adaptive escalation', state: events.length > 0 ? 'warn' : 'skipped', summary: events.length > 0 ? `${events.length} escalation(s)` : 'Not triggered' });
-  nodes.push({ id: 'final', label: 'Final answer', state: ran ? 'done' : 'skipped', summary: ran ? (ex.final_model_name ?? 'Returned') : 'No answer: this run recommends a model' });
-  const routeIds = new Set(['query', 'analysis', 'constraints', 'filter', 'score', 'select']);
-  const out = nodes
-    // Escalation only appears in the flow when it actually happened; otherwise the decision node says so.
-    .filter((n) => n.id !== 'escalate' || events.length > 0)
-    .map((n) => ({ ...n, lane: routeIds.has(n.id) ? ('route' as const) : ('respond' as const) }));
-  const d = out.find((n) => n.id === 'decision');
-  if (d) d.action = act === 'accept' || act === 'verify' || act === 'escalate' ? act : null;
-  return out;
+  return [
+    { id: 'query', label: 'Query received', state: 'done', summary: `${e.profile.tokens.input_tokens} input tokens (${e.profile.tokens.exact ? 'exact' : 'estimated'})` },
+    stage('analysis', 'Query analysis', 'query_understanding', 'Not recorded'),
+    stage('category', 'Category resolution', 'category_resolution', e.profile.category ? e.profile.category.label : 'Not recorded'),
+    stage('constraints', 'Preferences & constraints', 'preference_resolution', 'Not recorded'),
+    stage('filter', 'Category gate & filtering', 'hard_constraint_filtering', 'Not recorded'),
+    stage('score', 'Fit scoring', 'multi_objective_scoring', 'Not recorded'),
+    stage('select', 'Best Match & confidence', 'model_selection', 'Not recorded'),
+  ];
 }
 
 export function selectedCandidate(e: EngineResult): EngineCandidate | null {
@@ -101,6 +85,7 @@ export function buildReport(e: EngineResult): string {
   const p = e.profile;
   L.push('## 2. How the query was understood');
   L.push(`- Task: ${p.primary_intent.replace(/_/g, ' ')} · domain: ${p.domain} · complexity: ${p.complexity.category} (${num(p.complexity.score, 2)})`);
+  if (p.category) L.push(`- Category: ${p.category.label} (confidence ${num(p.category.confidence, 2)}; rules fired: ${p.category.signals.join(', ') || 'none'})${p.category.features.length ? `; features asked for: ${p.category.features.map((f) => f.feature.replace(/_/g, ' ')).join(', ')}` : ''}`);
   if (p.audience) L.push(`- Intent: ${p.audience.kind}${p.audience.signals.length ? ` (rules fired: ${p.audience.signals.join(', ')})` : ''}${p.audience.required_model_types.length ? `; required model type: ${p.audience.required_model_types.join(', ')}` : ''}`);
   L.push(`- Required capabilities: ${p.required_capabilities.join(', ') || 'none beyond the task'} · modalities: ${p.required_modalities.join(', ')}`);
   L.push(`- Sensitivity: ${p.risk.sensitivity}${p.risk.recommends_strict_privacy ? ' (strict privacy recommended)' : ''}`);
@@ -117,15 +102,10 @@ export function buildReport(e: EngineResult): string {
   for (const t of e.explanation.tradeoffs) L.push(`- Trade-off: ${t}`);
   L.push(`- ${e.explanation.confidence_statement}`);
   if (e.counterfactuals?.length) { L.push('', '### Counterfactuals (re-computed by re-running the router)'); for (const c of e.counterfactuals) L.push(`- ${c.scenario}: ${c.changed ? `**${c.winner.model_name}** would win instead` : 'the same model would still win'}.`); }
-  L.push('', '## 6. Execution and evaluation');
-  if (e.execution.status === 'not_requested') L.push('No model was run (recommendation mode), so there is no response to evaluate. No quality, latency or cost was measured.');
-  else {
-    for (const a of e.execution.attempts) L.push(`- Attempt ${a.attempt}: ${a.model_id} → ${a.outcome}${a.latency_ms != null ? `, ${Math.round(a.latency_ms)} ms (measured)` : ''}${a.cost_usd != null ? `, $${a.cost_usd.toFixed(6)} (computed)` : ''}${a.note ? ` — ${a.note}` : ''}`);
-    for (const c of e.evaluation.checks) L.push(`- Check ${c.name}: ${c.passed ? 'passed' : 'failed'} — ${c.detail}`);
-    if (e.evaluation.decision) L.push(`- Decision: **${e.evaluation.decision.action}** (${e.evaluation.decision.rule}) — ${e.evaluation.decision.reason}`);
-    for (const n of e.evaluation.checks_not_run ?? []) L.push(`- Not run: ${n.check} — ${n.reason}`);
-  }
-  if (e.access) L.push('', '## 7. Access', `Execution access: ${e.access.execution_available ? 'ready' : (e.access.status ?? 'unknown').replace(/_/g, ' ')}. ${e.access.next_step ?? ''}`);
+  L.push('', '## 6. Recommendation only');
+  L.push('AI Compass recommends products and does not run them, so there is no response to evaluate, no quality check and no escalation. Confidence describes the ranking only.');
+  if (e.selection.confidence_formula) L.push(`- Confidence ${num(e.selection.confidence_value, 3)} (${e.selection.confidence_level}): ${e.selection.confidence_formula}`);
+  if (e.access?.next_step) L.push('', '## 7. Where to open it', e.access.next_step);
   L.push('', '## Limitations', ...(e.explanation.unavailable_data.length ? e.explanation.unavailable_data.map((u) => `- ${u}`) : ['- None recorded.']), '- Confidence is an uncalibrated engineering estimate, not a statistical probability.');
   return L.join('\n');
 }
@@ -140,8 +120,7 @@ export function tieNote(e: EngineResult): string | null {
   const how = e.selection.tie_break_applied;
   if (!how) return null;
   const runner = e.candidates.find((c) => e.selection.runner_up_ids.includes(c.model_id));
-  const eps = e.scoring_config?.tie_epsilon;
-  return `Near-tie${runner ? ` with ${runner.model_name}` : ''}${eps != null ? ` (scores within ${eps})` : ''}: decided by ${how}.`;
+  return `Exact tie${runner ? ` with ${runner.model_name}` : ''} (identical scores): decided by ${how}.`;
 }
 
 /** One short, data-grounded sentence on why the winner won. Built only from recorded contributions,

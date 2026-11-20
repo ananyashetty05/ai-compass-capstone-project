@@ -5,6 +5,11 @@ from app.schemas.model import ModelMetadata
 
 
 def describe(model: ModelMetadata) -> Dict[str, Any]:
+    if model.ecosystem_approved:
+        # Recommendation-only: AI Compass never runs these products and never needs a credential to compare them.
+        return {"model_id": model.model_id, "execution_available": False, "credential_configured": None, "status": "open_at_destination",
+                "next_step": f"Open {model.model_name} at {model.external_url or 'its website'}. AI Compass recommends; it does not run this product.",
+                "documentation_url": model.external_url}
     from app.services.registry_eligibility import provider_configured, provider_disabled
     if model.entry_type != "inference_model":
         return {"model_id": model.model_id, "execution_available": False, "credential_configured": None, "status": "open_at_destination",

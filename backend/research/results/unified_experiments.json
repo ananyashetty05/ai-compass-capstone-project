@@ -1,0 +1,191 @@
+{
+ "protocol": "Offline evidence for the unified algorithm. Run:  python -m research.unified_experiments.run\n\nPROTOCOL (fixed before the test run): the missing-metric prior and the penalty were chosen on DEV seeds 0-199 only (sweep recorded in the report).\nAll numbers below use TEST seeds 1000-2999 and no parameter is tuned on them. The seeds 1000-2999 were also used by the earlier V2 study for V1-vs-V2\ncomparisons; nothing here was selected using them.",
+ "claim_scope": "Synthetic evidence about formula behaviour only; no claim about real-world product correctness.",
+ "test_seeds": [
+  1000,
+  2999
+ ],
+ "settings": {
+  "editorial unbiased": {
+   "instances": 2000,
+   "algorithms": {
+    "R1_strongest_only": {
+     "mean_regret": 0.3639,
+     "top1_rate": 0.131
+    },
+    "R2_cheapest_only": {
+     "mean_regret": 0.3749,
+     "top1_rate": 0.109
+    },
+    "R3_list_order": {
+     "mean_regret": 0.4969,
+     "top1_rate": 0.0535
+    },
+    "V1_original (tie window, unknown=0)": {
+     "mean_regret": 0.1073,
+     "top1_rate": 0.3985
+    },
+    "ablation: exact order only": {
+     "mean_regret": 0.1086,
+     "top1_rate": 0.3895
+    },
+    "ablation: prior only": {
+     "mean_regret": 0.0939,
+     "top1_rate": 0.4345
+    },
+    "UNIFIED (exact order + neutral prior)": {
+     "mean_regret": 0.0932,
+     "top1_rate": 0.433
+    }
+   },
+   "paired_regret_reduction_V1_minus_UNIFIED": {
+    "mean": 0.0141,
+    "ci95": [
+     0.0104,
+     0.018
+    ],
+    "share_of_instances_improved": 0.114,
+    "share_worse": 0.052
+   }
+  },
+  "editorial inflated (+0.20 for 30% of providers)": {
+   "instances": 2000,
+   "algorithms": {
+    "R1_strongest_only": {
+     "mean_regret": 0.3803,
+     "top1_rate": 0.1195
+    },
+    "R2_cheapest_only": {
+     "mean_regret": 0.3823,
+     "top1_rate": 0.1285
+    },
+    "R3_list_order": {
+     "mean_regret": 0.5006,
+     "top1_rate": 0.0525
+    },
+    "V1_original (tie window, unknown=0)": {
+     "mean_regret": 0.1335,
+     "top1_rate": 0.35
+    },
+    "ablation: exact order only": {
+     "mean_regret": 0.1347,
+     "top1_rate": 0.347
+    },
+    "ablation: prior only": {
+     "mean_regret": 0.1164,
+     "top1_rate": 0.3805
+    },
+    "UNIFIED (exact order + neutral prior)": {
+     "mean_regret": 0.117,
+     "top1_rate": 0.382
+    }
+   },
+   "paired_regret_reduction_V1_minus_UNIFIED": {
+    "mean": 0.0164,
+    "ci95": [
+     0.0122,
+     0.0206
+    ],
+    "share_of_instances_improved": 0.111,
+    "share_worse": 0.045
+   }
+  },
+  "editorial noisy (extra sd 0.25)": {
+   "instances": 2000,
+   "algorithms": {
+    "R1_strongest_only": {
+     "mean_regret": 0.3906,
+     "top1_rate": 0.102
+    },
+    "R2_cheapest_only": {
+     "mean_regret": 0.3989,
+     "top1_rate": 0.102
+    },
+    "R3_list_order": {
+     "mean_regret": 0.4949,
+     "top1_rate": 0.0585
+    },
+    "V1_original (tie window, unknown=0)": {
+     "mean_regret": 0.1509,
+     "top1_rate": 0.316
+    },
+    "ablation: exact order only": {
+     "mean_regret": 0.15,
+     "top1_rate": 0.3175
+    },
+    "ablation: prior only": {
+     "mean_regret": 0.1419,
+     "top1_rate": 0.3385
+    },
+    "UNIFIED (exact order + neutral prior)": {
+     "mean_regret": 0.1426,
+     "top1_rate": 0.334
+    }
+   },
+   "paired_regret_reduction_V1_minus_UNIFIED": {
+    "mean": 0.0083,
+    "ci95": [
+     0.0041,
+     0.0125
+    ],
+    "share_of_instances_improved": 0.092,
+    "share_worse": 0.057
+   }
+  },
+  "unknown data truly worse (MNAR, -0.20)": {
+   "instances": 2000,
+   "algorithms": {
+    "R1_strongest_only": {
+     "mean_regret": 0.3588,
+     "top1_rate": 0.1395
+    },
+    "R2_cheapest_only": {
+     "mean_regret": 0.3692,
+     "top1_rate": 0.124
+    },
+    "R3_list_order": {
+     "mean_regret": 0.4984,
+     "top1_rate": 0.0545
+    },
+    "V1_original (tie window, unknown=0)": {
+     "mean_regret": 0.0612,
+     "top1_rate": 0.538
+    },
+    "ablation: exact order only": {
+     "mean_regret": 0.0622,
+     "top1_rate": 0.5315
+    },
+    "ablation: prior only": {
+     "mean_regret": 0.0625,
+     "top1_rate": 0.541
+    },
+    "UNIFIED (exact order + neutral prior)": {
+     "mean_regret": 0.062,
+     "top1_rate": 0.5415
+    }
+   },
+   "paired_regret_reduction_V1_minus_UNIFIED": {
+    "mean": -0.0008,
+    "ci95": [
+     -0.0042,
+     0.0026
+    ],
+    "share_of_instances_improved": 0.0835,
+    "share_worse": 0.0825
+   }
+  }
+ },
+ "removal_invariance": {
+  "V1_original (tie window, unknown=0)": {
+   "trials": 38167,
+   "winner_changed": 0,
+   "rate": 0.0
+  },
+  "UNIFIED (exact order + neutral prior)": {
+   "trials": 38167,
+   "winner_changed": 0,
+   "rate": 0.0
+  }
+ },
+ "runtime_seconds": 18.1
+}

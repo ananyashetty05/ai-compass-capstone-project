@@ -28,12 +28,13 @@ def build(profile: QueryProfileV2, prefs: ResolvedPreferences, rows: List[Candid
                                    why_alternatives_ranked_lower=[{"model_id": e.model_id, "reason": e.reason} for e in excluded[:10]])
     top = rows[0]
     why: List[str] = []
-    contribs = sorted(((d, top.contributions[d]) for d in DIMENSIONS if prefs.weights[d] > 0), key=lambda kv: -kv[1])
-    influential = [{"objective": LABEL[d], "weight": round(prefs.weights[d], 3), "utility": top.utilities[d], "contribution": round(c, 4)} for d, c in contribs[:3]]
+    pw = top.score_weights or {}
+    contribs = sorted(((d, top.contributions[d]) for d in DIMENSIONS if pw.get(d, 0) > 0), key=lambda kv: -kv[1])
+    influential = [{"objective": LABEL[d], "weight": round(pw[d], 3), "utility": top.utilities[d], "contribution": round(c, 4)} for d, c in contribs[:3]]
     facts.append({"type": "selected", "model_id": top.model_id, "robust_score": top.robust_score, "utility": top.utility, "rank": 1, "candidates": len(rows)})
     scored = sum(1 for r in rows if scoring_mod.is_scored(r))
-    pool = (f"{scored} scored candidate{'s' if scored != 1 else ''} ({len(rows) - scored} more are in the pool but have no quality, cost, latency, reliability or risk "
-            f"metadata, so they cannot be compared and rank below every scored model)") if scored != len(rows) else f"{len(rows)} eligible candidate{'s' if len(rows) != 1 else ''}"
+    pool = (f"{scored} scored candidate{'s' if scored != 1 else ''} ({len(rows) - scored} more are in the pool but have no documented or measured evidence "
+            f"for any objective, so they cannot be compared and rank below every scored model)") if scored != len(rows) else f"{len(rows)} eligible candidate{'s' if len(rows) != 1 else ''}"
     facts.append({"type": "pool", "eligible": len(rows), "scored": scored, "unscored": len(rows) - scored})
     aud = profile.audience
     if aud.category == "developer_api":
@@ -44,7 +45,10 @@ def build(profile: QueryProfileV2, prefs: ResolvedPreferences, rows: List[Candid
         facts.append({"type": "category", "category": "conversational", "ambiguous": aud.ambiguous})
         why.append("Your request reads as asking for an AI assistant, so only Conversational AI models were considered; Developer & API offerings were not mixed in."
                    + (" The request could also mean finding a model to build with: " + (aud.clarifying_question or "") if aud.ambiguous else ""))
-    why.append(f"{top.model_name} ranked first of {pool} with a robust score of {top.robust_score:.3f} (utility {top.utility:.3f}).")
+    why.append(f"{top.model_name} ranked first of {pool} with an evidence-credited score of {top.robust_score:.3f}. "
+               f"The score counts only evidence that may rank candidates: {', '.join(LABEL[d] for d in pw) or 'nothing'}.")
+    if sel.decision_reason:
+        why.append(f"Decision status: {sel.decision_status.replace('_', ' ')}. {sel.decision_reason}")
     if influential:
         i0 = influential[0]
         u = i0["utility"]
@@ -76,15 +80,23 @@ def build(profile: QueryProfileV2, prefs: ResolvedPreferences, rows: List[Candid
 
     unavailable: List[str] = []
     for d in top.missing_dimensions:
-        unavailable.append(f"{LABEL[d]} data is unavailable for {top.model_name}; it was scored as worst-case (0), not average.")
-    estimated = [LABEL[d] for d in ("quality", "cost", "latency", "reliability", "risk") if not top.evidence[d].missing and (top.evidence[d].provenance == "estimated" or "registry estimate" in top.evidence[d].unit)]
-    if estimated:
-        unavailable.append("These values are registry estimates, not measurements: " + ", ".join(estimated) + ".")
-    facts.append({"type": "data_quality", "missing": top.missing_dimensions, "estimated": estimated})
+        used = d in pw
+        unavailable.append(f"{LABEL[d]} data is unavailable for {top.model_name}; " + ("it earned no credit for it and the gap is reported." if used else "it is not used to rank."))
+    groups: Dict[str, List[str]] = {"measured": [], "documented": [], "estimate": [], "unverified_estimate": [], "unknown": [], "stale": []}
+    for d in DIMENSIONS:
+        e = top.evidence[d]
+        groups.setdefault(e.tier, []).append(LABEL[d])
+        if e.freshness == "stale":
+            groups["stale"].append(LABEL[d])
+    if groups["unverified_estimate"]:
+        unavailable.append("Hand-set estimates are shown but never used to rank: " + ", ".join(groups["unverified_estimate"]) + ".")
+    if groups["stale"]:
+        unavailable.append("Evidence older than its freshness window was demoted one tier: " + ", ".join(groups["stale"]) + ".")
+    facts.append({"type": "data_quality", "missing": top.missing_dimensions, "estimated": groups["unverified_estimate"], "evidence_by_tier": groups, "ranking_objectives": list(pw)})
 
-    conf = f"{sel.confidence_level.capitalize()} confidence ({sel.confidence_value:.2f})."
+    conf = f"{sel.confidence_level.capitalize()} decision-reliability index ({sel.confidence_value:.2f}); this is a heuristic index, not a probability of being correct."
     if sel.weight_stability is not None:
-        conf += f" The winner stayed first in {_pct(sel.weight_stability)} of ±20% weight perturbations."
+        conf += f" The winner survives {_pct(sel.weight_stability)} of a 10% re-weighting in the least favourable direction (weight stability)."
     if sel.score_margin is not None:
         conf += f" Margin over the runner-up: {sel.score_margin:.3f}."
     if sel.tie_break_applied:
@@ -94,7 +106,9 @@ def build(profile: QueryProfileV2, prefs: ResolvedPreferences, rows: List[Candid
         why.append("Weights were adjusted for this query: " + "; ".join(f"{LABEL[a.dimension]} ×{a.factor:g} ({a.reason.lower()})" for a in prefs.adjustments) + ".")
     n_hc = len(_constraints(prefs))
     hc = f"{n_hc} explicit hard constraint(s) were satisfied" if n_hc else "no explicit hard constraints were set"
-    summary = (f"AI Compass recommends {top.model_name} ({top.provider}): {hc}"
+    lead = {"recommended": "recommends", "qualified": "tentatively recommends", "insufficient_evidence": "lists as best-supported (unverified)", "indistinguishable": "cannot separate its top candidates, and lists first",
+            "needs_clarification": "provisionally lists"}.get(sel.decision_status, "recommends")
+    summary = (f"AI Compass {lead} {top.model_name} ({top.provider}): {hc}"
                f"{'; ' + str(len(excluded)) + ' candidate(s) were excluded' if excluded else ''}, and it ranked first of {scored} scored model{'s' if scored != 1 else ''} under your {prefs.weight_source.replace('_', ' ')} objective weights.")
     return DecisionExplanation(summary=summary, why_selected=why, why_alternatives_ranked_lower=lower, hard_constraints_applied=_constraints(prefs),
                                influential_objectives=influential, unavailable_data=unavailable, tradeoffs=tradeoffs, confidence_statement=conf, facts=facts)

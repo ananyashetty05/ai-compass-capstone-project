@@ -10,8 +10,8 @@ import type { ModelInfo } from '../../types';
 interface Node { id: string; label: string; count: number; x: number; y: number; r: number; other?: number }
 const TOP = 11;
 
-export function EcosystemMap({ models, selected, onSelect, labelOf }: {
-  models: ModelInfo[]; selected: string; onSelect: (provider: string) => void; labelOf: (provider: string) => string;
+export function EcosystemMap({ models, selected, onSelect, labelOf, title = 'Providers feeding the router', unit = 'providers' }: {
+  models: ModelInfo[]; selected: string; onSelect: (provider: string) => void; labelOf: (provider: string) => string; title?: string; unit?: string;
 }) {
   const W = 760;
   const H = 360;
@@ -34,12 +34,12 @@ export function EcosystemMap({ models, selected, onSelect, labelOf }: {
   return (
     <section className="eco" aria-labelledby="eco-title">
       <header className="eco-head">
-        <div><p className="ds-kicker">Ecosystem</p><h2 id="eco-title">Providers feeding the router</h2></div>
-        <p className="eco-note">{new Set(models.map((m) => m.provider)).size} providers · {formatNumber(total, 0)} models. Node size = models in the pool. Select a provider to filter the table; smaller providers are grouped.</p>
+        <div><p className="ds-kicker">Ecosystem</p><h2 id="eco-title">{title}</h2></div>
+        <p className="eco-note">{new Set(models.map((m) => m.provider)).size} {unit} · {formatNumber(total, 0)} products. Node size = products in the pool. Select a node to filter the list.</p>
       </header>
       <svg className="eco-svg" viewBox={`0 0 ${W} ${H}`} role="group" aria-label="Provider map">
         {nodes.map((n, i) => (
-          <line key={n.id} className="eco-edge" data-on={selected === 'all' || selected === n.id || undefined} x1={W / 2} y1={H / 2} x2={n.x} y2={n.y} style={{ animationDelay: `${i * 140}ms` }} />
+          <line key={n.id} className="eco-edge" data-on={selected === 'all' || selected === n.id || undefined} data-all={selected === 'all' || undefined} x1={W / 2} y1={H / 2} x2={n.x} y2={n.y} style={{ animationDelay: `${i * 140}ms` }} />
         ))}
         <g className="eco-core">
           <circle cx={W / 2} cy={H / 2} r="36" className="eco-core-halo" />
@@ -61,12 +61,15 @@ export function EcosystemMap({ models, selected, onSelect, labelOf }: {
           );
           return (
             <g key={n.id} className="eco-node" data-selected={on || undefined} data-dim={(selected !== 'all' && !on) || undefined} role="button" tabIndex={0}
-              aria-pressed={on} aria-label={`${n.label}: ${n.count} models. ${on ? 'Clear filter' : 'Filter table'}`}
+              aria-pressed={on} aria-label={`${n.label}: ${n.count} ${n.count === 1 ? 'entry' : 'entries'}. ${on ? 'Clear filter' : 'Filter table'}`}
               onClick={() => onSelect(on ? 'all' : n.id)} onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); onSelect(on ? 'all' : n.id); } }}
               style={{ animationDelay: `${i * 70}ms` }}>
-              <circle cx={n.x} cy={n.y} r={n.r} className="eco-node-dot" />
-              <text x={n.x} y={n.y} textAnchor="middle" dominantBaseline="central" className="eco-node-count">{n.count}</text>
-              <text x={n.x} y={n.y + n.r + 15} textAnchor="middle" className="eco-node-label">{n.label}</text>
+              <g className="eco-bubble">
+                <circle cx={n.x} cy={n.y} r={n.r} className="eco-ripple" />
+                <circle cx={n.x} cy={n.y} r={n.r} className="eco-node-dot" />
+                <text x={n.x} y={n.y} textAnchor="middle" dominantBaseline="central" className="eco-node-count">{n.count}</text>
+                <text x={n.x} y={n.y + n.r + 15} textAnchor="middle" className="eco-node-label">{n.label}</text>
+              </g>
             </g>
           );
         })}

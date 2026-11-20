@@ -256,10 +256,16 @@ export function DecisionExplanation({ engine }: { engine: EngineResult }) {
         <span className={`eng-conf eng-conf--${s.confidence_level}`}><Gauge aria-hidden="true" /> {humanizeToken(s.confidence_level)} confidence · {pct(s.confidence_value)}</span>
       </header>
       <p>{e.summary}</p>
+      {s.decision_status && s.decision_status !== 'recommended' && (
+        <p className="cx-note" role="status" data-decision-status={s.decision_status}><strong>{humanizeToken(s.decision_status)}.</strong> {s.decision_reason}</p>
+      )}
+      {(s.alternative_ids?.length ?? 0) > 0 && (
+        <p className="cx-note">Equally suitable on the evidence: {s.alternative_ids!.map((id) => engine.candidates.find((c) => c.model_id === id)?.model_name ?? id).join(', ')}.</p>
+      )}
       {e.why_selected.length > 0 && <ul className="cx-notes">{e.why_selected.map((x, i) => <li key={i}>{x}</li>)}</ul>}
       <dl className="cx-kv">
         <div><dt>Margin over runner-up</dt><dd>{s.score_margin === null || s.score_margin === undefined ? '—' : s.score_margin.toFixed(3)}</dd></div>
-        <div><dt>Stable under ±20% weight changes</dt><dd>{pct(s.weight_stability)}</dd></div>
+        <div><dt>Survives a 10% re-weighting</dt><dd>{pct(s.weight_stability)}</dd></div>
         {s.tie_break_applied ? <div><dt>Tie-break</dt><dd>{s.tie_break_applied}</dd></div> : null}
       </dl>
       {e.tradeoffs.length > 0 && (<><p className="cx-subhead"><ListChecks aria-hidden="true" /> Trade-offs</p><ul className="cx-notes">{e.tradeoffs.map((x, i) => <li key={i}>{x}</li>)}</ul></>)}

@@ -297,7 +297,7 @@ def _extract_requirements(text: str, tokens: int) -> Tuple[List[Requirement], Li
         add("cost", "lowest", "asks for the cheapest option")
     if _rx(r"\b(quickly|quick|asap|as fast as possible|immediately|right away)\b").search(text):
         add("latency", "low", "asks for speed")
-    if _rx(r"\b(cheap(?:est)?|low[- ]cost|budget|inexpensive|free)\b").search(text):
+    if _rx(r"\b(cheap(?:est|ly|er)?|low[- ]cost|low[- ]priced|budget|inexpensive|affordabl[ey]|economical(?:ly)?|free)\b").search(text):
         add("cost", "low", "asks for low cost")
     if _CONFIDENTIAL_RX.search(text):
         add("privacy", "restricted", "marks content as confidential/private")
@@ -565,6 +565,12 @@ def analyze(query: str, task_type_hint: Optional[str] = None) -> QueryProfileV2:
         notes_extra = "Simple task: general-purpose models are accepted as a task fit as well as specialists."
     else:
         notes_extra = ""
+    from app.services.routing_engine import ecosystem as ecosystem_mod
+    category = ecosystem_mod.resolve(text, hint_applied, audience_ambiguous=aud.ambiguous)
+    if category.ambiguous and category.runner_up and not aud.ambiguous:
+        ambiguities.append(Ambiguity(kind="category_overlap", severity="minor",
+                                     message=f"The request fits {category.label} and also {ecosystem_mod.CATEGORY_LABELS[category.runner_up]}; "
+                                             f"{category.label} is used and the other category's best match is not mixed in."))
     return QueryProfileV2(
         original_query=query, primary_intent=primary, secondary_intents=intents[1:], intents=intents,
         task_type=INTENT_TASK_TYPE[primary], task_tags=task_tags, domain=domain, domain_confidence=dom_conf,
@@ -572,4 +578,4 @@ def analyze(query: str, task_type_hint: Optional[str] = None) -> QueryProfileV2:
         tokens=TokenEstimate(input_tokens=in_tokens, output_tokens=out_tokens, method=tok_method, exact=exact, output_basis=out_basis),
         reasoning_requirement=reasoning_req, structured_output=structured, explicit_requirements=explicit,
         inferred_requirements=inferred, ambiguities=ambiguities, needs_clarification=any(a.severity == "major" for a in ambiguities),
-        risk=risk, audience=aud, confidence={"intent": intent_conf, "domain": dom_conf}, user_hint_applied=hint_applied, notes=notes + ([notes_extra] if notes_extra else []))
+        risk=risk, audience=aud, category=category, confidence={"intent": intent_conf, "domain": dom_conf}, user_hint_applied=hint_applied, notes=notes + ([notes_extra] if notes_extra else []))

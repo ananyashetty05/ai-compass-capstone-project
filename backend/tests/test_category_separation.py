@@ -177,7 +177,7 @@ class Recommendations(Base):
 
     def test_11_scoring_is_unchanged_and_independent_of_category_and_keys(self):
         a = route("I need an AI model for my college project.")
-        self.assertEqual(a.scoring_version, "2.0.0")
+        self.assertEqual(a.scoring_version, "3.0.0")
         from app.core.config import settings
         with patch.object(settings, "GROQ_API_KEY", "k"), patch.object(settings, "OPENROUTER_API_KEY", "k"):
             b = route("I need an AI model for my college project.")

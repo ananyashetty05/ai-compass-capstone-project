@@ -35,6 +35,8 @@ class PipelineRequest(BaseModel):
     weight_overrides: Optional[Dict[str, float]] = None
     budget_usd: Optional[float] = None
     evaluate_response: bool = True
+    max_input_price_per_million: Optional[float] = Field(default=None, ge=0.0, description="Hard limit on the published input price (USD per million tokens); an unpublished price cannot be verified, so it is excluded")
+    max_output_price_per_million: Optional[float] = Field(default=None, ge=0.0, description="Hard limit on the published output price (USD per million tokens)")
 
 
 class PipelineResult(BaseModel):
@@ -86,6 +88,26 @@ class _Timer:
         self.stages.append(StageRecord(name=name, label=label, status="skipped", detail=why))
 
 
+PRIVACY_DOC_MAX_AGE_DAYS = 365
+
+
+def _privacy_doc_note(m: ModelMetadata) -> Optional[str]:
+    """Strict privacy passes on the registry's documented data-handling status; say how fresh that documentation is so the user can re-check it."""
+    from datetime import datetime, timezone
+    raw = getattr(m, "last_verified_at", None)
+    if not raw:
+        return f"Strict privacy: {m.model_name}'s data-handling status is documented in the registry but carries no verification date; confirm it with the provider before relying on it."
+    try:
+        d = datetime.fromisoformat(str(raw).replace("Z", "+00:00"))
+        d = d if d.tzinfo else d.replace(tzinfo=timezone.utc)
+    except ValueError:
+        return f"Strict privacy: {m.model_name}'s verification date could not be read; confirm its data handling with the provider."
+    age = (datetime.now(timezone.utc) - d).days
+    if age > PRIVACY_DOC_MAX_AGE_DAYS:
+        return f"Strict privacy: {m.model_name}'s data-handling documentation was last verified {age} days ago; re-check it before relying on it."
+    return None
+
+
 def _registry_exclusions(items: List[Dict[str, str]]) -> List[ExclusionRecord]:
     return [ExclusionRecord(model_id=i["model_id"], code="registry_ineligible", requirement="routing eligibility from the live model registry", reason=i["reason"],
                             permanence="temporary", stage="registry_eligibility") for i in items]
@@ -100,6 +122,10 @@ def _annotate_access(rows: List[CandidateScore], models: Dict[str, ModelMetadata
         d = access_mod.describe(m)
         r.execution_ready = bool(d["execution_available"])
         r.execution_status = d["status"]
+        if m.ecosystem_approved:
+            r.model_category = m.ecosystem_category
+            r.access_type = "open_at_destination"
+            continue
         op = access_category.profile_of(m)
         r.model_category, r.access_type, r.pricing_category, r.free_tier_available = op.model_category, op.access_type, op.pricing_category, op.free_tier_available
 
@@ -144,10 +170,14 @@ def run(req: PipelineRequest, *, saved_weights: Optional[Dict[str, float]], user
 
     profile = tm.run("query_understanding", "Query understanding", lambda: understanding.analyze(req.query, req.task_type_hint),
                      lambda p: f"{p.primary_intent} · {p.complexity.category} · {p.domain}")
+    if profile.category is not None:
+        stages.append(StageRecord(name="category_resolution", label="Category resolution", status="completed",
+                                  detail=f"{profile.category.label} (confidence {profile.category.confidence:.2f}); signals: {', '.join(profile.category.signals) or 'none'}"))
     prefs = tm.run("preference_resolution", "Preference resolution", lambda: preferences.resolve(
         profile, saved_weights=saved_weights, weight_overrides=req.weight_overrides, max_cost=req.max_cost, max_latency=req.max_latency,
         require_capabilities=req.require_capabilities, privacy_requirement=req.privacy_requirement, model_ids=req.model_ids,
-        preferred_providers=req.preferred_providers, excluded_providers=req.excluded_providers, excluded_model_ids=req.excluded_model_ids),
+        preferred_providers=req.preferred_providers, excluded_providers=req.excluded_providers, excluded_model_ids=req.excluded_model_ids,
+        max_input_price_per_million=req.max_input_price_per_million, max_output_price_per_million=req.max_output_price_per_million),
         lambda p: f"weights from {p.weight_source.replace('_', ' ')}; {len(p.hard_constraints)} hard constraint(s)")
 
     if req.optimization_mode == "disabled" and not req.optimized_prompt:
@@ -172,20 +202,29 @@ def run(req: PipelineRequest, *, saved_weights: Optional[Dict[str, float]], user
         blocked = [e for e in reg_excl if e["model_id"] in set(req.model_ids)]
         if blocked:
             raise ValueError("; ".join(f"{e['model_id']} is excluded from routing: {e.get('reason', 'excluded by the live registry')}" for e in blocked))
-    api_pool = [m for m in catalog if m.entry_type == "inference_model"]
-    app_pool = [m for m in catalog if m.entry_type != "inference_model"]
+    ecosystem_pool = bool(catalog) and all(m.ecosystem_approved for m in catalog)
+    if ecosystem_pool:
+        # Approved ecosystem: ONE pool, ONE ranking, recommendation only. Nothing is executed, so no response exists to evaluate or escalate from.
+        req = req.model_copy(update={"mode": "recommend"})
+        api_pool, app_pool = list(catalog), []
+    else:
+        api_pool = [m for m in catalog if m.entry_type == "inference_model"]
+        app_pool = [m for m in catalog if m.entry_type != "inference_model"]
     models_by_id = {m.model_id: m for m in catalog}
     obs = tm.run("observed_evidence", "Observed performance evidence", lambda: (observed_loader or observed_mod.load_observed)([m.model_id for m in catalog]),
                  lambda o: f"{len(o)} model(s) with observed history")
 
-    pool_name = "api_models"
+    pool_name = "approved_ecosystem" if ecosystem_pool else "api_models"
     obs_latency = {k: v.latency_p50_seconds for k, v in obs.items() if v.latency_p50_seconds}
+
+    def _filter(pool, mode, observed_latency=None):
+        return filtering.filter_candidates(pool, profile, prefs, mode=mode, observed_latency=observed_latency)
 
     def do_filter():
         nonlocal pool_name
-        passing, excl = filtering.filter_candidates(api_pool, profile, prefs, mode=req.mode, observed_latency=obs_latency)
-        if not passing and req.mode == "recommend" and app_pool:
-            p2, e2 = filtering.filter_candidates(app_pool, profile, prefs, mode="recommend")
+        passing, excl = _filter(api_pool, req.mode, obs_latency)
+        if not ecosystem_pool and not passing and req.mode == "recommend" and app_pool:
+            p2, e2 = _filter(app_pool, "recommend")
             if p2:
                 pool_name = "applications"
                 return p2, excl + e2
@@ -218,6 +257,11 @@ def run(req: PipelineRequest, *, saved_weights: Optional[Dict[str, float]], user
         if "image-generation" in (profile.required_capabilities or []) and _re.search(r"\banimat\w*|\bgif\b|\bmotion\b", req.query, _re.I):
             selection.caveats.append("The request mentions animation. Image models produce still images, not motion; "
                                      "for moving output, ask for a video clip instead.")
+        if any(c.kind == "privacy_strict" for c in prefs.hard_constraints) and selection.selected_model_id:
+            sel_m = next((m for m in passing if m.model_id == selection.selected_model_id), None)
+            note = _privacy_doc_note(sel_m) if sel_m is not None else None
+            if note:
+                selection.caveats.append(note)
     else:
         tm.skip("multi_objective_scoring", "Multi-objective scoring", "No eligible candidates")
         tm.skip("model_selection", "Model selection", "No eligible candidates")
@@ -269,7 +313,7 @@ def run(req: PipelineRequest, *, saved_weights: Optional[Dict[str, float]], user
     explanation = tm.run("explanation", "Explanation", lambda: explain.build(profile, prefs, rows, exclusions, selection))
     access = access_mod.describe(selected_model) if selected_model is not None else {}
     cfs: List[Dict[str, Any]] = []
-    if rows and pool_name == "api_models":
+    if rows and pool_name in ("api_models", "approved_ecosystem"):
         try:
             cfs = tm.run("counterfactuals", "Counterfactual analysis", lambda: counterfactual.compute(
                 api_pool, passing, profile, prefs, base_id=selection.selected_model_id, mode=req.mode, observed=obs, learning=learn, cfg=cfg, observed_latency=obs_latency),
@@ -278,9 +322,11 @@ def run(req: PipelineRequest, *, saved_weights: Optional[Dict[str, float]], user
             cfs = []
     catalogue = {"catalogue_total": len(catalog) + len(reg_excl), "considered": len(catalog), "excluded_by_registry": len(reg_excl), "eligible": len(passing) if pool_name == "api_models" or passing else 0,
                  "excluded_by_constraints": len(excl), "scored": len(rows), "selected": 1 if selection.selected_model_id else 0,
-                 "credentials_used_for_comparison": False, "audience": profile.audience.kind, "category": profile.audience.category, "intent_ambiguous": profile.audience.ambiguous}
+                 "credentials_used_for_comparison": False, "pool_source": "approved_ecosystem" if ecosystem_pool else "live_catalogue",
+                 "category_resolved": profile.category.category if profile.category else None, "category_members": len([m for m in catalog if profile.category and (m.ecosystem_category == profile.category.category or profile.category.category in m.secondary_categories)]) if ecosystem_pool else None,
+                 "audience": profile.audience.kind, "category": profile.audience.category, "intent_ambiguous": profile.audience.ambiguous}
     _annotate_access(rows, models_by_id)
-    exec_alt = _executable_alternative(rows, models_by_id, selection, access) if rows else None
+    exec_alt = _executable_alternative(rows, models_by_id, selection, access) if rows and not ecosystem_pool else None
     prov = provenance_mod.build(query=req.query, mode=req.mode, task_hint=req.task_type_hint, prefs=prefs, models=catalog, observed_latency=obs_latency, learning=learn, pool=pool_name)
     conf_report = confidence_mod.build(profile, selection, access, execution, evaluation)
     status = "needs_clarification" if profile.needs_clarification and rows else ("no_eligible_candidates" if not rows else "ok")

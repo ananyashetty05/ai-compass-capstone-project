@@ -122,7 +122,7 @@ export function BenchmarkResults({ evaluation }: { evaluation: OfflineEvaluation
         </div>
         {unavailable.length > 0 || missing.length > 0 ? (
           <div className="xb-flags">
-            {unavailable.length > 0 ? <p><ShieldAlert aria-hidden="true" />{unavailable.map((r) => strategyShort(r.strategy)).join(', ')} could not select a model for this query, so {unavailable.length === 1 ? 'it is' : 'they are'} left out of the comparison.</p> : null}
+            {unavailable.length > 0 ? <p><ShieldAlert aria-hidden="true" />{unavailable.map((r) => strategyShort(r.strategy)).join(', ')} {unavailable.length === 1 ? 'needs' : 'need'} measured quality or price data, which the approved pool does not carry, so {unavailable.length === 1 ? 'it is' : 'they are'} left out rather than guessed.</p> : null}
             {missing.length > 0 ? <p><Info aria-hidden="true" />Missing registry data for at least one pick: {missing.join('; ')}.</p> : null}
           </div>
         ) : null}

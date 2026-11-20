@@ -1,0 +1,147 @@
+{
+  "created": "2026-11-20T10:10:33+0000",
+  "database_writes": 0,
+  "e1_code_state_note": "E1 means exactly the routing_engine V1 modules and approved_ecosystem.py with the hashes above (working tree; not committed).",
+  "file_sha256": {
+    "app/core/config.py": "14029c91f76861ee21f383fb888b5e58349b927951c4ac32c4c62b35aae604cf",
+    "app/data/approved_ecosystem.py": "691a1dd1f64ce09ceeb14614d4834593b7209b018635893d4b992bc277dd17f3",
+    "app/data/evidence_records.py": "ed763955592356f97e799483becce414b69b6273ac328c48a36aaa99f142a982",
+    "app/services/routing_engine/__init__.py": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "app/services/routing_engine/access.py": "7c8cf8486e0a1785efdd17b66d41c31e11127ad3f0b12b857506658a6e97fb98",
+    "app/services/routing_engine/audience.py": "932f04e78df22cec70a269fe0442f66d86426c36087f804337fbb4db0bd1e8ab",
+    "app/services/routing_engine/calibration.py": "ef402892958ea74e640636ab3d0058821e02cd7200155159d8a5d2fc46b3fb43",
+    "app/services/routing_engine/compat.py": "66b9e989a25a7b43aa5786d7af6511d177e24092c6dcb9f96442ea0fc9ca3c83",
+    "app/services/routing_engine/confidence.py": "75df5182183c851e85cb7c49141dd8aae875a652ec4f57a687efa69d9c9ca4b0",
+    "app/services/routing_engine/counterfactual.py": "5b0c8d1d456d24919ea5e406e509a66dd6c788726f5d8c871abf6d9e462080d9",
+    "app/services/routing_engine/ecosystem.py": "7ea9b6c8d482565a29ec3a038777d0ccff97c5d2bf35c0d9acfa0fa309712733",
+    "app/services/routing_engine/execution.py": "f7e7dda7f08c7c976c0ebd6d5001a11e3d1292fed196be82ea63d703b96f62e2",
+    "app/services/routing_engine/explain.py": "c550e3294ab75b287b429763279ac21cf93f7c2c61a9796813e306f74641cb9e",
+    "app/services/routing_engine/filtering.py": "3b77d66062ed5a95cf2b2fed3388c95095697538aaeaf65498f65bf17dfc3c8a",
+    "app/services/routing_engine/observed.py": "690dbdec35860e82ec608f4f399c240a3cc7b0168803cb3a9a6d4784a7dd6c47",
+    "app/services/routing_engine/optimizer.py": "29b196a89e6864f17528738c6acb6f64a2eadf071b01cdbeb61912cef8a79faf",
+    "app/services/routing_engine/pipeline.py": "6fdb31dbde66e448f0eaa92e69ae12b120eab069e1b76113f46d657f45b0a407",
+    "app/services/routing_engine/preferences.py": "b0fd68764a45a23bb95815fed88403c55202e0e04fd4ff7c919263b9916ead07",
+    "app/services/routing_engine/provenance.py": "11af7eac86ca93573ce5681da5dd17c805ec36bc202c5429350f9c448c7a15c0",
+    "app/services/routing_engine/scoring.py": "ca4320e7d540a6e92b7d64eb1ced8178821ce98e8ac47efa9b2b34bce729e6ab",
+    "app/services/routing_engine/trace.py": "ab7f0e16816ce2449b76afc2391988c2cb9118ddb1b7a3d98ea4d056f966a008",
+    "app/services/routing_engine/types.py": "7200b6fc2b0a84fc8a288aa70f6c86d5460e4ce71f8a193677f194ee87678f9a",
+    "app/services/routing_engine/understanding.py": "bac7a6d7b7aabe9da7d5d9a718cee50a531451973748d9746cff5f19e6829e8a",
+    "app/services/routing_engine/v2/__init__.py": "2df98ba2a4562c4140bcaa27a7a889e924e697818411ea3b06977bb51ad6e7e9",
+    "app/services/routing_engine/v2/constraints.py": "964c4b8ceb6e7233934116321eacb184e0448db18e2657e9d2d92f807c985e69",
+    "app/services/routing_engine/v2/diagnostics.py": "f8aef21200d19552c27fdc5b52623efe2bbd05760e9c354c4d081e281e546430",
+    "app/services/routing_engine/v2/engine.py": "0a45340c5c9e3d5b4961f131be5200d33362906550fed930f4fd6078f3c0b364",
+    "app/services/routing_engine/v2/evidence.py": "f86d48ed1ff2b5a9e364bc7b9309d445f1923e566e779853f2e6578623293e02",
+    "app/services/routing_engine/v2/normalize.py": "d8bcb48e784a7e851f09ae793372605ea59b1c5fb71e7b3d445f23e59392a909",
+    "app/services/routing_engine/v2/objectives.py": "ae0e3bc73cbdebc8c56a25806040baa30998f0f0475b5dbcc62b5ce839855762",
+    "app/services/routing_engine/v2/policy.py": "90e021829f004f5c94183da8f3a2bb7cead5395bca02d0518713a2ed92722ac8",
+    "app/services/routing_engine/v2/scoring.py": "5b50c87bebbd0a778828427b902b928abae4c2efe05e442b3b978f22b2a4c8e0",
+    "research/datasets/phase2_curated_v1.json": "164bb4a5873c321db1459d27be464aa71459a19bfe7216d5937dc38d5d7fe08f",
+    "research/v2_experiments/algos.py": "faf18b3ddde41d935c1864ea6f77f64924bc532582708ece4b85676d81d04a11",
+    "research/v2_experiments/real.py": "1dfc08c326cebb1bf404424199a2dbc52d4fb64700ff67fcc538043f813a055d",
+    "research/v2_experiments/run.py": "bcd80523d075405e3fb6b5814b03481742867eb6f4b0b17724fa31ef49317a8c",
+    "research/v2_experiments/synthetic.py": "47b67887d989886e066b717cc5b30ce5c6373f3f38fb3042c833af365abc7b23"
+  },
+  "platform": "Linux-6.18.44-fc-v726-x86_64-with-glibc2.39",
+  "provider_calls": 0,
+  "python": "3.13.18",
+  "recommendation_only": true,
+  "registered_parameters": {
+    "E2a_tau_default": 0.7,
+    "E2a_tau_sweep": [
+      0.5,
+      0.6,
+      0.7,
+      0.8,
+      0.9
+    ],
+    "E3_difficulty": {
+      "complex": 0.7,
+      "highly_complex": 0.9,
+      "moderate": 0.5,
+      "simple": 0.2
+    },
+    "E3_theta_default": 0.5,
+    "E3_theta_sweep": [
+      0.3,
+      0.5,
+      0.7
+    ],
+    "E7": {
+      "evaluation_policy": "argmax posterior mean",
+      "kappa": 4,
+      "prior": "Beta(1+4s, 1+4(1-s))",
+      "rounds": 400
+    },
+    "E9_delta_default": 0.1,
+    "E9_delta_sweep": [
+      0.05,
+      0.1,
+      0.2
+    ],
+    "quick_mode": false,
+    "synthetic_generator": {
+      "dev_seeds": "0-199",
+      "inflated_editorial": {
+        "bias_added_to_T1u_cells": 0.2,
+        "share_of_providers": 0.3
+      },
+      "n_candidates": 25,
+      "noise_sigma": {
+        "T1": 0.1,
+        "T1u": 0.15,
+        "T2": 0.04,
+        "T3": 0.02
+      },
+      "objectives": [
+        "quality",
+        "cost",
+        "latency",
+        "reliability",
+        "risk",
+        "preference_alignment"
+      ],
+      "providers": 5,
+      "strict_privacy_share": 0.5,
+      "synthetic_difficulty": "min(1, 2*w_quality) (frozen generator assumption)",
+      "test_seeds": "1000-2999",
+      "tier_probs": {
+        "T0": 0.2,
+        "T1": 0.2,
+        "T1u": 0.3,
+        "T2": 0.2,
+        "T3": 0.1
+      },
+      "truth": "Beta(2,2) per cell",
+      "truth_compliant_prob": 0.6,
+      "weights": "Dirichlet(1,...,1)"
+    },
+    "tie_break": "round(score,12), editorial order, model id",
+    "v2_policy_defaults": {
+      "alpha": 0.7,
+      "cost_range_usd": [
+        1e-05,
+        0.1
+      ],
+      "interval_kind": "policy_interval_not_statistical_confidence_interval",
+      "latency_range_s": [
+        0.2,
+        60.0
+      ],
+      "lower_weight": 1.0,
+      "stale_days": 365,
+      "tiebreak_provider_preference": true,
+      "variant": "maximin",
+      "width_t1": 0.15,
+      "width_t2": 0.05,
+      "width_t2_undated": 0.15,
+      "width_t3": 0.03
+    }
+  },
+  "seeds": {
+    "bootstrap_resamples": 2000,
+    "dev": "0-199",
+    "r0_draws": 1000,
+    "test_main": "1000-2999",
+    "test_other": "1000-1999 unless stated"
+  }
+}

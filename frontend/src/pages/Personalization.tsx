@@ -101,7 +101,7 @@ export function Personalization() {
                     { label: 'User group', value: groupLabel(user.user_group) },
                     { label: 'Priorities', value: user.preferences_customized ? 'Custom weights' : 'Group defaults' },
                   ]} />
-                  <Radar label="Your routing priorities" size={300} axes={OBJECTIVES.map((o) => { const w = user.routing_preferences[o.key]; return { label: o.shortLabel, value: typeof w === 'number' ? w : null, display: typeof w === 'number' ? formatPercent(w, 0) : 'n/a' }; })} />
+                  <Radar label="Your routing priorities" size={300} scaleMax={Math.min(1, Math.ceil(Math.max(0, ...OBJECTIVES.map((o) => { const w = user.routing_preferences[o.key]; return typeof w === 'number' ? w : 0; })) * 10) / 10 + 0.1)} axes={OBJECTIVES.map((o) => { const w = user.routing_preferences[o.key]; return { label: o.shortLabel, value: typeof w === 'number' ? w : null, display: typeof w === 'number' ? formatPercent(w, 0) : 'n/a' }; })} />
                   <div className="dimension-list">
                     {OBJECTIVES.map((objective) => (
                       <PreferenceRow key={objective.key} label={objective.label} description={objective.description} weight={user.routing_preferences[objective.key]} />

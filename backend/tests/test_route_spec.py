@@ -168,11 +168,13 @@ class ScenarioCoverage(unittest.TestCase):
         self.assertEqual(next(e for e in r.exclusions if e.model_id == "unpriced").code, "cost_unverifiable")
 
     def test_unknown_values_stay_unknown_in_scoring(self):                                         # 19-21
-        r = run(Q, [mk("a", inp=None, out=None, q=None), mk("b")])
+        r = run(Q, [mk("a", inp=None, out=None, q=None), mk("b")], weight_overrides={"cost": 10, "quality": 0.5, "latency": 0.5, "reliability": 0.5, "risk": 0.5})
         a = next(c for c in r.candidates if c.model_id == "a")
         self.assertIn("quality", a.missing_dimensions)
         self.assertIsNone(a.utilities["quality"])
+        self.assertIn("cost", a.evidence_gaps)  # the prioritised cost objective cannot be verified for a
         self.assertLess(a.confidence, next(c for c in r.candidates if c.model_id == "b").confidence)
+        self.assertEqual(r.candidates[0].model_id, "b")
 
     def test_missing_capability_metadata_is_not_assumed_supported(self):                           # 21
         r = run(Q, [mk("blank", caps=[], tasks=[]), mk("coder")])
@@ -231,8 +233,9 @@ class ParetoHandlesMissingData(unittest.TestCase):
         self.assertEqual(p.dominated_by, [])           # incomparable with `full`: different known metrics
 
     def test_a_clearly_worse_comparable_model_is_dominated(self):
-        good = mk("good", q=0.9, rel=0.9, risk=0.1)
-        bad = mk("bad", q=0.5, rel=0.5, risk=0.5)
+        from tests.engine_helpers import MEASURED_PROV
+        good = mk("good", q=0.9, rel=0.9, risk=0.1, prov=MEASURED_PROV)
+        bad = mk("bad", q=0.5, rel=0.5, risk=0.5, prov=MEASURED_PROV)
         r = run(Q, [good, bad])
         self.assertEqual(next(c for c in r.candidates if c.model_id == "bad").dominated_by, ["good"])
         self.assertTrue(next(c for c in r.candidates if c.model_id == "good").pareto_optimal)

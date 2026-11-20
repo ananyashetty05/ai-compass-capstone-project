@@ -131,7 +131,13 @@ export interface ModelInfo {
   input_price_per_million?: number | null;
   output_price_per_million?: number | null;
   /* Live-registry fields (`backend/app/schemas/model.py::RegistryEntry`) */
-  catalog_origin?: 'static' | 'live' | 'application';
+  catalog_origin?: 'static' | 'live' | 'application' | 'approved';
+  /* Approved ecosystem (`backend/app/data/approved_ecosystem.py`) */
+  ecosystem_category?: EcosystemCategory | null;
+  secondary_categories?: EcosystemCategory[];
+  product_kind?: string | null;
+  strengths?: string[];
+  ecosystem_approved?: boolean;
   eligibility?: RegistryEligibility | null;
   verification?: { status: 'validated' | 'failed'; error_code: string | null; verified_at: string } | null;
   catalog_last_confirmed_at?: string | null;
@@ -545,6 +551,22 @@ export interface OptimizePromptResponse {
   };
 }
 
+export type EcosystemCategory = 'conversational' | 'image' | 'video' | 'music_voice' | 'document_design' | 'api_models' | 'coding';
+
+/** The ONE category a query is routed into before any product is ranked. */
+export interface EngineCategory {
+  category: EcosystemCategory; label: string; scores: Record<string, number>; signals: string[]; confidence: number;
+  runner_up?: EcosystemCategory | null; runner_up_score: number; ambiguous: boolean; required_subtype?: string | null;
+  features: Array<{ feature: string; accepts: string[] }>; reason: string; method: string;
+}
+
+/** One row of the single ranking that feeds Best Match, Suggested and Candidates. */
+export interface EngineRankingRow {
+  rank: number; model_id: string; model_name: string; provider: string; category: EcosystemCategory | null; role: 'primary' | 'secondary' | null; score: number;
+  fit_breakdown: Record<string, number>; matched_features: string[]; unmet_features: string[]; strengths: string[]; external_url?: string | null;
+  description?: string | null; pricing_category?: PricingCategory | null; entry_type: string; product_kind?: string | null;
+}
+
 /* ---- Route Query Engine 2.0 payload (`RouteResponse.engine`) ---- */
 
 export interface EngineRequirement { kind: string; value: string; origin: 'explicit' | 'inferred'; evidence: string }
@@ -574,6 +596,7 @@ export interface EngineProfile {
     recommends_strict_privacy: boolean; execution_blocked: boolean; execution_block_reason?: string | null;
   };
   confidence: Record<string, number>;
+  category?: EngineCategory | null;
   analysis_method: string;
   notes: string[];
   /** conversational vs developer intent, with the rules that fired */
@@ -582,6 +605,8 @@ export interface EngineProfile {
 
 export interface EngineMetricEvidence {
   dimension: string; raw_value: number | null; unit: string; provenance: string; confidence: number; missing: boolean; note: string;
+  /** ER-PCR evidence tier: measured | documented | estimate | unverified_estimate | unknown. Only the first three may rank candidates. */
+  tier?: string; used_in_ranking?: boolean; freshness?: string; source?: string | null; date?: string | null; sample_size?: number | null;
 }
 
 export interface EngineCandidate {
@@ -591,6 +616,8 @@ export interface EngineCandidate {
   evidence: Record<string, EngineMetricEvidence>;
   missing_dimensions: string[];
   confidence: number; utility: number; robust_score: number; rank: number;
+  /** Best case if every unknown ranking objective were perfect (display only; never ranks). */
+  score_upper?: number; evidence_gaps?: string[];
   pareto_optimal: boolean; dominated_by: string[];
   estimated_cost_usd: number | null;
   learning_adjustment: number; task_fit: number; preferred_provider: boolean; metadata_status: string;
@@ -603,6 +630,16 @@ export interface EngineCandidate {
   access_type?: string | null;
   pricing_category?: PricingCategory | null;
   free_tier_available?: boolean | null;
+  /* Approved-ecosystem comparison; null/empty for legacy rows */
+  ecosystem_category?: EcosystemCategory | null;
+  category_role?: 'primary' | 'secondary' | null;
+  feature_coverage?: number | null;
+  matched_features?: string[];
+  unmet_features?: string[];
+  fit_breakdown?: Record<string, number>;
+  external_url?: string | null;
+  strengths?: string[];
+  editorial_order?: number;
 }
 
 export interface EngineExclusion {
@@ -638,8 +675,19 @@ export interface EngineResult {
   normalization: { cost_basis: string; cost_method: string; latency_basis: string; uncertainty_penalty: number; missing_policy: string; notes: string[] } | null;
   selection: {
     selected_model_id: string | null; runner_up_ids: string[]; status: string; tie_break_applied?: string | null; score_margin?: number | null;
-    weight_stability?: number | null; confidence_level: 'high' | 'medium' | 'low'; confidence_value: number; caveats: string[];
+    weight_stability?: number | null; weight_margin?: number | null; weight_margin_rival?: string | null; confidence_level: 'high' | 'medium' | 'low'; confidence_value: number; caveats: string[];
+    decision_status?: 'recommended' | 'qualified' | 'insufficient_evidence' | 'indistinguishable' | 'needs_clarification' | 'no_eligible_candidates';
+    decision_reason?: string | null; alternative_ids?: string[]; evidence_gaps?: string[]; not_ranked?: { objective: string; tier: string; reason: string }[];
+    /** Selection confidence is derived from the ranking only. Nothing a model answered can change it. */
+    confidence_formula?: string;
+    confidence_components?: { category_confidence?: number; ranking_margin?: number; feature_support?: number; score_margin?: number };
   };
+  /** True for the approved ecosystem: AI Compass recommends and never runs a product. */
+  recommendation_only?: boolean;
+  /** The one ranking behind Best Match, Suggested and Candidates. */
+  ranking?: EngineRankingRow[];
+  best_match_id?: string;
+  suggested_ids?: string[];
   explanation: {
     summary: string; why_selected: string[]; why_alternatives_ranked_lower: Record<string, unknown>[]; hard_constraints_applied: string[];
     influential_objectives: Record<string, unknown>[]; unavailable_data: string[]; tradeoffs: string[]; confidence_statement: string;
@@ -668,8 +716,8 @@ export interface EngineResult {
   provenance?: EngineProvenance;
   confidence_report?: EngineConfidenceReport;
   executable_alternative?: { model_id: string | null; model_name?: string; provider?: string; rank?: number; score_gap_to_best_match?: number | null; statement: string; substituted: boolean } | null;
-  catalogue_summary?: { catalogue_total: number; considered: number; excluded_by_registry: number; eligible: number; excluded_by_constraints: number; scored: number; selected: number; credentials_used_for_comparison: boolean; audience: string; category?: 'conversational' | 'developer_api'; intent_ambiguous?: boolean };
-  scoring_config?: { version: string; uncertainty_penalty: number; missing_policy: string; tie_epsilon: number; weight_perturbation: number } | null;
+  catalogue_summary?: { catalogue_total: number; considered: number; excluded_by_registry: number; eligible: number; excluded_by_constraints: number; scored: number; selected: number; credentials_used_for_comparison: boolean; audience: string; category?: 'conversational' | 'developer_api'; intent_ambiguous?: boolean; pool_source?: string; category_resolved?: EcosystemCategory | null; category_members?: number | null };
+  scoring_config?: { version: string; uncertainty_penalty: number; missing_policy: string; missing_prior?: number; near_tie_margin?: number; safe_weight_shift?: number } | null;
   trace_available?: boolean;
   recorded_at?: string;
 }
@@ -957,11 +1005,15 @@ export interface PoolStats {
   pool_total: number;
   canonical_models: number;
   applications: number;
-  primary: Record<PrimaryCategory, number>;
+  primary: Record<string, number>;
+  /** Approved ecosystem: hard cap, products per category (a product can serve more than one) and its members. */
+  cap?: number;
+  serving?: Record<string, number>;
+  ecosystem?: { categories: Array<{ id: EcosystemCategory; label: string; primary_count: number; serving_count: number; members: Array<{ model_id: string; model_name: string; role: 'primary' | 'secondary' }> }>; secondary_memberships: Array<{ model_id: string; model_name: string; primary: EcosystemCategory; also_serves: EcosystemCategory[] }>; note: string };
   /** Recommendation groups; mutually exclusive, add up to the pool total. */
   categories?: { counts: Record<ModelGroup, number>; pricing: Record<string, number>; access: Record<string, number>; note: string };
-  primary_labels: Record<PrimaryCategory, string>;
-  kinds: Record<PrimaryCategory, Array<{ kind: string; label: string; count: number }>>;
+  primary_labels: Record<string, string>;
+  kinds: Record<string, Array<{ kind: string; label: string; count: number }>>;
   capabilities: { overlapping: boolean; note: string; counts: Record<string, number> };
   classification_basis: Record<string, number>;
   provider_offerings: { count: number; providers: number; note: string };

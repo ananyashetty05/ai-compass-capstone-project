@@ -1,0 +1,210 @@
+{
+ "note": "Before = original V1 code (pre-V2 copy), After = unified algorithm, same queries, same machine. No ground truth: this records what changed, not which answer is right.",
+ "approved_pool_27_queries": {
+  "metrics_before": {
+   "category_accuracy": 1.0,
+   "category_purity": 1.0,
+   "ranking_consistency": 1.0,
+   "credential_independence": 1.0,
+   "determinism": 1.0,
+   "recommendation_only": 1.0
+  },
+  "metrics_after": {
+   "category_accuracy": 1.0,
+   "category_purity": 1.0,
+   "ranking_consistency": 1.0,
+   "credential_independence": 1.0,
+   "determinism": 1.0,
+   "recommendation_only": 1.0
+  },
+  "confidence_before": {
+   "high": 8,
+   "medium": 14,
+   "low": 5
+  },
+  "confidence_after": {
+   "high": 8,
+   "medium": 14,
+   "low": 5
+  },
+  "mean_confidence_before": 0.658,
+  "mean_confidence_after": 0.68,
+  "winners_decided_by_list_order_before": 7,
+  "winners_decided_by_list_order_after": 0,
+  "changed": {
+   "im4": {
+    "before": "Nano Banana",
+    "after": "Nano Banana",
+    "confidence_before": 0.401,
+    "confidence_after": 0.45
+   },
+   "vd1": {
+    "before": "Runway Gen-3",
+    "after": "Gemini Omni / Veo",
+    "confidence_before": 0.65,
+    "confidence_after": 0.658
+   },
+   "vd2": {
+    "before": "Runway Gen-3",
+    "after": "Runway Gen-3",
+    "confidence_before": 0.23,
+    "confidence_after": 0.45
+   },
+   "vd3": {
+    "before": "Runway Gen-3",
+    "after": "Gemini Omni / Veo",
+    "confidence_before": 0.65,
+    "confidence_after": 0.658
+   },
+   "mv2": {
+    "before": "ElevenLabs",
+    "after": "ElevenLabs",
+    "confidence_before": 0.526,
+    "confidence_after": 0.676
+   },
+   "dd4": {
+    "before": "Canva",
+    "after": "Canva",
+    "confidence_before": 0.759,
+    "confidence_after": 0.909
+   }
+  }
+ },
+ "removal_invariance_real_pool": {
+  "trials": 114,
+  "before_violations": 0,
+  "after_violations": 0
+ },
+ "live_catalogue_9_curated_queries": {
+  "q01": {
+   "top_before": [
+    "gpt-4.1-mini"
+   ],
+   "top_after": [
+    "gemini-2.5-flash"
+   ],
+   "tie_before": true,
+   "tie_after": false,
+   "confidence_before": 0.476,
+   "confidence_after": 0.33,
+   "exact_weight_margin_after": 0.0056
+  },
+  "q02": {
+   "top_before": [
+    "gemini-2.5-flash-lite"
+   ],
+   "top_after": [
+    "gemini-2.5-flash-lite"
+   ],
+   "tie_before": false,
+   "tie_after": false,
+   "confidence_before": 0.577,
+   "confidence_after": 0.424,
+   "exact_weight_margin_after": 0.0324
+  },
+  "q03": {
+   "top_before": [
+    "gpt-4.1"
+   ],
+   "top_after": [
+    "gemini-2.5-pro"
+   ],
+   "tie_before": true,
+   "tie_after": false,
+   "confidence_before": 0.603,
+   "confidence_after": 0.535,
+   "exact_weight_margin_after": 0.0729
+  },
+  "q04": {
+   "top_before": [
+    "gemini-2.5-flash-lite"
+   ],
+   "top_after": [
+    "gemini-2.5-flash-lite"
+   ],
+   "tie_before": false,
+   "tie_after": false,
+   "confidence_before": 0.45,
+   "confidence_after": 0.424,
+   "exact_weight_margin_after": 0.0324
+  },
+  "q05": {
+   "top_before": [
+    "gpt-4.1-mini"
+   ],
+   "top_after": [
+    "claude-3-5-haiku-20241022"
+   ],
+   "tie_before": true,
+   "tie_after": false,
+   "confidence_before": 0.606,
+   "confidence_after": 0.371,
+   "exact_weight_margin_after": 0.0194
+  },
+  "q06": {
+   "top_before": [
+    "deepseek-chat"
+   ],
+   "top_after": [
+    "deepseek-chat"
+   ],
+   "tie_before": false,
+   "tie_after": false,
+   "confidence_before": 0.662,
+   "confidence_after": 0.56,
+   "exact_weight_margin_after": 0.0662
+  },
+  "q07": {
+   "top_before": [
+    "gemini-2.5-flash"
+   ],
+   "top_after": [
+    "gemini-2.5-flash"
+   ],
+   "tie_before": false,
+   "tie_after": false,
+   "confidence_before": 0.625,
+   "confidence_after": 0.459,
+   "exact_weight_margin_after": 0.0445
+  },
+  "q08": {
+   "top_before": [
+    "deepseek-chat"
+   ],
+   "top_after": [
+    "deepseek-chat"
+   ],
+   "tie_before": false,
+   "tie_after": false,
+   "confidence_before": 0.66,
+   "confidence_after": 0.65,
+   "exact_weight_margin_after": 0.0968
+  },
+  "q09": {
+   "top_before": [
+    "gpt-4.1-mini"
+   ],
+   "top_after": [
+    "gemini-2.5-flash"
+   ],
+   "tie_before": true,
+   "tie_after": false,
+   "confidence_before": 0.476,
+   "confidence_after": 0.33,
+   "exact_weight_margin_after": 0.0056
+  },
+  "q10": {
+   "top_before": [
+    "gpt-image-1"
+   ],
+   "top_after": [
+    "gpt-image-1"
+   ],
+   "tie_before": false,
+   "tie_after": false,
+   "confidence_before": 0.56,
+   "confidence_after": 0.56,
+   "exact_weight_margin_after": null
+  }
+ }
+}

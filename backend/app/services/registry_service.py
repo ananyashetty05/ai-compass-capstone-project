@@ -155,6 +155,9 @@ def _entry(model: ModelMetadata, origin: str, state: LiveState, evaluate: bool =
 
 
 def build_registry(include_live: bool = True, include_retired: bool = False) -> list[RegistryEntry]:
+    if model_registry.approved_pool_enabled():
+        # Approved ecosystem: the Model Pool lists exactly these entries. Live snapshots and retired generations are not mixed in.
+        return [_approved_entry(m) for m in model_registry.approved_models()]
     state = live_state()
     entries: list[RegistryEntry] = []
     known = set()
@@ -177,6 +180,11 @@ def build_registry(include_live: bool = True, include_retired: bool = False) -> 
             if key not in known:
                 entries.append(_entry(snap, "live", state))
     return entries
+
+
+def _approved_entry(model: ModelMetadata) -> RegistryEntry:
+    data = model.model_dump()
+    return RegistryEntry(**data, catalog_origin="approved", eligibility={"eligible": True, "reasons": [], "warnings": []}, verification=None, catalog_last_confirmed_at=None)
 
 
 def apply_live_registry(models: list[ModelMetadata]) -> tuple[list[ModelMetadata], list[dict]]:

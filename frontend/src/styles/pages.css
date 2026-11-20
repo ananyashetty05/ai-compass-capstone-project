@@ -54,6 +54,7 @@
 .rq-weights-card { padding: var(--space-5); }
 .rq-weights-header { justify-content: space-between; color: var(--color-text-primary); font-weight: var(--weight-semibold); }
 .rq-weights-header > svg { color: var(--color-primary); }
+.rq-weights-header > span { flex: 1 1 auto; }
 .rq-weights-list { display: grid; gap: var(--space-3); margin-top: var(--space-5); }
 .rq-weight-row { display: grid; grid-template-columns: 6rem minmax(0, 1fr) 2.5rem; align-items: center; gap: var(--space-3); font-size: var(--font-size-sm); }
 .rq-sidebar .rq-weights-card { padding: var(--space-4); }

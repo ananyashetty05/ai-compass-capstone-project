@@ -67,6 +67,7 @@
 .mc-metrics > div { min-width: 0; }
 .mc-metrics dt { font-size: var(--font-size-2xs); letter-spacing: .04em; text-transform: uppercase; color: var(--color-text-muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .mc-metrics dd { margin: 2px 0 0; font-size: var(--font-size-sm); font-weight: 600; font-variant-numeric: tabular-nums; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.mc-est { margin-left: 4px; font-size: var(--font-size-2xs); font-weight: 500; letter-spacing: .02em; color: var(--color-text-muted); }
 .mc-caps { display: flex; flex-wrap: nowrap; gap: 6px; align-items: center; overflow: hidden; min-height: 1.5rem; }
 .mc-tag { flex: 0 1 auto; min-width: 0; padding: 1px 8px; border-radius: var(--radius-sm); font-size: var(--font-size-xs); background: var(--color-surface-muted); color: var(--color-text-secondary); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .mc-more, .mc-muted { flex: none; font-size: var(--font-size-xs); color: var(--color-text-muted); }
@@ -104,3 +105,30 @@
   .mp-cats { grid-template-columns: repeat(2, minmax(0, 1fr)); }
   .mp-cat-detail { display: none; }
 }
+
+/* Approved ecosystem overview */
+.ae { display: grid; gap: var(--space-4); padding: var(--space-5); border: 1px solid var(--color-border); border-radius: var(--radius-lg, 14px); background: linear-gradient(180deg, var(--color-primary-subtle), var(--color-surface) 55%); min-width: 0; }
+.ae-head { display: flex; gap: var(--space-4); justify-content: space-between; align-items: flex-start; flex-wrap: wrap; }
+.ae-head h2 { margin: 0; font-size: 1.25rem; }
+.ae-sub { margin: var(--space-1) 0 0; color: var(--color-text-secondary); max-width: 62ch; font-size: 0.875rem; }
+.ae-meter { display: grid; gap: 6px; min-width: 9rem; font-size: 0.8125rem; color: var(--color-text-secondary); }
+.ae-meter i { display: block; height: 6px; border-radius: 6px; background: var(--color-border-subtle); overflow: hidden; }
+.ae-meter u { display: block; height: 100%; background: var(--color-primary); border-radius: 6px; text-decoration: none; animation: ae-grow .8s ease both; transform-origin: left; }
+.ae-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(12.5rem, 1fr)); gap: var(--space-3); }
+.ae-card { display: grid; grid-template-columns: auto 1fr auto; grid-template-areas: 'ico name count' 'note note note' 'mem mem mem'; gap: 4px var(--space-2); align-items: center; text-align: left; padding: var(--space-3); border: 1px solid var(--color-border); border-radius: 12px; background: var(--color-surface); color: inherit; font: inherit; cursor: pointer; animation: ae-in .45s ease both; transition: transform .18s ease, box-shadow .18s ease, border-color .18s ease, background .18s ease; }
+.ae-card:hover { transform: translateY(-2px); box-shadow: var(--shadow-md); border-color: var(--color-primary-border); }
+.ae-card:focus-visible { outline: 2px solid var(--color-primary); outline-offset: 2px; }
+.ae-card[aria-pressed='true'] { border-color: var(--color-primary); background: var(--color-primary-subtle); box-shadow: 0 0 0 1px var(--color-primary) inset; }
+.ae-ico { grid-area: ico; display: grid; place-items: center; width: 30px; height: 30px; border-radius: 8px; background: var(--color-primary-subtle); color: var(--color-primary); }
+.ae-ico svg { width: 16px; height: 16px; }
+.ae-name { grid-area: name; font-weight: 600; min-width: 0; }
+.ae-count { grid-area: count; font-size: 1.375rem; font-weight: 700; font-variant-numeric: tabular-nums; }
+.ae-note { grid-area: note; font-size: 0.75rem; color: var(--color-text-secondary); }
+.ae-members { grid-area: mem; font-size: 0.75rem; color: var(--color-text-muted); overflow-wrap: anywhere; }
+.ae-active { display: flex; gap: var(--space-3); align-items: center; flex-wrap: wrap; margin: 0; font-size: 0.8125rem; color: var(--color-text-secondary); }
+.ae-active button { display: inline-flex; align-items: center; gap: 4px; border: 1px solid var(--color-border); background: var(--color-surface); border-radius: 999px; padding: 2px 10px; cursor: pointer; font: inherit; color: inherit; }
+.ae-active button svg { width: 12px; height: 12px; }
+@keyframes ae-in { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: none; } }
+@keyframes ae-grow { from { transform: scaleX(0); } to { transform: scaleX(1); } }
+@media (max-width: 560px) { .ae { padding: var(--space-4); } .ae-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); } .ae-meter { width: 100%; } }
+@media (prefers-reduced-motion: reduce) { .ae-card, .ae-meter u { animation: none; transition: none; } .ae-card:hover { transform: none; } }

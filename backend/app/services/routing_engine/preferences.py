@@ -47,7 +47,8 @@ def resolve(profile: QueryProfileV2, *, saved_weights: Optional[Dict[str, Any]] 
             max_cost: Optional[float] = None, max_latency: Optional[float] = None, require_capabilities: Optional[List[str]] = None,
             privacy_requirement: Optional[str] = None, model_ids: Optional[List[str]] = None,
             preferred_providers: Optional[List[str]] = None, excluded_providers: Optional[List[str]] = None,
-            excluded_model_ids: Optional[List[str]] = None) -> ResolvedPreferences:
+            excluded_model_ids: Optional[List[str]] = None, max_input_price_per_million: Optional[float] = None,
+            max_output_price_per_million: Optional[float] = None) -> ResolvedPreferences:
     defaults_applied: List[str] = []
     warnings: List[str] = []
     if weight_overrides:
@@ -129,6 +130,10 @@ def resolve(profile: QueryProfileV2, *, saved_weights: Optional[Dict[str, Any]] 
         hard.append(HardConstraint(kind="execution_blocked", value=profile.risk.execution_block_reason, source="application"))
     if max_cost is not None:
         hard.append(HardConstraint(kind="max_cost_usd_per_request", value=max_cost, source="request"))
+    if max_input_price_per_million is not None:
+        hard.append(HardConstraint(kind="max_input_price_per_million", value=max_input_price_per_million, source="request"))
+    if max_output_price_per_million is not None:
+        hard.append(HardConstraint(kind="max_output_price_per_million", value=max_output_price_per_million, source="request"))
     if max_latency is not None:
         hard.append(HardConstraint(kind="max_latency_seconds", value=max_latency, source="request"))
     if require_capabilities:

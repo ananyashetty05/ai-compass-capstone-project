@@ -1,7 +1,7 @@
 """Filtering, scoring, selection and decision-scenario tests (deterministic)."""
 import unittest
 
-from tests.engine_helpers import mk, prefs, profile
+from tests.engine_helpers import MEASURED_PROV, mk, prefs, profile
 from app.services.routing_engine import filtering, scoring
 from app.services.routing_engine.observed import ObservedStats, wilson_lower_bound
 from app.services.routing_engine.preferences import DEFAULT_WEIGHTS, normalize_weights
@@ -86,6 +86,18 @@ class FilteringTests(unittest.TestCase):
 
 
 class ScoringTests(unittest.TestCase):
+    def test_editorial_quality_rating_does_not_rank(self):
+        """ER-PCR: a hand-set quality estimate is displayed and labelled but never decides the order, even when the user asks for quality."""
+        models = [mk("hi", q=0.99), mk("lo", q=0.10)]
+        sel, rows, _, _ = rank(models, weight_overrides={"quality": 10, "cost": 0.5, "latency": 0.5, "reliability": 0.5, "risk": 0.5})
+        by = {r.model_id: r for r in rows}
+        self.assertIsNone(by["hi"].utilities["quality"])
+        self.assertFalse(by["hi"].evidence["quality"].used_in_ranking)
+        self.assertEqual(by["hi"].evidence["quality"].tier, "unverified_estimate")
+        self.assertEqual(by["hi"].robust_score, by["lo"].robust_score)
+        self.assertIn("quality", by["hi"].evidence_gaps)
+        self.assertIn(sel.decision_status, {"insufficient_evidence", "indistinguishable"})
+
     def test_utilities_bounded_and_reproducible(self):
         models = [mk("a", q=0.9, inp=5, out=15), mk("b", q=0.6, inp=0.2, out=0.6), mk("c", q=0.75, inp=1, out=3)]
         s1, r1, _, _ = rank(models)
@@ -97,11 +109,12 @@ class ScoringTests(unittest.TestCase):
                 self.assertTrue(u is None or 0.0 <= u <= 1.0)
 
     def test_missing_data_is_not_zero_or_best(self):
-        full = mk("full", q=0.7)
-        gap = mk("gap", q=None, rel=None)
-        _, rows, _, _ = rank([full, gap])
+        full = mk("full", q=0.7, prov=MEASURED_PROV)
+        gap = mk("gap", q=None, rel=None, prov=MEASURED_PROV)
+        _, rows, _, _ = rank([full, gap], weight_overrides={"quality": 10, "cost": 0.5, "latency": 0.5, "reliability": 0.5, "risk": 0.5})
         g = next(r for r in rows if r.model_id == "gap")
         self.assertIn("quality", g.missing_dimensions)
+        self.assertIn("quality", g.evidence_gaps)
         self.assertLess(g.confidence, next(r for r in rows if r.model_id == "full").confidence)
         self.assertEqual(rows[0].model_id, "full")
 
@@ -116,7 +129,7 @@ class ScoringTests(unittest.TestCase):
         self.assertEqual(sel.selected_model_id, "cheap")
 
     def test_quality_preference_picks_strong(self):
-        models = [mk("strong", q=0.95, inp=15, out=60, cost=0.9), mk("cheap", q=0.6, inp=0.1, out=0.4, cost=0.05)]
+        models = [mk("strong", q=0.95, inp=15, out=60, cost=0.9, prov=MEASURED_PROV), mk("cheap", q=0.6, inp=0.1, out=0.4, cost=0.05, prov=MEASURED_PROV)]
         sel, *_ = rank(models, weight_overrides={"quality": 10, "cost": 0.5, "latency": 0.5, "reliability": 1, "risk": 1, "preference_alignment": 1})
         self.assertEqual(sel.selected_model_id, "strong")
 
@@ -126,7 +139,7 @@ class ScoringTests(unittest.TestCase):
         self.assertEqual(sel.selected_model_id, "fast")
 
     def test_preferences_change_ranking(self):
-        models = [mk("strong", q=0.95, inp=15, out=60, cost=0.9), mk("cheap", q=0.65, inp=0.1, out=0.4, cost=0.05)]
+        models = [mk("strong", q=0.95, inp=15, out=60, cost=0.9, prov=MEASURED_PROV), mk("cheap", q=0.65, inp=0.1, out=0.4, cost=0.05, prov=MEASURED_PROV)]
         a, *_ = rank(models, weight_overrides={"quality": 10, "cost": 0.5, "latency": 0.5, "reliability": 1, "risk": 1, "preference_alignment": 1})
         b, *_ = rank(models, weight_overrides={"cost": 10, "quality": 0.5, "latency": 0.5, "reliability": 1, "risk": 1, "preference_alignment": 1})
         self.assertNotEqual(a.selected_model_id, b.selected_model_id)
@@ -189,8 +202,11 @@ class ScoringTests(unittest.TestCase):
         obs = {"a": ObservedStats(model_id="a", samples=50, successes=50, latencies=[1.0] * 50), "b": ObservedStats(model_id="b", samples=2, successes=2, latencies=[1.0, 1.0])}
         _, rows, _, _ = rank([mk("a", rel=0.5), mk("b", rel=0.5)], observed=obs)
         by = {r.model_id: r for r in rows}
-        self.assertGreater(by["a"].utilities["reliability"], by["b"].utilities["reliability"])
-        self.assertEqual(by["b"].evidence["reliability"].provenance, "estimated")
+        self.assertIsNotNone(by["a"].utilities["reliability"])
+        self.assertIsNone(by["b"].utilities["reliability"])  # 2 observations are not evidence
+        self.assertEqual(by["a"].evidence["reliability"].tier, "measured")
+        self.assertEqual(by["b"].evidence["reliability"].tier, "unverified_estimate")
+        self.assertFalse(by["b"].evidence["reliability"].used_in_ranking)
 
     def test_learning_adjustment_is_bounded(self):
         _, rows, _, _ = rank([mk("a")], learning={"a": 5.0})
@@ -204,7 +220,10 @@ class ScoringTests(unittest.TestCase):
         self.assertLessEqual(by["unk"].utilities["risk"], by["restricted"].utilities["risk"])
 
     def test_scoring_config_exposed(self):
-        self.assertEqual(ScoringConfig().missing_policy, "pessimistic")
+        cfg = ScoringConfig()
+        self.assertEqual(cfg.missing_policy, "credit_evidenced_only")
+        self.assertFalse(hasattr(cfg, "missing_prior"))
+        self.assertFalse(hasattr(cfg, "tie_epsilon"))
 
 
 if __name__ == "__main__":

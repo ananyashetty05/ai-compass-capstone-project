@@ -26,6 +26,7 @@ import { EmptyState, ErrorState } from '../components/ui/EmptyState';
 import { Segmented, SkeletonMetrics, SkeletonTable } from '../components/ui/Skeleton';
 import { useAsync } from '../hooks/useAsync';
 import { EcosystemMap } from '../components/registry/EcosystemMap';
+import { ApprovedEcosystem, type EcoFilter } from '../components/registry/ApprovedEcosystem';
 import { useDocumentTitle } from '../hooks/useDocumentTitle';
 import { getPoolStats, getRegistryStatus, listModels } from '../services/models.service';
 import {
@@ -111,7 +112,9 @@ const SOURCE_LABELS: Record<string, string> = {
 
 function providerLabel(provider: string): string {
   const known = PROVIDER_LABELS[provider.toLowerCase()];
-  return known ?? humanizeToken(provider);
+  if (known) return known;
+  // A catalogue display name ("DeepSeek", "xAI", "Perplexity AI") must not be re-cased; only machine ids ("together_ai") are humanised.
+  return /[\sA-Z]/.test(provider) ? provider : humanizeToken(provider);
 }
 
 function entryTypeLabel(type: string): string {
@@ -139,6 +142,7 @@ export function ModelPool() {
   const [availability, setAvailability] = useState<string>('all');
   const [lifecycle, setLifecycle] = useState<string>('all');
   const [useCat, setUseCat] = useState<UseCategory>('all');
+  const [ecoCat, setEcoCat] = useState<EcoFilter>('all');
   const [pricingFilter, setPricingFilter] = useState<PricingFilter>('all');
   const [accessFilter, setAccessFilter] = useState<AccessFilter>('all');
   const [contextFilter, setContextFilter] = useState<ContextFilter>('all');
@@ -178,6 +182,7 @@ export function ModelPool() {
   const filtered = useMemo(() => {
     const needle = query.trim().toLowerCase();
     const rows = (models.data ?? []).filter((model) => {
+      if (ecoCat !== 'all' && model.ecosystem_category !== ecoCat && !(model.secondary_categories ?? []).includes(ecoCat)) return false;
       if (useCat !== 'all' && (model.model_category ?? 'unclassified') !== useCat) return false;
       if (pricingFilter !== 'all' && (model.pricing_category ?? 'unknown') !== pricingFilter) return false;
       if (accessFilter !== 'all' && (model.access_type ?? 'unknown') !== accessFilter) return false;
@@ -225,7 +230,7 @@ export function ModelPool() {
     };
     const compare = by[sortKey];
     return compare ? rows.slice().sort(compare) : rows;
-  }, [accessFilter, availability, capability, contextFilter, freeFilter, kind, lifecycle, models.data, pricingFilter, provider, query, status, sortKey, useCat, weightsFilter]);
+  }, [accessFilter, availability, capability, contextFilter, freeFilter, kind, lifecycle, models.data, pricingFilter, provider, query, status, sortKey, useCat, ecoCat, weightsFilter]);
 
   // Page size resets whenever the result set changes; the visible slice never hides records (the count always shows the full total).
   useEffect(() => { setLimit(PAGE_SIZE); }, [filtered]);
@@ -240,6 +245,9 @@ export function ModelPool() {
     return out;
   }, [models.data]);
   const groups = stats?.categories?.counts ?? fallbackCounts;
+  const approvedMode = !!stats?.ecosystem || (models.data ?? []).some((m) => !!m.ecosystem_category);
+  const ecoLabels = useMemo(() => Object.fromEntries((stats?.ecosystem?.categories ?? []).map((c) => [c.id, c.label])), [stats]);
+  const ecoMapModels = useMemo(() => (models.data ?? []).map((m) => ({ ...m, provider: m.ecosystem_category ?? m.provider })), [models.data]);
   const mismatch = stats !== null && stats.pool_total !== total;
   const kindOptions = useMemo(() => {
     if (useCat === 'all') return [];
@@ -249,10 +257,10 @@ export function ModelPool() {
   }, [models.data, useCat]);
 
   const advancedActive = [status !== 'all', availability !== 'all', lifecycle !== 'all', capability !== 'all', freeFilter !== 'all', weightsFilter !== 'all', pricingFilter !== 'all', accessFilter !== 'all', contextFilter !== 'all'].filter(Boolean).length;
-  const filtersActive = query.trim().length > 0 || provider !== 'all' || useCat !== 'all' || kind !== 'all' || advancedActive > 0;
+  const filtersActive = ecoCat !== 'all' || query.trim().length > 0 || provider !== 'all' || useCat !== 'all' || kind !== 'all' || advancedActive > 0;
 
   const clearFilters = useCallback(() => {
-    setQuery(''); setStatus('all'); setProvider('all'); setAvailability('all'); setLifecycle('all'); setUseCat('all'); setKind('all');
+    setQuery(''); setStatus('all'); setProvider('all'); setAvailability('all'); setLifecycle('all'); setUseCat('all'); setEcoCat('all'); setKind('all');
     setFreeFilter('all'); setWeightsFilter('all'); setCapability('all'); setPricingFilter('all'); setAccessFilter('all'); setContextFilter('all');
   }, []);
 
@@ -398,7 +406,7 @@ export function ModelPool() {
       <PageHeader
         eyebrow="Registry"
         title="Model registry"
-        description="Two recommendation groups: Conversational AI Models for assistants you talk to, and Developer & API Models for building with AI. Each entry is in exactly one group; capabilities overlap and are filtered separately."
+        description={approvedMode ? 'The approved ecosystem AI Compass recommends from, grouped into seven categories. Recommendation only: every entry opens at its own site.' : 'Two recommendation groups: Conversational AI Models for assistants you talk to, and Developer & API Models for building with AI. Each entry is in exactly one group; capabilities overlap and are filtered separately.'}
         actions={(
           <div className="row row-wrap">
             {compareIds.length > 0 && (
@@ -420,6 +428,7 @@ export function ModelPool() {
         <ErrorState title="The model registry could not be loaded" message={models.error.message} hint={models.error.hint} onRetry={models.reload} />
       ) : (
         <div className="page-body registry-page-body mp">
+          {approvedMode && stats?.ecosystem ? <ApprovedEcosystem stats={stats} selected={ecoCat} onSelect={setEcoCat} /> : (
           <section className="mp-overview" aria-labelledby="mp-overview-title">
             <h2 id="mp-overview-title" className="sr-only">Catalogue overview</h2>
             <KpiRow
@@ -473,12 +482,15 @@ export function ModelPool() {
               </div>
             ) : null}
           </section>
+          )}
 
-          <EcosystemMap models={models.data ?? []} selected={provider} onSelect={setProvider} labelOf={providerLabel} />
+          {!approvedMode && poolStats.isLoading ? null : approvedMode
+            ? <EcosystemMap models={ecoMapModels} selected={ecoCat} onSelect={(id) => setEcoCat(id as EcoFilter)} labelOf={(id) => ecoLabels[id] ?? humanizeToken(id)} title="Categories feeding the router" unit="categories" />
+            : <EcosystemMap models={models.data ?? []} selected={provider} onSelect={setProvider} labelOf={providerLabel} />}
 
           <div className="table-surface">
             <div className="mp-toolbar">
-              <TextInput className="toolbar-search" label="Search" hideLabel type="search" placeholder="Search name, id, developer, provider or capability" value={query} onChange={(event) => setQuery(event.target.value)} leadingIcon={<Search />} />
+              <TextInput className="toolbar-search" label="Search" hideLabel type="search" placeholder="Search models, developers, capabilities" value={query} onChange={(event) => setQuery(event.target.value)} leadingIcon={<Search />} />
               <label className="mp-field">
                 <span>Provider</span>
                 <select className="registry-filter-select" aria-label="Filter by provider" value={provider} onChange={(event) => setProvider(event.target.value)}>
@@ -615,6 +627,8 @@ export function ModelPool() {
             )}
           </div>
 
+          {approvedMode ? null : (
+            <>
           <section className="cx-overview" aria-label="Catalogue distribution">
             {catalogueSummary ? (
               <div className="cx-grid cx-grid--2">
@@ -631,6 +645,8 @@ export function ModelPool() {
             onChanged={() => { registryStatus.reload(); models.reload(); poolStats.reload(); setCatalogRefresh((value) => value + 1); }}
           />
           <LiveCatalogBrowser refreshKey={catalogRefresh} onInspect={setSelected} />
+            </>
+          )}
 
           <p className="inline-note">
             Filters apply to this list only and never change routing, which is driven by the live registry at query time. Cost, latency and quality are registry metadata

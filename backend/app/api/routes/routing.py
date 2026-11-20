@@ -90,9 +90,10 @@ def _build_response(req: QueryRequest, user, res: "pipeline.PipelineResult", rou
     ex = res.execution
     final_id = ex.final_model_id or top.model_id
     final_model = by_model.get(final_id, selected)
+    eco = top.ecosystem_category is not None
     legacy_scores = []
     for r in rows:
-        u = {k: (v if v is not None else 0.0) for k, v in r.utilities.items()}
+        u = {k: (v if (v is not None or eco) else 0.0) for k, v in r.utilities.items()}
         legacy_scores.append({
             "model_id": r.model_id, "quality_score": r.utilities.get("quality"), "cost_score": u["cost"], "latency_score": u["latency"], "reliability_score": u["reliability"],
             "risk_score": u["risk"], "preference_alignment": u["preference_alignment"], "overall_score": round(r.robust_score, 4),
@@ -105,9 +106,15 @@ def _build_response(req: QueryRequest, user, res: "pipeline.PipelineResult", rou
         alternatives.append({"model_id": r.model_id, "model_name": m.model_name, "provider": m.provider, "overall_score": s["overall_score"], "quality_score": s["quality_score"],
                              "cost_score": s["cost_score"], "latency_score": s["latency_score"], "reliability_score": s["reliability_score"], "risk_score": s["risk_score"],
                              "score_breakdown": s["score_breakdown"], "description": m.description, "modality": m.modality})
-    tools = [{"model_id": t.model_id, "model_name": t.model_name, "provider": t.provider, "modality": t.modality, "entry_type": t.entry_type, "description": t.description,
-              "external_url": t.external_url, "requires_key": t.requires_key, "capabilities": t.capabilities}
-             for t in get_tool_recommendations(res.profile.task_type, res.profile.domain)[:3]]
+    if eco:
+        # ONE ranking feeds Best Match, Suggested and Candidates. "Suggested" is ranks 2-4 of the same ranking; nothing is recomputed.
+        tools = [{"model_id": r.model_id, "model_name": r.model_name, "provider": r.provider, "modality": by_model[r.model_id].modality, "entry_type": r.entry_type,
+                  "description": by_model[r.model_id].description, "external_url": r.external_url, "requires_key": False, "capabilities": by_model[r.model_id].capabilities,
+                  "rank": r.rank} for r in rows[1:4]]
+    else:
+        tools = [{"model_id": t.model_id, "model_name": t.model_name, "provider": t.provider, "modality": t.modality, "entry_type": t.entry_type, "description": t.description,
+                  "external_url": t.external_url, "requires_key": t.requires_key, "capabilities": t.capabilities}
+                 for t in get_tool_recommendations(res.profile.task_type, res.profile.domain)[:3]]
     exp = res.explanation
     routing_explanation = {
         "routing_system": {"name": "AI Compass", "type": "adaptive_llm_router"}, "selected_model": top.model_id, "selected_model_name": selected.model_name,
@@ -126,6 +133,8 @@ def _build_response(req: QueryRequest, user, res: "pipeline.PipelineResult", rou
         generated = ex.blocked_reason or "No response was produced."
     ev = res.evaluation
     hs = ev.heuristic_scores
+    if eco:
+        generated = "Recommendation ready. AI Compass recommends products; it does not run them and generates no answer."
     if ev.status == "completed":
         response_eval = {"quality_score": hs.get("heuristic_quality", 0.0), "relevance_score": hs.get("relevance", 0.0), "completeness_score": hs.get("completeness", 0.0), "risk_score": 0.0,
                          "accepted": bool(ev.accepted), "evaluation_reasons": [f"{c.name}: {'pass' if c.passed else 'fail'} — {c.detail}" for c in ev.checks], "evaluation_method": ev.method}
@@ -135,9 +144,23 @@ def _build_response(req: QueryRequest, user, res: "pipeline.PipelineResult", rou
     escalation = {"escalated": ex.escalated, "escalation_trigger": ex.escalation_reason, "original_model_id": top.model_id if ex.escalated else None,
                   "fallback_model_id": final_id if ex.escalated else None, "escalation_reason": ex.escalation_reason, "attempts": len(ex.attempts),
                   "final_status": "recommendation_ready" if ex.status == "not_requested" else ex.status}
+    if eco:
+        escalation["final_status"] = "recommendation_ready"
+        escalation["escalation_reason"] = None
+        response_eval["evaluation_method"] = "not_applicable_recommendation_only"
+        response_eval["evaluation_reasons"] = ["Recommendation-only: no product was run, so there is no response to evaluate or escalate from. "
+                                               "Confidence describes the ranking and is shown on the recommendation."]
     usage = [{"model_id": a.model_id, "latency_ms": a.latency_ms, "estimated_cost": a.cost_usd, "input_tokens": a.input_tokens, "output_tokens": a.output_tokens,
               "total_tokens": (a.input_tokens or 0) + (a.output_tokens or 0) if a.input_tokens is not None else None} for a in ex.attempts if a.outcome == "success"]
     engine = res.model_dump()
+    if eco:
+        engine["recommendation_only"] = True
+        engine["ranking"] = [{"rank": r.rank, "model_id": r.model_id, "model_name": r.model_name, "provider": r.provider, "category": r.ecosystem_category, "role": r.category_role,
+                              "score": round(r.robust_score, 4), "fit_breakdown": r.fit_breakdown, "matched_features": r.matched_features, "unmet_features": r.unmet_features,
+                              "strengths": r.strengths, "external_url": r.external_url, "description": by_model[r.model_id].description, "pricing_category": r.pricing_category,
+                              "entry_type": r.entry_type, "product_kind": by_model[r.model_id].product_kind} for r in rows]
+        engine["best_match_id"] = top.model_id
+        engine["suggested_ids"] = [r.model_id for r in rows[1:4]]
     engine["profile"]["original_query"] = ""  # the query is already returned as `query`; do not duplicate it in the engine payload
     engine["optimization"]["original_prompt"] = ""
     # Wire size: a listed model with no objective data has nothing to compare, so it is sent as a compact entry instead of a full

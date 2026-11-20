@@ -6,14 +6,14 @@
  * actually ran. Unknown values stay unknown; stages that did not run say so and why.
  */
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { AlertTriangle, ArrowRight, Check, ChevronDown, Gauge, Info, Layers, ListChecks, Loader2, Minus, Scale, ShieldCheck, Tag, X } from 'lucide-react';
+import { AlertTriangle, Check, ChevronDown, ExternalLink, Gauge, Info, Layers, Loader2, Minus, Scale, Tag, X } from 'lucide-react';
 import { useRouteResult } from '../../context/routeResultContext';
 import { fetchRoutingHistory } from '../../services/history.service';
 import { getDecisionTrace } from '../../services/trace.service';
 import { describeError } from '../../services/http';
-import { formatDuration, formatPercent, formatUsd, humanizeToken } from '../../utils/format';
+import { formatPercent, humanizeToken } from '../../utils/format';
 import type { EngineCandidate, EngineResult, RoutingHistoryEntry } from '../../types';
-import { DIMS, DIM_LABEL, buildFlow, buildReport, decisiveFactor, fmtMs, groupRejections, provenanceLabel, selectedCandidate, tieNote, whyHeadline } from './traceModel';
+import { DIMS, DIM_LABEL, buildFlow, buildReport, fmtMs, groupRejections, provenanceLabel, selectedCandidate, tieNote, whyHeadline } from './traceModel';
 import type { Dim, FlowNode, StepState } from './traceModel';
 
 const STATE_TEXT: Record<StepState, string> = { done: 'Completed', skipped: 'Not run', failed: 'Failed', warn: 'Needs attention', idle: 'Not recorded' };
@@ -98,14 +98,9 @@ function Meter({ value, tone = 'primary' }: { value: number; tone?: 'primary' | 
   return <span className="xai-meter" data-tone={tone} role="img" aria-label={`${Math.round(pct)}%`}><i style={{ width: `${pct}%` }} /></span>;
 }
 
-function Legend({ small }: { small?: boolean }) {
-  return <ul className="xai-legend" data-small={small || undefined} aria-label="Objectives">{DIMS.map((d) => <li key={d}><i data-dim={d} />{DIM_LABEL[d]}</li>)}</ul>;
-}
-
-type Panel = 'why' | 'models' | 'quality' | 'evidence';
+type Panel = 'why' | 'models' | 'evidence';
 const PANELS: { id: Panel; label: string }[] = [
-  { id: 'why', label: 'Why this model' }, { id: 'models', label: 'Candidates & scoring' },
-  { id: 'quality', label: 'Quality & escalation' }, { id: 'evidence', label: 'Evidence & report' },
+  { id: 'why', label: 'Why this match' }, { id: 'models', label: 'Candidates & scoring' }, { id: 'evidence', label: 'Evidence & report' },
 ];
 
 function TraceBody({ e, query }: { e: EngineResult; query?: string }) {
@@ -126,7 +121,6 @@ function TraceBody({ e, query }: { e: EngineResult; query?: string }) {
       <div id="xai-panel" role="tabpanel" aria-labelledby={`xai-tab-${panel}`} className="xai-panel" key={panel}>
         {panel === 'why' ? <WhySection e={e} /> : null}
         {panel === 'models' ? <><FunnelSection e={e} /><RankingSection e={e} /></> : null}
-        {panel === 'quality' ? <ExecutionSection e={e} /> : null}
         {panel === 'evidence' ? <><EvidenceSection e={e} /><ReportSection e={e} /></> : null}
       </div>
     </div>
@@ -136,30 +130,27 @@ function TraceBody({ e, query }: { e: EngineResult; query?: string }) {
 /* ── Outcome ──────────────────────────────────────────────────────────────── */
 function Hero({ e, query }: { e: EngineResult; query?: string }) {
   const top = selectedCandidate(e);
-  const factor = decisiveFactor(e);
   const headline = useMemo(() => whyHeadline(e), [e]);
   const tie = useMemo(() => tieNote(e), [e]);
-  const executed = e.execution.status !== 'not_requested';
-  const act = e.evaluation.decision?.action;
-  const tone = !executed ? 'route' : act === 'accept' ? 'ok' : act === 'verify' ? 'warn' : act === 'escalate' ? 'bad' : 'route';
-  const status = !executed ? 'Recommendation' : act === 'accept' ? 'Accepted' : act === 'verify' ? 'Needs verification' : act === 'escalate' ? 'Escalated' : 'Executed';
+  const cat = e.profile.category;
   const rows = top ? [top, ...e.candidates.filter((c) => c.model_id !== top.model_id).slice(0, 2)] : [];
+  const conf = e.selection.confidence_value;
   const kpis: { icon: React.ReactNode; k: string; v: string; s: string }[] = [
-    { icon: <Gauge />, k: 'Confidence', v: humanizeToken(e.selection.confidence_level), s: 'uncalibrated estimate' },
-    { icon: <Scale />, k: 'Decisive factor', v: factor ? DIM_LABEL[factor.dim] : '—', s: factor ? `${formatPercent(factor.share, 0)} of the score` : 'unavailable' },
-    { icon: <Layers />, k: 'Candidates', v: String(e.candidates.length), s: `${e.exclusions.length} removed by constraints` },
+    { icon: <Gauge />, k: 'Confidence', v: `${humanizeToken(e.selection.confidence_level)} · ${conf.toFixed(2)}`, s: 'from the ranking, not an answer' },
+    { icon: <Scale />, k: 'Category', v: cat ? cat.label : '—', s: cat ? `rule confidence ${cat.confidence.toFixed(2)}` : 'not recorded' },
+    { icon: <Layers />, k: 'Compared', v: String(e.candidates.length), s: `${e.exclusions.length} outside the category or constraints` },
     { icon: <Tag />, k: 'Scoring version', v: `v${e.scoring_version}`, s: `engine ${e.version}` },
   ];
   return (
-    <section className="xh" data-tone={tone} aria-label="Decision summary">
+    <section className="xh" data-tone="route" aria-label="Decision summary">
       <div className="xh-grid">
         <div className="xh-main">
           <div className="xh-chips">
-            <span className="xai-chip" data-tone={tone}>{status}</span>
-            {executed && e.execution.escalated && e.execution.final_model_name ? <span className="xai-chip" data-tone="warn">Answered by {e.execution.final_model_name} after escalation</span> : null}
-            {e.access ? <span className="xai-chip" data-tone={e.access.execution_available ? 'ok' : 'neutral'}>{e.access.execution_available ? 'Execution ready' : `Execution: ${humanizeToken(e.access.status ?? 'unknown').toLowerCase()}`}</span> : null}
+            <span className="xai-chip" data-tone="route">Recommendation</span>
+            {cat ? <span className="xai-chip" data-tone="neutral">{cat.label}</span> : null}
+            {e.recommendation_only ? <span className="xai-chip" data-tone="neutral">Nothing was run</span> : null}
           </div>
-          <h3 className="xh-title">{top ? top.model_name : 'No model selected'}{top ? <span>{top.provider}</span> : null}</h3>
+          <h3 className="xh-title">{top ? top.model_name : 'No product selected'}{top ? <span>{top.provider}</span> : null}</h3>
           {headline ? <p className="xh-why">{headline}</p> : <p className="xh-why">{e.explanation.summary}</p>}
           {tie ? <p className="xh-tie"><Info aria-hidden="true" />{tie}</p> : null}
           {query ? <blockquote className="xh-query"><small>Query</small>{query.length > 160 ? `${query.slice(0, 160)}…` : query}</blockquote> : null}
@@ -172,12 +163,12 @@ function Hero({ e, query }: { e: EngineResult; query?: string }) {
       </div>
       {rows.length ? (
         <div className="xh-compare">
-          <div className="xh-compare-head"><h4>How it compares</h4><Legend small /></div>
+          <div className="xh-compare-head"><h4>How it compares</h4><span className="xh-compare-note">Fit score inside {cat ? cat.label : 'the category'}</span></div>
           <ul>
             {rows.map((c, i) => (
               <li key={c.model_id} data-sel={i === 0}>
-                <span className="xh-rowname"><b>{c.model_name}</b><small>{i === 0 ? 'Selected' : `Rank ${c.rank}`}</small></span>
-                <span className="xh-track"><ContributionBar c={c} scale={top && top.robust_score > 0 ? Math.min(1, c.robust_score / Math.max(...rows.map((r) => r.robust_score))) : undefined} /></span>
+                <span className="xh-rowname"><b>{c.model_name}</b><small>{i === 0 ? 'Best Match' : `Rank ${c.rank}`}</small></span>
+                <span className="xh-track"><Meter value={top && top.robust_score > 0 ? Math.min(1, c.robust_score / top.robust_score) : 0} tone={i === 0 ? 'ok' : 'primary'} /></span>
                 <span className="xh-rowscore">{fmt(c.robust_score)}</span>
               </li>
             ))}
@@ -194,38 +185,21 @@ function StateIcon({ state, n }: { state: StepState; n: number }) {
 }
 
 function FlowSection({ e, flow, node, onNode }: { e: EngineResult; flow: FlowNode[]; node: string; onNode: (id: string) => void }) {
-  const cur = flow.find((n) => n.id === node) ?? flow[0];
-  const lanes: { id: 'route' | 'respond'; label: string; hint: string }[] = [
-    { id: 'route', label: 'Routing', hint: 'Choosing the model' },
-    { id: 'respond', label: 'Response', hint: 'Generating and checking the answer' },
-  ];
+  const cur = flow.find((n) => n.id === node) ?? flow[flow.length - 1];
   return (
-    <Card id="xai-flow-title" title="Query to answer" sub="The path this query actually took. Dashed stages did not run. Select a stage for its recorded detail."
+    <Card id="xai-flow-title" title="Query to recommendation" sub="The path this query took to reach its Best Match. Select a stage for its recorded detail."
       right={<ul className="xf-key" aria-label="Stage states"><li data-state="done">Completed</li><li data-state="warn">Needs attention</li><li data-state="skipped">Not run</li></ul>}>
-      <div className="xf">
-        {lanes.map((lane) => {
-          const items = flow.filter((n) => n.lane === lane.id);
-          return (
-            <div className="xf-lane" key={lane.id}>
-              <div className="xf-lane-head"><b>{lane.label}</b><span>{lane.hint}</span></div>
-              <ol className="xf-steps">
-                {items.map((n, i) => (
-                  <li key={n.id} data-state={n.state}>
-                    <button type="button" className="xf-node" data-state={n.state} aria-pressed={n.id === cur.id} onClick={() => onNode(n.id)}>
-                      <StateIcon state={n.state} n={(lane.id === 'respond' ? 6 : 0) + i + 1} />
-                      <span className="xf-t">{n.label}</span>
-                      <span className="xf-s">
-                        {n.id === 'decision' ? (n.action ? <i className="xf-act" data-a={n.action}>{n.action}</i> : 'No decision') : STATE_TEXT[n.state]}
-                        {n.ms !== undefined && n.state === 'done' ? <em>{fmtMs(n.ms)}</em> : null}
-                      </span>
-                    </button>
-                  </li>
-                ))}
-              </ol>
-            </div>
-          );
-        })}
-      </div>
+      <ol className="xf-steps" aria-label="Recommendation pipeline">
+        {flow.map((n, i) => (
+          <li key={n.id} data-state={n.state} style={{ ['--i' as string]: i }}>
+            <button type="button" className="xf-node" data-state={n.state} aria-pressed={n.id === cur.id} onClick={() => onNode(n.id)}>
+              <StateIcon state={n.state} n={i + 1} />
+              <span className="xf-t">{n.label}</span>
+              <span className="xf-s">{STATE_TEXT[n.state]}{n.ms !== undefined && n.state === 'done' ? <em>{fmtMs(n.ms)}</em> : null}</span>
+            </button>
+          </li>
+        ))}
+      </ol>
       <div className="xd" role="region" aria-live="polite" aria-label={`${cur.label} details`} key={cur.id}>
         <div className="xd-head">
           <StateIcon state={cur.state} n={0} />
@@ -260,6 +234,23 @@ function NodeDetail({ e, id }: { e: EngineResult; id: string }) {
         ...(p.audience?.signals.length ? [['Audience rules fired', p.audience.signals.map(humanizeToken).join(', '), true] as Tile] : []),
         ['Method', `${humanizeToken(p.analysis_method)} · deterministic rules, no model call`, true],
       ]} />;
+    case 'category': {
+      const c = p.category;
+      if (!c) return <p className="xai-muted">This decision was recorded before category routing existed.</p>;
+      const ranked = Object.entries(c.scores).sort((a, b) => b[1] - a[1]).filter(([, v]) => v > 0).slice(0, 4);
+      return (
+        <>
+          <Tiles rows={[
+            ['Resolved category', c.label], ['Rule confidence', c.confidence.toFixed(2)],
+            ['Rules that fired', c.signals.map(humanizeToken).join(', ') || 'None, so the general Conversational AI category is used', true],
+            ['Runner-up category', c.runner_up ? `${humanizeToken(c.runner_up)} (${c.runner_up_score.toFixed(1)})` : 'None'],
+            ['Required sub-type', c.required_subtype ? humanizeToken(c.required_subtype) : 'None'],
+            ['Features asked for', c.features.map((f) => humanizeToken(f.feature)).join(', ') || 'None. Products are separated by category fit only.', true],
+          ]} />
+          {ranked.length ? <ul className="xd-catscores" aria-label="Category scores">{ranked.map(([k, v]) => <li key={k} data-win={k === c.category}><span>{humanizeToken(k)}</span><b>{v.toFixed(1)}</b></li>)}</ul> : null}
+        </>
+      );
+    }
     case 'constraints':
       return (
         <>
@@ -277,15 +268,23 @@ function NodeDetail({ e, id }: { e: EngineResult; id: string }) {
       );
     case 'filter': {
       const cs = e.catalogue_summary;
-      return <Tiles rows={[['Catalogue entries', cs ? String(cs.catalogue_total) : '—'], ['Eligible', cs ? String(cs.eligible) : String(e.candidates.length)], ['Removed', String(e.exclusions.length)], ['API credentials used', cs?.credentials_used_for_comparison === false ? 'No · published metadata only' : 'Not recorded']]} />;
+      return <Tiles rows={[['Approved pool', cs ? String(cs.catalogue_total) : '—'], ['Serve the category', cs?.category_members != null ? String(cs.category_members) : '—'], ['Compared', cs ? String(cs.eligible) : String(e.candidates.length)], ['Outside the category or constraints', String(e.exclusions.length)], ['API keys used', cs?.credentials_used_for_comparison === false ? 'No. Keys never affect the comparison.' : 'Not recorded']]} />;
     }
-    case 'score':
-      return <Tiles rows={[
+    case 'score': {
+      const eco = !!top?.ecosystem_category;
+      return eco ? <Tiles rows={[
+        ['Method', 'Fit score: how well each product\'s documented strengths cover what the query asks for, plus category membership', true],
+        ['Weights inside the fit score', 'Features asked for 50% · detected task 30% (conversational, coding and API categories) · category role 20%', true],
+        ['Not scored', 'Quality, latency, reliability and risk: no measured value exists for any approved product, so they are excluded for all, never estimated', true],
+        ['Cost', e.normalization ? humanizeToken(e.normalization.cost_basis) : '—'],
+        ['Ties', 'Resolved by the approved-list order and labelled as such'],
+      ]} /> : <Tiles rows={[
         ['Method', 'Weighted sum of per-objective utilities, ranked by a pessimistic robust score', true],
         ['Missing-data policy', e.scoring_config ? `${humanizeToken(e.scoring_config.missing_policy)} · unknown scores 0, never an average` : '—'],
         ['Uncertainty penalty', fmt(e.scoring_config?.uncertainty_penalty ?? e.normalization?.uncertainty_penalty, 2)],
         ['Cost basis', e.normalization ? `${humanizeToken(e.normalization.cost_basis)}` : '—'], ['Latency basis', e.normalization ? humanizeToken(e.normalization.latency_basis) : '—'],
       ]} />;
+    }
     case 'select': {
       const stab = e.selection.weight_stability;
       const tie = tieNote(e);
@@ -302,30 +301,29 @@ function NodeDetail({ e, id }: { e: EngineResult; id: string }) {
             <strong>{e.selection.score_margin == null ? '—' : fmt(e.selection.score_margin)}</strong>
             <small>{e.selection.score_margin != null && e.selection.score_margin < 0 ? 'Runner-up scored slightly higher; tie rule applied' : 'Robust-score difference'}</small>
           </div>
-          <div className="xd-metric">
-            <span className="xd-k">Stable under weight changes</span>
-            <strong>{stab != null ? formatPercent(stab, 0) : '—'}</strong>
-            {stab != null ? <Meter value={stab} tone={stab >= 0.75 ? 'ok' : stab >= 0.5 ? 'warn' : 'bad'} /> : null}
-            <small>Share of ±20% weight changes that keep this winner</small>
-          </div>
+          {stab != null ? (
+            <div className="xd-metric">
+              <span className="xd-k">Stable under weight changes</span>
+              <strong>{formatPercent(stab, 0)}</strong>
+              <Meter value={stab} tone={stab >= 0.75 ? 'ok' : stab >= 0.5 ? 'warn' : 'bad'} />
+              <small>Share of a 10% re-weighting (worst direction) this winner survives</small>
+            </div>
+          ) : (
+            <div className="xd-metric">
+              <span className="xd-k">Selection confidence</span>
+              <strong>{humanizeToken(e.selection.confidence_level)} · {e.selection.confidence_value.toFixed(2)}</strong>
+              <Meter value={e.selection.confidence_value} tone={e.selection.confidence_value >= 0.75 ? 'ok' : e.selection.confidence_value >= 0.5 ? 'warn' : 'bad'} />
+              <small>Category {fmt(e.selection.confidence_components?.category_confidence, 2)} · margin {fmt(e.selection.confidence_components?.ranking_margin, 2)} · features {fmt(e.selection.confidence_components?.feature_support, 2)}</small>
+            </div>
+          )}
           {e.selection.caveats.length ? (
             <ul className="xd-caveats" aria-label="Caveats">{e.selection.caveats.map((c) => <li key={c}><AlertTriangle aria-hidden="true" />{c}</li>)}</ul>
           ) : null}
         </div>
       );
     }
-    case 'generate':
-      return e.execution.attempts.length ? <AttemptList e={e} /> : <p className="xai-muted">{e.execution.mode === 'recommend' ? 'AI Compass recommended a model but did not call any provider. Run the query in Execute mode to record generation, measured latency and cost.' : (e.execution.blocked_reason ?? 'No attempt was made.')}</p>;
-    case 'quality':
-      return e.evaluation.checks.length ? <ChecksList e={e} /> : <p className="xai-muted">No response was produced, so no checks were run. Nothing is shown as passed.</p>;
-    case 'decision':
-      return e.evaluation.decision && e.evaluation.decision.action !== 'none'
-        ? <><DecisionCard e={e} />{(e.execution.escalation_events ?? []).length === 0 ? <p className="xai-muted">No escalation was triggered.</p> : null}</>
-        : <p className="xai-muted">An Accept / Verify / Escalate decision is made only for a generated response. None exists for this run, so no escalation was triggered.</p>;
-    case 'escalate':
-      return <EscalationTimeline e={e} />;
     default:
-      return e.execution.final_model_name ? <Tiles rows={[['Answered by', e.execution.final_model_name], ['Escalated', e.execution.escalated ? 'Yes' : 'No'], ['Total latency (measured)', e.execution.total_latency_ms != null ? formatDuration(e.execution.total_latency_ms) : 'Unavailable'], ['Total cost (computed)', e.execution.total_cost_usd != null ? formatUsd(e.execution.total_cost_usd, 6) : 'Unavailable']]} /> : <p className="xai-muted">This run produced a recommendation, not an answer.</p>;
+      return <p className="xai-muted">No further detail was recorded for this stage.</p>;
   }
 }
 
@@ -334,16 +332,22 @@ function FunnelSection({ e }: { e: EngineResult }) {
   const cs = e.catalogue_summary;
   const groups = groupRejections(e);
   const [open, setOpen] = useState<string | null>(null);
-  const steps = cs ? [
+  const eco = cs?.pool_source === 'approved_ecosystem';
+  const steps = cs ? (eco ? [
+    { k: 'Approved pool', v: cs.catalogue_total, note: 'Every approved product, key or no key' },
+    { k: 'Serve the category', v: cs.category_members ?? cs.eligible, note: `Category: ${e.profile.category?.label ?? 'unknown'}` },
+    { k: 'Compared', v: cs.eligible, note: 'Passed every hard constraint' },
+    { k: 'Selected', v: cs.selected, note: 'Highest fit score' },
+  ] : [
     { k: 'In catalogue', v: cs.catalogue_total, note: 'Every known model, key or no key' },
     { k: 'Considered', v: cs.considered, note: 'After lifecycle checks' },
     { k: 'Eligible', v: cs.eligible, note: 'Passed every hard constraint' },
     { k: 'Scored', v: cs.scored, note: 'Ranked on the objectives' },
     { k: 'Selected', v: cs.selected, note: 'Highest robust score' },
-  ] : [];
+  ]) : [];
   const max = Math.max(1, ...steps.map((s) => s.v));
   return (
-    <Card id="xai-funnel-title" title="Candidate filtering" sub="Hard constraints remove a model outright; a high score cannot buy it back. A missing credential never removes a model from comparison.">
+    <Card id="xai-funnel-title" title="Category gate & filtering" sub="A product outside the query's category is never ranked against it, and a hard constraint removes a product outright. A missing credential never removes anything.">
       {steps.length ? (
         <ol className="xai-funnel">
           {steps.map((s, i) => (
@@ -355,7 +359,7 @@ function FunnelSection({ e }: { e: EngineResult }) {
           ))}
         </ol>
       ) : null}
-      <div className="xai-sub-head"><h4>Why models were removed</h4><span>{e.exclusions.length} removed</span></div>
+      <div className="xai-sub-head"><h4>Why products were left out</h4><span>{e.exclusions.length} removed</span></div>
       {groups.length === 0 ? <p className="xai-muted">No candidate was removed.</p> : (
         <ul className="xai-rejects">
           {groups.map((g) => (
@@ -384,8 +388,46 @@ function ContributionBar({ c, scale }: { c: EngineCandidate; scale?: number }) {
   );
 }
 
+function EcosystemRanking({ e }: { e: EngineResult }) {
+  const [all, setAll] = useState(false);
+  const rows = all ? e.candidates : e.candidates.slice(0, 7);
+  const selId = e.selection.selected_model_id;
+  const asked = e.profile.category?.features ?? [];
+  return (
+    <Card id="xai-rank-title" title="Fit scoring" sub="Every product here serves the resolved category. The score is how well its documented strengths cover what the query asks for.">
+      <div className="xai-table-wrap">
+        <table className="xai-table">
+          <caption className="sr-only">Products in the resolved category ranked by fit score</caption>
+          <thead><tr><th>#</th><th>Product</th><th className="num">Features</th><th className="num">Task</th><th className="num">Category role</th><th>Matched</th><th className="num">Fit score</th></tr></thead>
+          <tbody>
+            {rows.map((c) => {
+              const f = c.fit_breakdown ?? {};
+              return (
+                <tr key={c.model_id} data-selected={c.model_id === selId}>
+                  <td className="rank">{c.rank}</td>
+                  <td><strong>{c.model_name}</strong><small>{c.provider}{c.model_id === selId ? ' · Best Match' : ''}{c.category_role === 'secondary' ? ' · also serves this category' : ''}</small></td>
+                  <td className="num">{asked.length ? fmt(f.feature_fit, 2) : '—'}</td>
+                  <td className="num">{f.intent_fit != null ? fmt(f.intent_fit, 2) : '—'}</td>
+                  <td className="num">{fmt(f.category_fit, 2)}</td>
+                  <td>{(c.matched_features ?? []).length ? (c.matched_features ?? []).map(humanizeToken).join(', ') : <span className="xai-muted">{asked.length ? 'none' : 'nothing specific asked'}</span>}{(c.unmet_features ?? []).length ? <small>Not documented: {(c.unmet_features ?? []).map(humanizeToken).join(', ')}</small> : null}</td>
+                  <td className="num score"><strong>{fmt(c.robust_score)}</strong></td>
+                </tr>
+              );
+            })}
+          </tbody>
+        </table>
+      </div>
+      <div className="xai-table-foot">
+        {e.candidates.length > 7 ? <button type="button" className="xai-btn" onClick={() => setAll(!all)}>{all ? 'Show top 7' : `Show all ${e.candidates.length} products`}</button> : <span />}
+        <p>{e.normalization?.notes?.[0] ?? ''}</p>
+      </div>
+    </Card>
+  );
+}
+
 function RankingSection({ e }: { e: EngineResult }) {
   const [all, setAll] = useState(false);
+  if (e.candidates[0]?.ecosystem_category) return <EcosystemRanking e={e} />;
   const rows = all ? e.candidates : e.candidates.slice(0, 6);
   const w = e.preferences.weights;
   const selId = e.selection.selected_model_id;
@@ -434,7 +476,7 @@ function WhySection({ e }: { e: EngineResult }) {
   return (
     <>
       <div className="xai-two">
-        <Card id="xai-why-title" title="Why it won" sub={top ? `${top.model_name} against ${Math.max(0, e.candidates.length - 1)} other eligible models` : undefined}>
+        <Card id="xai-why-title" title="Why it is the Best Match" sub={top ? `${top.model_name} against ${Math.max(0, e.candidates.length - 1)} other products in the same category` : undefined}>
           {e.explanation.why_selected.length ? <ul className="xai-rows">{e.explanation.why_selected.map((w) => <li key={w}><span className="xai-ico" data-tone="ok"><Check aria-hidden="true" /></span><p>{w}</p></li>)}</ul> : <p className="xai-muted">No supporting reasons were recorded.</p>}
           {e.explanation.tradeoffs.length ? (
             <>
@@ -443,12 +485,19 @@ function WhySection({ e }: { e: EngineResult }) {
             </>
           ) : null}
           <div className="xai-confidence">
-            <div><span>Confidence</span><b>{humanizeToken(e.selection.confidence_level)}</b></div>
-            <div><span>Stable under ±20% weight changes</span><b>{stab != null ? formatPercent(stab, 0) : '—'}</b>{stab != null ? <Meter value={stab} tone={stab >= 0.75 ? 'ok' : stab >= 0.5 ? 'warn' : 'bad'} /> : null}</div>
+            <div><span>Confidence</span><b>{humanizeToken(e.selection.confidence_level)} · {e.selection.confidence_value.toFixed(2)}</b></div>
+            {stab != null ? <div><span>Survives a 10% re-weighting</span><b>{formatPercent(stab, 0)}</b><Meter value={stab} tone={stab >= 0.75 ? 'ok' : stab >= 0.5 ? 'warn' : 'bad'} /></div> : null}
             <div><span>Margin over runner-up</span><b>{e.selection.score_margin == null ? '—' : fmt(e.selection.score_margin)}</b></div>
           </div>
+          {e.selection.confidence_formula ? (
+            <details className="xai-reveal">
+              <summary>How confidence is computed</summary>
+              <p className="xai-muted">{e.selection.confidence_formula}</p>
+              <ul className="xai-notrun">{e.confidence_report?.components.map((c) => <li key={c.name}><strong>{humanizeToken(c.name)} · {c.value == null ? '—' : c.value.toFixed(2)}</strong><small>{c.basis}</small></li>)}</ul>
+            </details>
+          ) : null}
         </Card>
-        <Card id="xai-alt-title" title="Runners-up" sub="The strongest alternatives and where they fell short.">
+        <Card id="xai-alt-title" title="Suggested alternatives" sub="Ranks 2 to 4 of the same ranking, and where they fell short.">
           {alts.length ? (
             <div className="xai-table-wrap xai-flush">
               <table className="xai-table xai-compact">
@@ -492,6 +541,21 @@ function WhySection({ e }: { e: EngineResult }) {
 function EvidenceSection({ e }: { e: EngineResult }) {
   const top = selectedCandidate(e);
   if (!top) return null;
+  if (top.ecosystem_category) {
+    const match = e.ranking?.find((r) => r.model_id === top.model_id);
+    return (
+      <Card id="xai-ev-title" title="Where the fit comes from" sub={`Evidence for ${top.model_name}. Strengths are taken from the vendor's published positioning; they are not benchmark results.`}>
+        <Tiles rows={[
+          ['Documented strengths', (top.strengths ?? []).map(humanizeToken).join(', ') || 'None recorded', true],
+          ['Matched what you asked for', (top.matched_features ?? []).map(humanizeToken).join(', ') || (e.profile.category?.features.length ? 'None' : 'Nothing specific was asked'), true],
+          ['Not documented for this product', (top.unmet_features ?? []).map(humanizeToken).join(', ') || 'None'],
+          ['Measured quality, price, latency', 'Unavailable for every approved product. Never estimated.'],
+        ]} />
+        {match?.external_url ? <p className="xai-muted"><a className="xai-link" href={match.external_url} target="_blank" rel="noopener noreferrer">Open {top.model_name}<ExternalLink aria-hidden="true" /></a></p> : null}
+        {e.explanation.unavailable_data.length ? <ul className="xai-rows xai-rows-tight">{e.explanation.unavailable_data.map((u) => <li key={u}><span className="xai-ico" data-tone="neutral"><Info aria-hidden="true" /></span><p>{u}</p></li>)}</ul> : null}
+      </Card>
+    );
+  }
   return (
     <Card id="xai-ev-title" title="Where each number comes from" sub={`Evidence for ${top.model_name}. Measured, provider-reported and estimated values are labelled separately.`}>
       <div className="xai-table-wrap">
@@ -539,86 +603,5 @@ function ReportSection({ e }: { e: EngineResult }) {
         <pre className="xai-report" tabIndex={0}>{report}</pre>
       </details>
     </Card>
-  );
-}
-
-/* ── Quality & escalation ─────────────────────────────────────────────────── */
-function AttemptList({ e }: { e: EngineResult }) {
-  return (
-    <ol className="xai-attempts">
-      {e.execution.attempts.map((a) => (
-        <li key={a.attempt} data-outcome={a.outcome}>
-          <strong>Attempt {a.attempt} · {a.model_id}</strong>
-          <span>{humanizeToken(a.outcome)}{a.error_kind ? ` (${humanizeToken(a.error_kind)})` : ''}</span>
-          <small>{a.latency_ms != null ? `${Math.round(a.latency_ms)} ms measured` : 'latency not measured'}{a.cost_usd != null ? ` · ${formatUsd(a.cost_usd, 6)} computed from reported tokens` : ''}{a.note ? ` · ${a.note}` : ''}</small>
-        </li>
-      ))}
-    </ol>
-  );
-}
-
-function ChecksList({ e }: { e: EngineResult }) {
-  const notRun = e.evaluation.checks_not_run ?? [];
-  return (
-    <>
-      <ul className="xai-checks">{e.evaluation.checks.map((c) => <li key={c.name} data-pass={c.passed}><span aria-hidden="true">{c.passed ? <Check /> : <X />}</span><div><strong>{humanizeToken(c.name)}</strong><small>{c.detail}</small></div><em>{c.passed ? 'Passed' : 'Failed'}</em></li>)}</ul>
-      {notRun.length ? (
-        <details className="xai-reveal"><summary>{notRun.length} checks were not run</summary><ul className="xai-notrun">{notRun.map((n) => <li key={n.check}><strong>{humanizeToken(n.check)}</strong><small>{n.reason}</small></li>)}</ul></details>
-      ) : null}
-    </>
-  );
-}
-
-function DecisionCard({ e }: { e: EngineResult }) {
-  const d = e.evaluation.decision;
-  if (!d) return null;
-  return (
-    <div className="xai-decision" data-action={d.action}>
-      <span className="xai-decision-a">{humanizeToken(d.action)}</span>
-      <div><strong>Rule: {humanizeToken(d.rule)}</strong><p>{d.reason}</p></div>
-    </div>
-  );
-}
-
-function EscalationTimeline({ e }: { e: EngineResult }) {
-  const events = e.execution.escalation_events ?? [];
-  if (!events.length) return <p className="xai-muted">Not triggered{e.execution.status === 'not_requested' ? ': no response was generated' : ''}.</p>;
-  return (
-    <ol className="xai-timeline">
-      {events.map((ev) => (
-        <li key={ev.sequence}>
-          <strong>{ev.from_model_id} <ArrowRight aria-hidden="true" /> {ev.to_model_id ?? 'no further model'}</strong>
-          <span>Trigger: {humanizeToken(ev.trigger)}</span><small>{ev.detail}</small><small>Original response: {humanizeToken(ev.original_response)} · Outcome: {ev.outcome || 'pending'}</small>
-        </li>
-      ))}
-    </ol>
-  );
-}
-
-function ExecutionSection({ e }: { e: EngineResult }) {
-  const executed = e.execution.status !== 'not_requested';
-  const conf = e.evaluation.confidence as { model_reported?: { note?: string }; evaluator_estimated?: { note?: string }; statement?: string } | undefined;
-  if (!executed) {
-    return (
-      <Card id="xai-exec-title" title="After selection" sub="Response, quality checks and escalation">
-        <div className="xai-empty-state">
-          <span className="xai-ico" data-tone="neutral"><ShieldCheck aria-hidden="true" /></span>
-          <div><strong>No model was run for this decision</strong><p>This was a recommendation, so there is no response, measured latency, cost or quality check to show. Switch Route Query to Execute mode to record generation, the checks that ran, the Accept / Verify / Escalate decision and any escalation.</p></div>
-        </div>
-      </Card>
-    );
-  }
-  return (
-    <div className="xai-exec">
-      <Card id="xai-att-title" title="Attempts"><AttemptList e={e} />{e.execution.notes.map((n) => <p key={n} className="xai-muted">{n}</p>)}</Card>
-      <Card id="xai-chk-title" title="Quality checks" right={<ListChecks className="xai-card-ico" aria-hidden="true" />}><ChecksList e={e} /></Card>
-      <Card id="xai-dec-title" title="Decision">
-        <DecisionCard e={e} />
-        <div className="xai-sub-head"><h4>Confidence</h4></div>
-        <ul className="xai-notrun"><li><strong>Model-reported</strong><small>{conf?.model_reported?.note ?? 'Unavailable'}</small></li><li><strong>Evaluator-estimated</strong><small>{conf?.evaluator_estimated?.note ?? 'Unavailable'}</small></li></ul>
-        <p className="xai-muted">{conf?.statement ?? 'No calibrated confidence exists.'}</p>
-      </Card>
-      <Card id="xai-esc-title" title="Escalation"><EscalationTimeline e={e} /></Card>
-    </div>
   );
 }

@@ -8,16 +8,19 @@ export interface RadarAxis { label: string; value: number | null; display: strin
 
 export interface RadarCompare { name: string; values: (number | null)[] }
 
-export function Radar({ axes, label, size = 280, name, compare }: { axes: RadarAxis[]; label: string; size?: number; name?: string; compare?: RadarCompare }) {
+/** `scaleMax` (0..1) sets the value at the outer ring for share-of-total data such as routing weights, whose values are small. The scale is stated under the chart. */
+export function Radar({ axes, label, size = 280, name, compare, scaleMax = 1 }: { axes: RadarAxis[]; label: string; size?: number; name?: string; compare?: RadarCompare; scaleMax?: number }) {
   const uid = useId();
   const c = size / 2;
   const r = size / 2 - 46;
   const n = axes.length;
   const ang = (i: number) => -Math.PI / 2 + (i * 2 * Math.PI) / n;
+  const top = scaleMax > 0 && scaleMax <= 1 ? scaleMax : 1;
   const pt = (i: number, v: number) => [c + Math.cos(ang(i)) * r * v, c + Math.sin(ang(i)) * r * v] as const;
-  const poly = axes.map((a, i) => pt(i, a.value === null ? 0 : Math.max(0, Math.min(1, a.value))).join(',')).join(' ');
+  const unit = (v: number | null) => (v === null ? 0 : Math.max(0, Math.min(1, v / top)));
+  const poly = axes.map((a, i) => pt(i, unit(a.value)).join(',')).join(' ');
   const rings = [0.25, 0.5, 0.75, 1];
-  const poly2 = compare ? compare.values.map((v, i) => pt(i, v === null ? 0 : Math.max(0, Math.min(1, v))).join(',')).join(' ') : null;
+  const poly2 = compare ? compare.values.map((v, i) => pt(i, unit(v)).join(',')).join(' ') : null;
   return (
     <figure className="radar">
       <svg viewBox={`-34 0 ${size + 68} ${size}`} role="img" aria-labelledby={`${uid}-t`}>
@@ -32,7 +35,7 @@ export function Radar({ axes, label, size = 280, name, compare }: { axes: RadarA
         <polygon className="radar-shape" points={poly} fill={`url(#${uid}-g)`} style={{ transformOrigin: `${c}px ${c}px` }} />
         {poly2 && <polygon className="radar-shape radar-shape--b" points={poly2} style={{ transformOrigin: `${c}px ${c}px` }} />}
         {axes.map((a, i) => {
-          const [x, y] = pt(i, a.value === null ? 0 : Math.max(0, Math.min(1, a.value)));
+          const [x, y] = pt(i, unit(a.value));
           const [lx, ly] = pt(i, 1.2);
           const anchor = Math.abs(lx - c) < 6 ? 'middle' : lx > c ? 'start' : 'end';
           return (
@@ -45,6 +48,7 @@ export function Radar({ axes, label, size = 280, name, compare }: { axes: RadarA
           );
         })}
       </svg>
+      {top < 1 ? <figcaption className="radar-scale">Outer ring = {Math.round(top * 100)}%</figcaption> : null}
       {compare ? (
         <figcaption className="radar-legend"><span><i className="radar-key radar-key--a" />{name ?? 'Selected'}</span><span><i className="radar-key radar-key--b" />{compare.name}</span></figcaption>
       ) : null}

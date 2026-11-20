@@ -290,6 +290,8 @@
 
 /* Animated ambient light + faint grid behind every in-app page */
 .app-frame::before {
+  /* Oversized: the layer drifts by up to 3 % and scales to 1.08, which exposed a hard edge at the viewport's right and bottom. */
+  inset: -10%;
   background:
     radial-gradient(46rem 32rem at 84% -8%, color-mix(in srgb, var(--color-primary) 26%, transparent), transparent 70%),
     radial-gradient(40rem 30rem at -8% 100%, color-mix(in srgb, #4cc2ff 18%, transparent), transparent 70%),
@@ -984,6 +986,7 @@ details.eng-adv > summary:focus-visible { outline: 2px solid var(--color-primary
 .rq-alt-compare { display: grid; grid-template-columns: minmax(0, 19rem) minmax(0, 1fr); gap: 1rem 1.75rem; align-items: center; margin-top: var(--space-4); padding-top: var(--space-4); border-top: 1px solid var(--color-border); animation: rl-rise 380ms var(--ease-out) both; }
 @media (max-width: 760px) { .rq-alt-compare { grid-template-columns: minmax(0, 1fr); } }
 .radar-shape--b { fill: color-mix(in srgb, #f59e0b 22%, transparent); stroke: #f59e0b; stroke-dasharray: 5 4; animation-delay: 120ms; }
+.radar-scale { margin-top: .25rem; text-align: center; font-size: var(--font-size-xs); color: var(--color-text-muted); }
 .radar-legend { display: flex; flex-wrap: wrap; justify-content: center; gap: .25rem 1rem; margin-top: .25rem; font-size: var(--font-size-xs); color: var(--color-text-secondary); }
 .radar-legend span { display: inline-flex; align-items: center; gap: .4rem; }
 .radar-key { width: .7rem; height: .7rem; border-radius: 3px; display: inline-block; } .radar-key--a { background: var(--color-primary); } .radar-key--b { background: #f59e0b; }
@@ -1020,3 +1023,32 @@ details.eng-adv > summary:focus-visible { outline: 2px solid var(--color-primary
 @media (max-width: 560px) { .stl { padding: 1rem; } .stl-row { grid-template-columns: minmax(0, 1fr) 4rem; } .stl-track { grid-column: 1 / -1; order: 3; } }
 @media (prefers-reduced-motion: reduce) { .stl-bar { animation: none; } }
 .rq-alt-row { position: relative; } .rq-alt-row .rq-alt-check { position: absolute; top: .45rem; right: .5rem; width: .95rem; height: .95rem; color: var(--color-primary); }
+
+/* Ecosystem map: bubbly, springy interaction.
+   The entrance animation lives on .eco-node; every interactive transform lives on the inner .eco-bubble, so the
+   entrance's held end-state can no longer swallow scale/transform changes (that was what made clicks feel broken). */
+.eco-node { animation: eco-enter 640ms cubic-bezier(.34, 1.56, .64, 1) both; }
+.eco-bubble { transform-box: fill-box; transform-origin: center; transition: transform 520ms cubic-bezier(.34, 1.8, .5, 1), opacity 320ms ease; will-change: transform; }
+.eco-node:hover .eco-bubble { transform: scale(1.12); }
+.eco-node:active .eco-bubble { transform: scale(.9); transition-duration: 120ms; }
+.eco-node[data-selected] .eco-bubble { transform: scale(1.14); animation: eco-pop 640ms cubic-bezier(.34, 1.4, .5, 1) both; }
+.eco-node[data-dim] .eco-bubble { transform: scale(.92); }
+.eco-node[data-dim]:hover .eco-bubble { transform: scale(1.04); }
+.eco-node[data-selected] .eco-node-dot { filter: drop-shadow(0 0 14px color-mix(in srgb, var(--color-primary) 65%, transparent)); }
+.eco-node-dot { transition: fill 320ms ease, stroke 320ms ease, filter 320ms ease; }
+.eco-node-label, .eco-node-count { paint-order: stroke; stroke: var(--color-surface); stroke-width: 5px; stroke-linejoin: round; transition: fill 240ms ease; }
+.eco-node[data-selected] .eco-node-count { stroke: none; }
+.eco-ripple { fill: none; stroke: var(--color-primary); stroke-width: 2; opacity: 0; transform-box: fill-box; transform-origin: center; pointer-events: none; }
+.eco-node[data-selected] .eco-ripple { animation: eco-ripple 900ms cubic-bezier(.2, .7, .3, 1) both; }
+.eco-edge { transition: stroke 300ms ease, opacity 300ms ease, stroke-width 300ms ease; }
+.eco-edge[data-on]:not([data-all]) { stroke-width: 2.2; animation-duration: 0.9s; }
+@keyframes eco-enter { 0% { opacity: 0; transform: translateY(18px) scale(.4); } 60% { opacity: 1; } 100% { opacity: 1; transform: none; } }
+@keyframes eco-pop { 0% { transform: scale(1); } 28% { transform: scale(.82); } 55% { transform: scale(1.3); } 78% { transform: scale(1.06); } 100% { transform: scale(1.14); } }
+@keyframes eco-ripple { 0% { opacity: .7; transform: scale(1); } 100% { opacity: 0; transform: scale(2.4); } }
+@media (prefers-reduced-motion: reduce) { .eco-node, .eco-bubble, .eco-ripple { animation: none !important; transition: none !important; } .eco-node:hover .eco-bubble { transform: none; } }
+
+/* Personalization: the "Learned model preferences" card sizes to its content instead of stretching to the radar column's height (it showed a ~400px empty box when there are no ratings yet). */
+.pz-main > .pz-card:last-child { align-self: start; }
+
+/* Dashboard: the distribution / coverage cards size to their content rather than stretching to the (much taller) provider-refresh card, which left them mostly empty. Only applies when the three sit side by side. */
+@media (min-width: 1081px) { .cx-grid--3 { align-items: start; } }

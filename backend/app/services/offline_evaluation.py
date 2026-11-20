@@ -265,3 +265,7 @@ def catalog_coverage(models: list[ModelMetadata], results: list[OfflineStrategyR
         selection_by_strategy=selection,
         note="Metadata-only. The pool is the whole filtered catalogue, whether or not a provider credential is configured. "
              "Escalation rate, response quality, latency and spend need executed requests and are not measured here.")
+
+
+APPROVED_DATA_DISCLOSURE = ("This comparison uses the approved product list, each product's vendor-published feature tags, and editorial estimates of quality, speed, reliability and risk "
+                            "(relative judgements by the project, not measurements). No product was run, and no latency in seconds or price exists for these products.")

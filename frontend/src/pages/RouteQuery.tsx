@@ -53,7 +53,7 @@ import { TaskTypeGrid } from '../components/route/TaskTypeGrid';
 import { RouteProgress } from '../components/route/RouteProgress';
 import { OBJECTIVES, groupLabel } from '../utils/domain';
 import { formatPercent, formatDuration, formatUsd, toPercent } from '../utils/format';
-import type { RouteRequest, RouteResponse, RankedAlternative, ModelInfo, OptimizationMode, OptimizePromptResponse, RouteMode, SubmitPrompt } from '../types';
+import type { RouteRequest, EngineRankingRow, RouteResponse, RankedAlternative, ModelInfo, OptimizationMode, OptimizePromptResponse, RouteMode, SubmitPrompt } from '../types';
 
 const MAX_QUERY = 8000;
 
@@ -148,9 +148,8 @@ export function RouteQuery() {
   const [optResult, setOptResult] = useState<OptimizePromptResponse | null>(result?.engine?.optimization ?? null);
   const [submitChoice, setSubmitChoice] = useState<SubmitPrompt>('optimized');
   const [promptEdited, setPromptEdited] = useState(false);
-  const [runMode, setRunMode] = useState<RouteMode>('recommend');
-  const [budget, setBudget] = useState('');
-  const [optimizedFor, setOptimizedFor] = useState(result?.query ?? '');
+  const runMode: RouteMode = 'recommend'; // AI Compass recommends; it never runs a model
+    const [optimizedFor, setOptimizedFor] = useState(result?.query ?? '');
   const [registryModels, setRegistryModels] = useState<ModelInfo[]>([]);
   const [registryLoading, setRegistryLoading] = useState(true);
   const [registryError, setRegistryError] = useState<string | null>(null);
@@ -203,14 +202,6 @@ export function RouteQuery() {
     const payload: RouteRequest = { query: q, mode: runMode, optimization_mode: optMode, submit_prompt: submitChoice };
     const fresh = !!optResult && optimizedFor === q && optResult.mode === optMode;
     if (fresh && optimizedPrompt.trim()) payload.optimized_prompt = optimizedPrompt;
-    if (runMode === 'execute') {
-      payload.idempotency_key = crypto.randomUUID();
-      if (budget.trim()) {
-        const b = Number(budget);
-        if (!Number.isFinite(b) || b <= 0) { setFieldError('Budget must be a positive number of USD.'); return; }
-        payload.budget_usd = b;
-      }
-    }
     if (taskTypeHint) payload.task_type_hint = taskTypeHint;
     if (selectedModelIds.length) payload.model_ids = selectedModelIds;
     if (capabilities.length) payload.require_capabilities = capabilities;
@@ -259,7 +250,7 @@ export function RouteQuery() {
     } finally {
       if (!ctrl.signal.aborted) setRouting(false);
     }
-  }, [query, taskTypeHint, isRouting, maxCost, maxLatency, capabilities, privacy, excludedProviders, selectedModelIds, runMode, optMode, submitChoice, optResult, optimizedFor, optimizedPrompt, budget, promptEdited, push, setResult, setRouting]);
+  }, [query, taskTypeHint, isRouting, maxCost, maxLatency, capabilities, privacy, excludedProviders, selectedModelIds, runMode, optMode, submitChoice, optResult, optimizedFor, optimizedPrompt, promptEdited, push, setResult, setRouting]);
 
   // When the result (or an error) lands, settle onto it and give the Best Match card a brief glow.
   useEffect(() => {
@@ -365,6 +356,26 @@ export function RouteQuery() {
     [result, compareWith],
   );
 
+  const optimizerPanel = (
+    <PromptOptimizerPanel
+      original={originalPrompt}
+      mode={optMode}
+      onModeChange={setOptMode}
+      result={optResult}
+      prompt={optimizedPrompt}
+      onPromptChange={value => { setOptimizedPrompt(value); setPromptEdited(true); setSubmitChoice('optimized'); setOptimizerError(null); }}
+      submit={submitChoice}
+      onSubmitChange={setSubmitChoice}
+      stale={!!optResult && (optimizedFor !== originalPrompt || optResult.mode !== optMode)}
+      busy={optimizerBusy}
+      error={optimizerError}
+      copied={copied}
+      onOptimize={() => void optimizeCurrentPrompt()}
+      onRestore={resetOptimizedPrompt}
+      onCopy={() => void copyResult(submitChoice === 'original' ? originalPrompt : optimizedPrompt)}
+    />
+  );
+
   return (
     <div className="rq-shell">
       <header className="rq-page-intro">
@@ -417,7 +428,7 @@ export function RouteQuery() {
                   >
                     {isRouting
                       ? <><Loader2 className="spin" aria-hidden="true" />Routing…</>
-                      : <>{runMode === 'execute' ? 'Find and run' : 'Find best model'}<ArrowRight aria-hidden="true" /></>}
+                      : <>Find best model<ArrowRight aria-hidden="true" /></>}
                   </button>
                 </div>
               </div>
@@ -440,27 +451,7 @@ export function RouteQuery() {
               selectedModelIds={selectedModelIds} onSelectedModelIds={setSelectedModelIds}
             />
 
-            <fieldset className="rq-mode" disabled={isRouting}>
-              <legend className="rq-sec-title">Mode</legend>
-              <div className="rq-mode-options">
-                <label className="rq-mode-opt">
-                  <input type="radio" name="run-mode" checked={runMode === 'recommend'} onChange={() => setRunMode('recommend')} />
-                  <span className="rq-mode-icon" aria-hidden="true"><Compass /></span>
-                  <span className="rq-mode-text"><strong>Recommend</strong><small>Choose the best model. Nothing is run and nothing is spent.</small></span>
-                </label>
-                <label className="rq-mode-opt">
-                  <input type="radio" name="run-mode" checked={runMode === 'execute'} onChange={() => setRunMode('execute')} />
-                  <span className="rq-mode-icon" aria-hidden="true"><Zap /></span>
-                  <span className="rq-mode-text"><strong>Recommend and run</strong><small>Also sends the prompt to the chosen model with your provider key. May incur charges.</small></span>
-                </label>
-              </div>
-              {runMode === 'execute' && (
-                <label className="rq-budget">
-                  <span>Spend limit for this run <small>optional</small></span>
-                  <span className="cp-input"><em>$</em><input id="run-budget" type="number" min="0" step="0.001" placeholder="0.05" value={budget} onChange={e => setBudget(e.target.value)} /></span>
-                </label>
-              )}
-            </fieldset>
+            <p className="rq-reco-only"><Compass aria-hidden="true" />Recommendation only: AI Compass picks the best fit and sends you to it. No model is run and nothing is spent. Provider keys, if you add one, are used only to optimise your prompt.</p>
 
             <div className="rq-actions">
               <div className="rq-profile-tag">
@@ -473,7 +464,7 @@ export function RouteQuery() {
                   <button type="button" className="rq-clear-btn" onClick={clearResult}>Clear</button>
                 )}
                 <button type="button" className="rq-route-btn" onClick={() => void run()} disabled={isRouting || !query.trim()}>
-                  {isRouting ? <><Loader2 className="spin" aria-hidden="true" />{runMode === 'execute' ? 'Running…' : 'Routing…'}</> : <><Wand2 aria-hidden="true" />{runMode === 'execute' ? 'Find model and run' : 'Find Best Model'}</>}
+                  {isRouting ? <><Loader2 className="spin" aria-hidden="true" />Routing…</> : <><Wand2 aria-hidden="true" />Find Best Model</>}
                 </button>
               </div>
             </div>
@@ -507,7 +498,11 @@ export function RouteQuery() {
                 copied={copied}
               />
 
-              {result.ranked_alternatives.length > 0 && (
+              {optimizerPanel}
+
+              {result.engine?.ranking?.length ? (
+                <EcosystemCandidates ranking={result.engine.ranking} bestId={result.engine.best_match_id ?? result.final_model_id} suggestedIds={result.engine.suggested_ids ?? []} />
+              ) : result.ranked_alternatives.length > 0 && (
                 <AlternativesCard
                   selectedName={result.final_model_name}
                   selectedScore={selectedScore}
@@ -523,23 +518,7 @@ export function RouteQuery() {
           )}
         </div>
 
-        <PromptOptimizerPanel
-          original={originalPrompt}
-          mode={optMode}
-          onModeChange={setOptMode}
-          result={optResult}
-          prompt={optimizedPrompt}
-          onPromptChange={value => { setOptimizedPrompt(value); setPromptEdited(true); setSubmitChoice('optimized'); setOptimizerError(null); }}
-          submit={submitChoice}
-          onSubmitChange={setSubmitChoice}
-          stale={!!optResult && (optimizedFor !== originalPrompt || optResult.mode !== optMode)}
-          busy={optimizerBusy}
-          error={optimizerError}
-          copied={copied}
-          onOptimize={() => void optimizeCurrentPrompt()}
-          onRestore={resetOptimizedPrompt}
-          onCopy={() => void copyResult(submitChoice === 'original' ? originalPrompt : optimizedPrompt)}
-        />
+        {!result || isRouting || error ? optimizerPanel : null}
       </div>
 
       <aside className="rq-sidebar" aria-label="Recommendation context">
@@ -564,12 +543,14 @@ export function RouteQuery() {
           </p>
         </section>
 
-        <ToolRecommendationsCard
+        {result?.engine?.ranking?.length && !isRouting && !error ? (
+          <SuggestedFromRanking ranking={result.engine.ranking} suggestedIds={result.engine.suggested_ids ?? []} />
+        ) : <ToolRecommendationsCard
           tools={suggestedTools}
           task={selectedTaskForTools}
           loading={registryLoading}
           error={registryError}
-        />
+        />}
 
         {user?.routing_preferences && (
           <section className="rq-weights-card">
@@ -789,6 +770,7 @@ function RecommendationCard({
               </div>
             );
           })}
+          {result.engine?.recommendation_only ? <p className="rq-est-note">Quality, speed, reliability and risk are editorial estimates, relative judgements and not measurements. Cost shows the documented access class when known.</p> : null}
         </div>
 
         </div>
@@ -984,6 +966,61 @@ function AlternativesCard({
         );
       })()}
     </div>
+  );
+}
+
+/** Candidates: the single ranking that also decides Best Match and Suggested. Nothing here is recomputed. */
+function EcosystemCandidates({ ranking, bestId, suggestedIds }: { ranking: EngineRankingRow[]; bestId: string; suggestedIds: string[] }) {
+  const top = ranking[0]?.score ?? 0;
+  return (
+    <section className="rq-cand-card" aria-labelledby="rq-cand-title">
+      <div className="rq-alts-header">
+        <Layers aria-hidden="true" />
+        <span id="rq-cand-title">Candidates in this category</span>
+        <span className="rq-alts-hint">One ranking drives Best Match, Suggested and this list.</span>
+      </div>
+      <ol className="rq-cand-list">
+        {ranking.map((r) => {
+          const tag = r.model_id === bestId ? 'Best match' : suggestedIds.includes(r.model_id) ? 'Suggested' : null;
+          const width = top > 0 ? Math.max(4, Math.round((r.score / top) * 100)) : 0;
+          return (
+            <li key={r.model_id} className="rq-cand-row" data-tag={tag ? tag.toLowerCase().replace(' ', '-') : undefined}>
+              <span className="rq-cand-rank">#{r.rank}</span>
+              <div className="rq-cand-main">
+                <span className="rq-cand-name">{r.model_name}{tag ? <em>{tag}</em> : null}</span>
+                <span className="rq-cand-sub">{r.provider}{r.role === 'secondary' ? ' · also serves this category' : ''}{r.matched_features.length ? ` · ${r.matched_features.slice(0, 3).join(', ').replaceAll('_', ' ')}` : ''}</span>
+                <span className="rq-cand-bar" aria-hidden="true"><i style={{ width: `${width}%` }} /></span>
+              </div>
+              <span className="rq-cand-score" title="Fit score from the routing algorithm">{Math.round(r.score * 100)}%</span>
+              {r.external_url ? <a className="rq-tool-link" href={r.external_url} target="_blank" rel="noreferrer noopener" aria-label={`Open ${r.model_name}`}>Open <ExternalLink aria-hidden="true" /></a> : null}
+            </li>
+          );
+        })}
+      </ol>
+    </section>
+  );
+}
+
+function SuggestedFromRanking({ ranking, suggestedIds }: { ranking: EngineRankingRow[]; suggestedIds: string[] }) {
+  const rows = suggestedIds.map((id) => ranking.find((r) => r.model_id === id)).filter((r): r is EngineRankingRow => !!r);
+  return (
+    <section className="rq-tools-card" aria-labelledby="suggested-tools-title">
+      <div className="rq-tools-header"><Sparkles aria-hidden="true" /><span id="suggested-tools-title">Suggested alongside</span></div>
+      <p className="rq-tools-intro">The next best fits from the same ranking as Best Match.</p>
+      <div className="rq-tools-list">
+        {rows.length === 0 ? <p className="rq-tools-message">No other tool serves this category for your request.</p> : rows.map((r) => (
+          <article key={r.model_id} className="rq-tool-item">
+            <div className="rq-tool-icon"><Bot aria-hidden="true" /></div>
+            <div className="rq-tool-info">
+              <span className="rq-tool-name">#{r.rank} {r.model_name}</span>
+              <span className="rq-tool-provider">{r.provider}</span>
+              {r.description ? <p className="rq-tool-desc">{r.description}</p> : null}
+            </div>
+            {r.external_url ? <a href={r.external_url} target="_blank" rel="noreferrer noopener" className="rq-tool-link" aria-label={`Open ${r.model_name}`}>Open <ExternalLink aria-hidden="true" /></a> : null}
+          </article>
+        ))}
+      </div>
+    </section>
   );
 }
 

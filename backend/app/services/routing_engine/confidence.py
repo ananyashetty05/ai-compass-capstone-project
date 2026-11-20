@@ -7,6 +7,8 @@ from app.services.routing_engine.types import ConfidenceComponent, ConfidenceRep
 
 def build(profile: QueryProfileV2, selection: Selection, access: Dict[str, Any], execution: ExecutionOutcome, evaluation: EvaluationOutcome,
           *, labelled_outcomes: int = 0) -> ConfidenceReport:
+    if selection.confidence_formula:
+        return _selection_report(profile, selection, labelled_outcomes)
     comps: List[ConfidenceComponent] = []
     ic, dc = profile.confidence.get("intent"), profile.confidence.get("domain")
     comps.append(ConfidenceComponent(
@@ -34,4 +36,24 @@ def build(profile: QueryProfileV2, selection: Selection, access: Dict[str, Any],
                   "model self-reported confidence is never used."))
     return ConfidenceReport(components=comps, combined=None,
                             combined_note="No single combined confidence is reported: the components measure different things and none is calibrated.",
+                            calibration=calibration.status(labelled_outcomes))
+
+
+def _selection_report(profile: QueryProfileV2, selection: Selection, labelled_outcomes: int) -> ConfidenceReport:
+    """Confidence in the RECOMMENDATION. Every input comes from the ranking itself; no model is run, so no answer can influence it."""
+    c = selection.confidence_components or {}
+    cat = profile.category
+    comps = [
+        ConfidenceComponent(name="category_confidence", value=c.get("category_confidence"), kind="heuristic_estimate",
+                            detail={"category": cat.category if cat else None, "signals": cat.signals if cat else [], "runner_up": cat.runner_up if cat else None, "ambiguous": cat.ambiguous if cat else False},
+                            basis="Strength of the rule evidence for the chosen category, reduced by how close the next category scored. Weight 0.35."),
+        ConfidenceComponent(name="ranking_margin", value=c.get("ranking_margin"), kind="heuristic_estimate",
+                            detail={"score_margin": c.get("score_margin"), "tie_break": selection.tie_break_applied},
+                            basis="Gap between the Best Match and the runner-up on the fit score, reaching 1.0 at a 0.10 gap. Weight 0.35."),
+        ConfidenceComponent(name="feature_support", value=c.get("feature_support"), kind="heuristic_estimate",
+                            detail={"features_requested": [f.get("feature") for f in (cat.features if cat else [])]},
+                            basis="Share of the features the query asked for that the Best Match documents; 0.5 when the query asked for none. Weight 0.30."),
+    ]
+    return ConfidenceReport(components=comps, combined=selection.confidence_value,
+                            combined_note=selection.confidence_formula + " It is a heuristic about the recommendation, not a probability that the product will satisfy the user, and it is not calibrated.",
                             calibration=calibration.status(labelled_outcomes))

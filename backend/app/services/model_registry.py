@@ -19,6 +19,18 @@ _ADAPTER_PROVIDERS = {"openai", "anthropic", "google", "groq", "openrouter"}
 
 _VERIFIED = "2025-08-01T00:00:00+00:00"
 
+def approved_pool_enabled() -> bool:
+    return str(getattr(settings, "POOL_SOURCE", "approved")).strip().lower() != "live"
+
+
+def approved_models() -> List[ModelMetadata]:
+    from app.data.approved_ecosystem import approved_models as _approved
+    models = _approved()
+    for index, m in enumerate(models, 1):
+        m.fallback_priority = index          # position in the approved list: the final, documented tie-break
+    return models
+
+
 def api_models() -> List[ModelMetadata]:
     """Active API models, derived from the single authoritative catalogue (never a static list)."""
     from app.services.catalog import registry
@@ -302,6 +314,8 @@ def get_all_models() -> List[ModelMetadata]:
 
 def get_all_registry_entries() -> List[ModelMetadata]:
     """Full catalog: API models + AI applications. Applications are always active."""
+    if approved_pool_enabled():
+        return approved_models()
     api = [_status(m) for m in api_models()]
     apps = [m.model_copy(update={"active": True, "availability": "consumer_app"}) for m in _AI_APPLICATIONS]
     for app in apps:
@@ -353,6 +367,9 @@ def get_catalog_with_exclusions(task_type: str = "", modality: str = "text", liv
     falls back to the static catalog if persistence is unavailable). ``registry_exclusions``
     explains each model the live registry removed, in the candidate filter's format.
     """
+    if approved_pool_enabled():
+        # One curated pool, one ranking. Credentials and live discovery never change what is compared.
+        return approved_models(), []
     disabled = {p.strip().lower() for p in settings.DISABLED_PROVIDERS.split(",") if p.strip()}
     # The comparison/recommendation pool is the whole catalogue. A missing credential only affects
     # execution_available (set by _status); it never removes a model from consideration.

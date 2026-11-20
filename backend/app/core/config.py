@@ -45,6 +45,8 @@ class Settings(BaseSettings):
     DATABASE_URL: str = ""
     # Test-only Neon branch/database. Never falls back to DATABASE_URL in tests.
     TEST_DATABASE_URL: str = ""
+    # Which dataset the Model Pool and the recommendation engine use: "approved" (curated ecosystem, max 50 entries) or "live" (legacy live catalogue + applications).
+    POOL_SOURCE: str = "approved"
     # Enable only after the approved live-registry migration is applied.
     LIVE_REGISTRY_ENABLED: bool = False
     # Autonomous model catalogue. Persistence needs the approved migration 20261121_model_catalog.sql; without it

@@ -30,7 +30,7 @@ class PipelineRecommendTests(unittest.TestCase):
     def test_stages_are_real_and_ordered(self):
         r = run()
         names = [s.name for s in r.stages]
-        self.assertEqual(names[:5], ["input_validation", "query_understanding", "preference_resolution", "prompt_optimization", "candidate_discovery"])
+        self.assertEqual(names[:6], ["input_validation", "query_understanding", "category_resolution", "preference_resolution", "prompt_optimization", "candidate_discovery"])
         self.assertIn("multi_objective_scoring", names)
         self.assertEqual(next(s for s in r.stages if s.name == "execution").status, "skipped")
         self.assertNotIn("response_evaluation", names)

@@ -63,8 +63,10 @@ class CategorisationTests(Base):
         self.assertTrue(r.candidates)
         self.assertTrue(all(model_taxonomy.classify(r.model_lookup[c.model_id]).model_type == "embedding" for c in r.candidates))
         self.assertTrue(all(c.task_fit == 1.0 for c in r.candidates))
-        self.assertIn("quality", r.candidates[0].missing_dimensions)  # no benchmark data is invented for unmeasured models
-        self.assertEqual(r.selection.confidence_level, "low")
+        top = r.candidates[0]
+        self.assertFalse(top.evidence["quality"].used_in_ranking)  # no benchmark data is invented for unmeasured models
+        self.assertIn(top.evidence["quality"].tier, {"unknown", "unverified_estimate"})
+        self.assertTrue(any(n["objective"] == "quality" for n in r.selection.not_ranked))
 
     def test_embedding_models_never_answer_ordinary_questions(self):
         r = route("What is the capital of France?")

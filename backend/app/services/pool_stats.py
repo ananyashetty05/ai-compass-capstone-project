@@ -75,8 +75,58 @@ def category_breakdown(rows: Iterable[Any]) -> dict:
     }
 
 
+def compute_approved(rows: list) -> dict:
+    """Statistics for the approved ecosystem pool. Primary categories are exclusive and sum to the pool total; 'serving' counts
+    overlap on purpose (a product documented for two categories is compared in both) and are never added together."""
+    from app.data import approved_ecosystem as eco
+    primary: Counter = Counter(); serving: Counter = Counter(); kinds: dict = {c: Counter() for c in eco.CATEGORIES}
+    members: dict = {c: [] for c in eco.CATEGORIES}; secondary = []; problems: list = []
+    for e in rows:
+        cat = _g(e, "ecosystem_category")
+        if cat not in eco.CATEGORIES:
+            problems.append({"check": "valid_ecosystem_category", "entry": _g(e, "model_id"), "value": cat}); continue
+        extra = list(_g(e, "secondary_categories") or [])
+        primary[cat] += 1; kinds[cat][_g(e, "product_kind") or "unknown"] += 1
+        for c in {cat, *extra}:
+            if c in serving or c in eco.CATEGORIES:
+                serving[c] += 1
+                members[c].append({"model_id": _g(e, "model_id"), "model_name": _g(e, "model_name"), "role": "primary" if c == cat else "secondary"})
+        if extra:
+            secondary.append({"model_id": _g(e, "model_id"), "model_name": _g(e, "model_name"), "primary": cat, "also_serves": extra})
+    total = len(rows)
+    ids = [_g(e, "model_id") for e in rows]
+    checks = [
+        {"check": "pool_within_cap", "ok": total <= eco.MAX_POOL_SIZE, "detail": f"{total} of {eco.MAX_POOL_SIZE}"},
+        {"check": "every_entry_has_exactly_one_primary_category", "ok": sum(primary.values()) == total},
+        {"check": "primary_categories_reconcile_with_pool_total", "ok": sum(primary.values()) == total, "detail": f"{' + '.join(str(primary[c]) for c in eco.CATEGORIES)} = {sum(primary.values())} (pool {total})"},
+        {"check": "no_duplicate_entries", "ok": len(set(ids)) == total},
+        {"check": "only_approved_entries", "ok": all(_g(e, "ecosystem_approved") for e in rows)},
+        {"check": "metrics_are_labelled_editorial_estimates", "ok": all(_g(e, k) is not None for e in rows for k in ("estimated_quality", "estimated_latency", "reliability", "risk_level")) and all((_g(e, "metric_provenance") or {}).get(d) == "editorial_estimate" for e in rows for d in ("quality", "latency", "reliability", "risk"))},
+        {"check": "no_invented_prices", "ok": all(_g(e, k) is None for e in rows for k in ("estimated_cost", "input_price_per_million"))},
+    ]
+    return {
+        "scope": "approved ecosystem: the only products AI Compass compares. Recommendation only; nothing is run.",
+        "pool_total": total, "cap": eco.MAX_POOL_SIZE, "canonical_models": 0, "applications": total,
+        "primary": {c: primary[c] for c in eco.CATEGORIES}, "primary_labels": dict(eco.CATEGORY_LABELS),
+        "serving": {c: serving[c] for c in eco.CATEGORIES},
+        "ecosystem": {"categories": [{"id": c, "label": eco.CATEGORY_LABELS[c], "primary_count": primary[c], "serving_count": serving[c], "members": members[c]} for c in eco.CATEGORIES],
+                      "secondary_memberships": secondary, "note": "Primary counts add up to the pool total. Serving counts overlap (a product can be compared in more than one category) and are not summed."},
+        "kinds": {c: [{"kind": k, "label": k.replace("_", " "), "count": n} for k, n in sorted(kinds[c].items(), key=lambda kv: -kv[1])] for c in eco.CATEGORIES},
+        "capabilities": {"overlapping": True, "note": "Not applicable to the approved pool; category membership is the comparison key.", "counts": {}},
+        "classification_basis": {"curated": total}, "provider_offerings": {"count": 0, "providers": 0, "note": "Not applicable."},
+        "pending_verification": None, "retired": None, "lineages_needing_review": None,
+        "access": {"scope": "approved ecosystem: all entries are opened at their own site", "catalog_models": 0, "recommendation_eligible": total, "execution_ready": 0, "recommendation_only": total,
+                   "provider_not_configured": 0, "adapter_unavailable": 0, "metadata_incomplete": 0, "metadata_stale": 0, "metadata_status": {"curated": total},
+                   "note": "Recommendation never depends on a credential, and nothing is executed."},
+        "categories": {"counts": {}, "pricing": dict(Counter(_g(e, "pricing_category") or "unknown" for e in rows)), "access": {"open_at_destination": total}, "note": ""},
+        "integrity": {"ok": all(c["ok"] for c in checks) and not problems, "checks": checks, "problems": problems},
+    }
+
+
 def compute(entries: Iterable[Any], catalog_totals: Optional[dict] = None) -> dict:
     rows = list(entries)
+    if rows and all(_g(e, "ecosystem_approved") for e in rows):
+        return compute_approved(rows)
     primary = Counter(); kinds: dict = {c: Counter() for c in PRIMARY_CATEGORIES}; tags = Counter(); basis = Counter()
     keys = Counter(); offerings = 0; offer_providers = set(); problems: list = []
     inactive_in_pool = 0
